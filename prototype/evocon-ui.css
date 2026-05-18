@@ -587,28 +587,27 @@ svg { color: var(--solid-grey-600); }
   justify-content: flex-end;
   padding: 8px 0;
   gap: 8px;
+  font-size: 12px;
+  color: var(--text-body);
 }
 .tablefooter__label { font-size: 12px; color: var(--text-body); }
 .tablefooter__per-page {
   display: inline-flex;
   align-items: center;
-  gap: 9px;
-  border-bottom: 1px dashed var(--stroke-table);
-  opacity: 0.5;
-  font-size: 16px;
+  gap: 4px;
+  font-size: 12px;
   color: var(--text-body-disabled);
-  padding-bottom: 2px;
 }
+.tablefooter__per-page svg { width: 18px; height: 18px; }
 .tablefooter__count {
   font-size: 12px;
   color: var(--text-body);
-  padding: 0 24px 0 32px;
 }
 .tablefooter__nav {
-  display: flex; gap: 12px;
-  width: 92px;
+  display: flex; gap: 4px;
 }
-.tablefooter__nav .icon-btn { opacity: 0.25; }
+.tablefooter__nav .icon-btn { opacity: 0.25; width: 32px; height: 32px; }
+.tablefooter__nav .icon-btn svg { width: 18px; height: 18px; }
 
 /* ─── Team group (Teams view) ─── */
 .team-group {
