@@ -191,7 +191,7 @@ const OperatorsPanel = {
 
           <div class="op-footer op-footer-right-only">
             <button class="op-btn op-btn-text" @click="cancelForm">CANCEL</button>
-            <button class="op-btn op-btn-save" :disabled="formSelectedOps.length === 0" @click="saveOperators">SAVE</button>
+            <button class="op-btn op-btn-save" :disabled="formSelectedOps.length === 0 && (!formHelperCount || formHelperCount < 1)" @click="saveOperators">SAVE</button>
           </div>
         </template>
 

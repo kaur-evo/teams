@@ -1,9 +1,9 @@
 // Shared mock data for operators & teams prototypes
 // Used by: setup-proto.html, index.html
 
-const DATA_VERSION = 6; // bump to wipe stale localStorage
+const DATA_VERSION = 7; // bump to wipe stale localStorage
 
-const MOCK_TAGS = ['Supervisor', 'Operator', 'Helper', 'Quality'];
+const MOCK_TAGS = ['Supervisor', 'Quality', 'Maintenance'];
 
 const MOCK_STATIONS = [
   'Filling Line 1', 'Filling Line 2', 'Packaging A', 'Packaging B',
