@@ -1,0 +1,27 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon?
+._*
+
+# Editor / IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Claude Code local state
+.claude/
+
+# Older Notion-dump sketches (~10MB of HTML noise, kept locally for reference)
+/teams/
+/teams2/
+
+# Older HTML version of the research doc — markdown is the source of truth
+/operators-teams-ux-research.html
+
+# Logs / temp
+*.log
+.tmp/

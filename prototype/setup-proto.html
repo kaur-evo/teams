@@ -1,0 +1,799 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Operators · Evocon Settings</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="evocon-ui.css">
+  <style>
+    /* Page-local: precise column widths per Figma frame 32002:10454 */
+    .table.list { table-layout: fixed; }
+    .table.list col.c-first   { width: 267px; }
+    .table.list col.c-last    { width: 267px; }
+    .table.list col.c-fact    { width: 179px; }
+    .table.list col.c-team    { width: 137px; }
+    .table.list col.c-tags    { width: 130px; }
+    .table.list col.c-stat    { width: 267px; }
+    .table.list col.c-pass    { width: 120px; }
+    .table.list col.c-actions { width: 50px;  }
+
+    /* Teams view inner table (Figma 32019:8355 et al) — different widths */
+    .table.teams col.tg-first { width: 228px; }
+    .table.teams col.tg-last  { width: 228px; }
+    .table.teams col.tg-stat1 { width: 245px; }
+    .table.teams col.tg-stat2 { width: 245px; }
+    .table.teams col.tg-tags  { width: 197px; }
+    .table.teams col.tg-pass  { width: auto;  }
+
+    /* Custom widths inside the modal (Figma frame is 900px wide) */
+    .modal--operator .field-row .field.fld-tags { flex: 0 0 calc(50% - 4px); }
+
+    /* Color swatch options in dropdowns */
+    .swatch {
+      width: 14px; height: 14px;
+      border-radius: 2px;
+      display: inline-block;
+      flex-shrink: 0;
+    }
+  </style>
+</head>
+<body>
+
+<div id="app-root">
+  <!-- Main content goes here; Chrome.render() wraps it with sidebars + topbar -->
+  <div class="page-header">
+    <h1 class="page-header__title" id="pageTitle">Operators</h1>
+    <div class="page-header__actions">
+      <button class="btn btn--secondary" id="btnNewTeam">
+        <span class="btn__icon" data-icn="add" data-tint="green"></span>
+        <span class="btn__text">Team</span>
+      </button>
+      <button class="btn btn--primary" id="btnNewOperator">
+        <span class="btn__icon" data-icn="add" data-tint="white"></span>
+        <span class="btn__text">Operator</span>
+      </button>
+    </div>
+  </div>
+
+  <div class="filterbar">
+    <div class="filterbar__chips">
+      <button class="chip chip--search" aria-label="Search">
+        <span class="chip__icon" data-icn="search" data-size="16"></span>
+      </button>
+      <button class="chip" id="chipFactories">
+        <span class="chip__icon" data-icn="factory" data-size="18"></span>
+        Factories: All
+        <span class="chip__caret" data-icn="menu-down" data-size="18"></span>
+      </button>
+      <button class="chip" id="chipStations">
+        <span class="chip__icon" data-icn="stations" data-size="18"></span>
+        Stations: All
+        <span class="chip__caret" data-icn="menu-down" data-size="18"></span>
+      </button>
+      <button class="chip" id="chipPasscode">
+        <span class="chip__icon" data-icn="key" data-size="18"></span>
+        Passcode: All
+        <span class="chip__caret" data-icn="menu-down" data-size="18"></span>
+      </button>
+      <button class="chip-reset" id="chipReset">Reset</button>
+    </div>
+    <div class="view-toggle">
+      <button class="view-toggle__btn" data-view="teams" id="toggleTeams">
+        <span data-icn="group" data-size="16"></span>
+        Teams
+      </button>
+      <button class="view-toggle__btn is-active" data-view="list" id="toggleList">
+        <span data-icn="list" data-size="16"></span>
+        List
+      </button>
+    </div>
+  </div>
+
+  <!-- List view -->
+  <section id="viewList">
+    <div class="tablecard">
+      <table class="table list">
+        <colgroup>
+          <col class="c-first"><col class="c-last"><col class="c-fact"><col class="c-team">
+          <col class="c-tags"><col class="c-stat"><col class="c-pass"><col class="c-actions">
+        </colgroup>
+        <thead>
+          <tr>
+            <th><span class="th-inner">First name</span></th>
+            <th><span class="th-inner">Last name</span></th>
+            <th><span class="th-inner">Factories</span></th>
+            <th><span class="th-inner">Team</span></th>
+            <th>
+              <span class="th-inner">
+                <span data-icn="tags" data-size="16"></span>
+                Tags
+              </span>
+            </th>
+            <th><span class="th-inner">Stations</span></th>
+            <th><span class="th-inner">Passcode</span></th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="listBody"></tbody>
+      </table>
+      <div class="tablefooter">
+        <span class="tablefooter__label">Rows per page</span>
+        <span class="tablefooter__per-page">
+          All
+          <span data-icn="menu-down"></span>
+        </span>
+        <span class="tablefooter__count" id="listCount">1-10/10</span>
+        <div class="tablefooter__nav">
+          <button class="icon-btn" aria-label="Previous"><span data-icn="arrow-left"></span></button>
+          <button class="icon-btn" aria-label="Next"><span data-icn="arrow-right"></span></button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Teams view -->
+  <section id="viewTeams" style="display:none;">
+    <div id="teamsContainer"></div>
+  </section>
+</div>
+
+<!-- ───────── MODALS ───────── -->
+
+<!-- New/Edit Operator modal (Figma 32002:8912) -->
+<div class="modal-overlay" id="modalOperator">
+  <div class="modal modal--operator">
+    <div class="modal__header">
+      <div class="modal__title" id="opTitle">New: Operator</div>
+    </div>
+    <div class="modal__body">
+      <div class="field-row">
+        <div class="field">
+          <input class="field__input" id="opFirst" placeholder="First name" maxlength="200">
+          <div class="field__bottom">
+            <span class="field__hint">Name</span>
+            <span class="field__counter"><span id="opFirstCount">0</span> / 200</span>
+          </div>
+        </div>
+        <div class="field">
+          <input class="field__input" id="opLast" placeholder="Last name" maxlength="100">
+          <div class="field__bottom">
+            <span class="field__hint">Last name</span>
+            <span class="field__counter"><span id="opLastCount">0</span> / 100</span>
+          </div>
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="field" style="position:relative;">
+          <button type="button" class="field__select is-empty" id="opStationsTrigger">
+            <span class="field__select-text">Stations</span>
+            <span class="field__select-caret" data-icn="menu-down"></span>
+          </button>
+          <div class="field__bottom">
+            <span class="field__hint">Stations</span>
+          </div>
+          <div class="dropdown" id="opStationsMenu" data-anchor="#opStationsTrigger"></div>
+        </div>
+        <div class="field" style="position:relative;">
+          <button type="button" class="field__select is-empty" id="opTeamTrigger">
+            <span class="field__select-text">Team</span>
+            <span class="field__select-caret" data-icn="menu-down"></span>
+          </button>
+          <div class="field__bottom">
+            <span class="field__hint">Team (Optional)</span>
+          </div>
+          <div class="dropdown" id="opTeamMenu" data-anchor="#opTeamTrigger"></div>
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="field fld-tags" style="position:relative;">
+          <button type="button" class="field__select is-empty" id="opTagsTrigger">
+            <span class="field__select-icon" data-icn="tags"></span>
+            <span class="field__select-text">Tags</span>
+            <span class="field__select-caret" data-icn="menu-down"></span>
+          </button>
+          <div class="field__bottom">
+            <span class="field__hint">Tags (Optional)</span>
+          </div>
+          <div class="dropdown" id="opTagsMenu" data-anchor="#opTagsTrigger"></div>
+        </div>
+      </div>
+
+      <div class="section-title">
+        <div class="section-title__spacer"></div>
+        <div class="section-title__text">Checklists authentication</div>
+        <button class="icon-btn" style="width:28px;height:28px;" aria-label="Info">
+          <span data-icn="information" data-size="16"></span>
+        </button>
+      </div>
+      <div class="passcode-card">
+        <div class="passcode-card__icon" data-icn="key"></div>
+        <div class="passcode-card__text">No passcode created</div>
+        <button class="btn btn--secondary"><span class="btn__text">Generate</span></button>
+      </div>
+    </div>
+    <div class="modal__footer">
+      <div class="modal__footer-left">
+        <button class="btn btn--danger" id="opDelete" style="display:none;"><span class="btn__text">Delete</span></button>
+      </div>
+      <div class="modal__footer-right">
+        <button class="btn btn--cancel" data-close><span class="btn__text">Cancel</span></button>
+        <button class="btn btn--primary" id="opSave"><span class="btn__text">Save</span></button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- New Team modal (Figma 32002:11374) -->
+<div class="modal-overlay" id="modalTeam">
+  <div class="modal modal--narrow">
+    <div class="modal__header">
+      <div class="modal__title" id="teamTitle">New: Team</div>
+    </div>
+    <div class="modal__body">
+      <div class="field-row">
+        <div class="field">
+          <input class="field__input" id="teamName" placeholder="Team name" maxlength="100">
+          <div class="field__bottom">
+            <span class="field__hint">Team name</span>
+            <span class="field__counter"><span id="teamNameCount">0</span> / 100</span>
+          </div>
+        </div>
+        <div class="field" style="position:relative;">
+          <button type="button" class="field__select is-empty" id="teamColorTrigger">
+            <span class="field__select-text">Color</span>
+            <span class="field__select-caret" data-icn="menu-down"></span>
+          </button>
+          <div class="field__bottom">
+            <span class="field__hint">Team color in reports</span>
+          </div>
+          <div class="dropdown" id="teamColorMenu" data-anchor="#teamColorTrigger"></div>
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="field" style="flex: 0 0 calc(50% - 4px); position:relative;">
+          <button type="button" class="field__select is-empty" id="teamFactoryTrigger">
+            <span class="field__select-text">Factories</span>
+            <span class="field__select-caret" data-icn="menu-down"></span>
+          </button>
+          <div class="field__bottom">
+            <span class="field__hint">Factories</span>
+          </div>
+          <div class="dropdown" id="teamFactoryMenu" data-anchor="#teamFactoryTrigger"></div>
+        </div>
+      </div>
+    </div>
+    <div class="modal__footer">
+      <div></div>
+      <div class="modal__footer-right">
+        <button class="btn btn--cancel" data-close><span class="btn__text">Cancel</span></button>
+        <button class="btn btn--primary" id="teamSave"><span class="btn__text">Save</span></button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="mock-data.js"></script>
+<script src="chrome.js"></script>
+<script>
+// ─── Bootstrap chrome ───
+Chrome.render({
+  sb1Active: 'settings',
+  sb2Active: 'operators',
+  title: 'Operators',
+  mountSelector: '#app-root',
+});
+
+// ─── data-icn hydration ───
+// Replaces a placeholder `<span data-icn="NAME" data-size="N" data-tint="green">`
+// with an actual `<img>` produced by Chrome.icon(...). The placeholder's
+// existing classes are preserved (so styling hooks like `.chip__icon` survive).
+function hydrateIcons(root) {
+  (root || document).querySelectorAll('[data-icn]').forEach(el => {
+    if (el.tagName === 'IMG') return; // already hydrated
+    const name = el.dataset.icn;
+    const size = el.dataset.size ? Number(el.dataset.size) : 24;
+    const rawTint = el.dataset.tint;
+    const tint = rawTint && rawTint !== 'null' && rawTint !== '' ? rawTint : null;
+    const html = Chrome.icon(name, { size, tint });
+    // Wrap to extract the resulting <img> element with its attrs intact
+    const tmp = document.createElement('div');
+    tmp.innerHTML = html;
+    const img = tmp.firstChild;
+    if (!img) return;
+    // Carry over the placeholder's classes (except .icn etc. which Chrome.icon already adds)
+    el.classList.forEach(c => { if (!c.startsWith('icn')) img.classList.add(c); });
+    el.replaceWith(img);
+  });
+}
+hydrateIcons();
+
+// ─── Data layer ───
+let teams     = SharedData.getTeams();
+let operators = SharedData.getOperators();
+let editingOp   = null;
+let editingTeam = null;
+const FACTORIES = MOCK_FACTORIES;
+const TAGS      = MOCK_TAGS;
+const STATIONS  = MOCK_STATIONS;
+// Team color picker — uses the "Chart colors" palette from the Evocon
+// Design System (Figma node 178:218). Values match the --chart-* CSS tokens
+// declared in evocon-ui.css.
+const TEAM_COLOR_PALETTE = [
+  { value: '#cdcdcd', label: 'Light grey'  },
+  { value: '#666666', label: 'Grey'        },
+  { value: '#0066cc', label: 'Blue'        },
+  { value: '#3498db', label: 'Light blue'  },
+  { value: '#1abc9c', label: 'Cyan'        },
+  { value: '#2ecc71', label: 'Green'       },
+  { value: '#a7d129', label: 'Neon green'  },
+  { value: '#f1c40f', label: 'Yellow'      },
+  { value: '#fa8072', label: 'Coral'       },
+  { value: '#800808', label: 'Red'         },
+  { value: '#fb85ad', label: 'Pink'        },
+  { value: '#f3368d', label: 'Magenta'     },
+  { value: '#909afc', label: 'Lilac'       },
+  { value: '#9b59b6', label: 'Violet'      },
+];
+
+// ─── Helpers ───
+const $  = (sel, root = document) => root.querySelector(sel);
+const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
+const escapeHtml = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const teamById = id => teams.find(t => t.id === id);
+const factoryById = id => FACTORIES.find(f => f.id === id);
+
+function persist() {
+  SharedData.saveTeams(teams);
+  SharedData.saveOperators(operators);
+}
+
+function teamFactoryName(teamObj) {
+  if (!teamObj) return '';
+  const f = factoryById(teamObj.factoryId);
+  return f ? f.name : '';
+}
+
+// ─── List view rendering ───
+function renderList() {
+  const body = $('#listBody');
+  body.innerHTML = operators.map(op => {
+    const team = teamById(op.teamId);
+    const factoryName = team ? teamFactoryName(team) : '';
+    return `
+      <tr data-op-id="${op.id}">
+        <td class="td-bold">${escapeHtml(op.firstName)}</td>
+        <td class="td-bold">${escapeHtml(op.lastName)}</td>
+        <td>${escapeHtml(factoryName || 'All')}</td>
+        <td>${team ? escapeHtml(team.name) : '-'}</td>
+        <td>${op.tags && op.tags.length ? escapeHtml(op.tags.join(', ')) : '-'}</td>
+        <td>${escapeHtml((op.stations || []).join(', '))}</td>
+        <td>No</td>
+        <td></td>
+      </tr>
+    `;
+  }).join('');
+  $('#listCount').textContent = `1-${operators.length}/${operators.length}`;
+
+  hydrateIcons(body);
+  $$('#listBody tr').forEach(tr => {
+    tr.addEventListener('click', () => openOperatorModal(Number(tr.dataset.opId)));
+  });
+}
+
+// ─── Teams view rendering ───
+// expandTeamId: when set, only that team is expanded; everything else collapsed.
+//               default = all teams collapsed.
+function renderTeams(expandTeamId) {
+  const container = $('#teamsContainer');
+  container.innerHTML = teams.map(team => {
+    const members = operators.filter(op => op.teamId === team.id);
+    const isOpen = expandTeamId != null && team.id === expandTeamId;
+    return `
+      <div class="team-group ${isOpen ? 'is-open' : ''}" data-team-id="${team.id}">
+        <div class="team-group__header">
+          <div class="team-group__left">
+            <span class="team-group__drag" data-icn="drag-vertical" aria-hidden="true"></span>
+            <button class="icon-btn" aria-label="Edit team" data-edit-team="${team.id}">
+              <span data-icn="edit"></span>
+            </button>
+            <span class="team-group__swatch" style="background:${team.color}"></span>
+            <span class="team-group__name">${escapeHtml(team.name)}</span>
+          </div>
+          <span class="team-group__caret" data-icn="menu-down"></span>
+        </div>
+        <div class="team-group__body">
+          <table class="table teams">
+            <colgroup>
+              <col class="tg-first"><col class="tg-last"><col class="tg-stat1">
+              <col class="tg-stat2"><col class="tg-tags"><col class="tg-pass">
+            </colgroup>
+            <thead>
+              <tr>
+                <th><span class="th-inner">First name</span></th>
+                <th><span class="th-inner">Last name</span></th>
+                <th><span class="th-inner">Stations</span></th>
+                <th><span class="th-inner">Stations</span></th>
+                <th>
+                  <span class="th-inner">
+                    <span data-icn="tags" data-size="16"></span>
+                    Tags
+                  </span>
+                </th>
+                <th><span class="th-inner">Passcode</span></th>
+              </tr>
+            </thead>
+            <tbody>
+              ${members.map(op => `
+                <tr data-op-id="${op.id}">
+                  <td>${escapeHtml(op.firstName)}</td>
+                  <td>${escapeHtml(op.lastName)}</td>
+                  <td>${escapeHtml((op.stations || []).slice(0, 2).join(', '))}</td>
+                  <td>${escapeHtml((op.stations || []).slice(2).join(', ') || (op.stations || [])[0] || '-')}</td>
+                  <td>${op.tags && op.tags.length ? escapeHtml(op.tags.join(', ')) : '-'}</td>
+                  <td>No</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  hydrateIcons(container);
+
+  // Toggle behaviour
+  $$('.team-group__header').forEach(h => {
+    h.addEventListener('click', e => {
+      // Don't toggle when clicking edit pencil
+      if (e.target.closest('[data-edit-team]')) return;
+      h.parentElement.classList.toggle('is-open');
+    });
+  });
+  $$('[data-edit-team]').forEach(b => {
+    b.addEventListener('click', e => {
+      e.stopPropagation();
+      openTeamModal(Number(b.dataset.editTeam));
+    });
+  });
+  // Row clicks → open operator
+  $$('.team-group__body tbody tr').forEach(tr => {
+    tr.addEventListener('click', () => openOperatorModal(Number(tr.dataset.opId)));
+  });
+}
+
+// ─── View toggle ───
+function setView(v) {
+  $('#viewList').style.display  = v === 'list'  ? '' : 'none';
+  $('#viewTeams').style.display = v === 'teams' ? '' : 'none';
+  $('#pageTitle').textContent   = v === 'teams' ? 'Teams' : 'Operators';
+  $('#toggleList').classList.toggle('is-active',  v === 'list');
+  $('#toggleTeams').classList.toggle('is-active', v === 'teams');
+  // Also update the top bar title (already drawn into chrome)
+  const titleEl = document.querySelector('.topbar__title-text');
+  if (titleEl) titleEl.textContent = v === 'teams' ? 'Teams' : 'Operators';
+}
+
+// ─── Modal helpers ───
+function openModal(id)  { $('#' + id).classList.add('is-open'); }
+function closeModal(id) { $('#' + id).classList.remove('is-open'); closeAllDropdowns(); }
+function closeAllModals() {
+  ['modalOperator', 'modalTeam'].forEach(id => $('#' + id).classList.remove('is-open'));
+  closeAllDropdowns();
+}
+document.addEventListener('click', e => {
+  if (e.target.matches('.modal-overlay')) closeAllModals();
+  if (e.target.closest('[data-close]')) closeAllModals();
+});
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') { closeAllDropdowns(); closeAllModals(); }
+});
+
+// ─── Dropdowns ───
+function closeAllDropdowns() {
+  $$('.dropdown').forEach(d => d.classList.remove('is-open'));
+}
+
+function positionDropdown(menu, trigger) {
+  // position:fixed — compute coords from the trigger's bounding rect so the
+  // popover escapes any modal container's overflow:hidden clipping.
+  const r = trigger.getBoundingClientRect();
+  menu.style.top   = (r.bottom + 4) + 'px';
+  menu.style.left  = r.left + 'px';
+  menu.style.width = Math.max(r.width, 240) + 'px';
+}
+
+function bindDropdown(triggerSel, menuSel, render) {
+  const trigger = $(triggerSel);
+  const menu    = $(menuSel);
+  if (!trigger || !menu) return;
+  trigger.addEventListener('click', e => {
+    e.stopPropagation();
+    const wasOpen = menu.classList.contains('is-open');
+    closeAllDropdowns();
+    if (!wasOpen) {
+      menu.innerHTML = render();
+      menu.classList.add('is-open');
+      positionDropdown(menu, trigger);
+      hydrateIcons(menu);
+      wireDropdownMenu(menu);
+    }
+  });
+}
+
+// Reposition open dropdowns on scroll/resize.
+window.addEventListener('scroll', () => {
+  $$('.dropdown.is-open').forEach(menu => {
+    const anchor = $(menu.dataset.anchor || '');
+    if (anchor) positionDropdown(menu, anchor);
+  });
+}, true);
+window.addEventListener('resize', () => closeAllDropdowns());
+
+function wireDropdownMenu(menu) {
+  $$('.dropdown__row', menu).forEach(row => {
+    row.addEventListener('click', e => {
+      e.stopPropagation();
+      const cbicon = row.querySelector('.dropdown__row-cbicon');
+      // Multi-select rows carry a .dropdown__row-cbicon checkbox marker;
+      // single-select rows (radio-style) do not.
+      if (!cbicon) {
+        const handler = window.__currentSingleSelect;
+        if (handler) handler(row.dataset.value);
+        closeAllDropdowns();
+        return;
+      }
+      // Toggle visual + state, then re-render the marker icon
+      row.classList.toggle('is-checked');
+      const nowChecked = row.classList.contains('is-checked');
+      cbicon.outerHTML = `<span class="dropdown__row-cbicon" data-icn="${nowChecked ? 'checkbox-marked' : 'checkbox-blank'}" data-tint="${nowChecked ? 'green' : null}"></span>`;
+      hydrateIcons(row);
+      const handler = window.__currentMultiSelect;
+      if (handler) handler();
+    });
+  });
+}
+document.addEventListener('click', () => closeAllDropdowns());
+
+// ─── Operator modal ───
+function getOperatorFormState() {
+  return {
+    firstName: $('#opFirst').value.trim(),
+    lastName:  $('#opLast').value.trim(),
+    stations: window.__opStations || [],
+    teamId:   window.__opTeam ?? null,
+    tags:     window.__opTags || [],
+  };
+}
+function setOperatorFormState(op) {
+  $('#opFirst').value = op?.firstName || '';
+  $('#opLast').value  = op?.lastName  || '';
+  $('#opFirstCount').textContent = $('#opFirst').value.length;
+  $('#opLastCount').textContent  = $('#opLast').value.length;
+  window.__opStations = [...(op?.stations || [])];
+  window.__opTeam = op?.teamId ?? null;
+  window.__opTags = [...(op?.tags || [])];
+  refreshOperatorSummaries();
+}
+function refreshOperatorSummaries() {
+  // Stations
+  const sTrig = $('#opStationsTrigger');
+  const s = window.__opStations || [];
+  sTrig.classList.toggle('is-empty', s.length === 0);
+  $('.field__select-text', sTrig).textContent = s.length ? (s.length === 1 ? s[0] : `${s[0]} + ${s.length - 1} more`) : 'Stations';
+
+  // Team
+  const tTrig = $('#opTeamTrigger');
+  const team = teamById(window.__opTeam);
+  tTrig.classList.toggle('is-empty', !team);
+  $('.field__select-text', tTrig).textContent = team ? team.name : 'Team';
+
+  // Tags
+  const gTrig = $('#opTagsTrigger');
+  const tags = window.__opTags || [];
+  gTrig.classList.toggle('is-empty', tags.length === 0);
+  $('.field__select-text', gTrig).textContent = tags.length ? (tags.length === 1 ? tags[0] : `${tags[0]} + ${tags.length - 1} more`) : 'Tags';
+}
+
+function openOperatorModal(opId) {
+  editingOp = opId ? operators.find(o => o.id === opId) : null;
+  $('#opTitle').textContent = editingOp ? `${editingOp.firstName} ${editingOp.lastName}` : 'New: Operator';
+  $('#opDelete').style.display = editingOp ? '' : 'none';
+  setOperatorFormState(editingOp);
+  openModal('modalOperator');
+}
+
+$('#btnNewOperator').addEventListener('click', () => openOperatorModal(null));
+$('#opFirst').addEventListener('input', e => $('#opFirstCount').textContent = e.target.value.length);
+$('#opLast').addEventListener('input',  e => $('#opLastCount').textContent  = e.target.value.length);
+
+$('#opSave').addEventListener('click', () => {
+  const data = getOperatorFormState();
+  if (!data.firstName) { $('#opFirst').focus(); return; }
+  if (editingOp) {
+    Object.assign(editingOp, data);
+  } else {
+    const id = (Math.max(0, ...operators.map(o => o.id)) || 0) + 1;
+    operators.push({ id, ...data });
+  }
+  persist();
+  renderList(); renderTeams();
+  closeAllModals();
+});
+$('#opDelete').addEventListener('click', () => {
+  if (!editingOp) return;
+  operators = operators.filter(o => o.id !== editingOp.id);
+  persist();
+  renderList(); renderTeams();
+  closeAllModals();
+});
+
+// Helper: render a checkbox-marker (either Evocon's checkbox-marked.svg when checked,
+// or checkbox-blank-outline.svg when not). Painted by mask-image via .icn class.
+function checkboxMarker(isChecked) {
+  return `<span class="dropdown__row-cbicon" data-icn="${isChecked ? 'checkbox-marked' : 'checkbox-blank'}" data-tint="${isChecked ? 'green' : null}"></span>`;
+}
+function radioCheckMarker(isSelected) {
+  return isSelected
+    ? `<span class="dropdown__row-icon" data-icn="check-circle" data-tint="green"></span>`
+    : `<span class="dropdown__row-radio"></span>`;
+}
+
+// Stations dropdown (multi-select)
+bindDropdown('#opStationsTrigger', '#opStationsMenu', () => {
+  const selected = window.__opStations || [];
+  const rows = STATIONS.map(s => `
+    <div class="dropdown__row ${selected.includes(s) ? 'is-checked' : ''}" data-value="${escapeHtml(s)}">
+      ${checkboxMarker(selected.includes(s))}
+      <span style="flex:1;">${escapeHtml(s)}</span>
+    </div>
+  `).join('');
+  return `<div class="dropdown__rows">${rows}</div>`;
+});
+$('#opStationsTrigger').addEventListener('click', () => {
+  window.__currentMultiSelect = () => {
+    window.__opStations = $$('#opStationsMenu .dropdown__row.is-checked').map(r => r.dataset.value);
+    refreshOperatorSummaries();
+  };
+});
+
+// Team dropdown (single-select, Figma 32002:13315)
+bindDropdown('#opTeamTrigger', '#opTeamMenu', () => {
+  const sel = window.__opTeam;
+  const rows = teams.map(t => `
+    <div class="dropdown__row ${sel === t.id ? 'is-selected' : ''}" data-value="${t.id}">
+      ${radioCheckMarker(sel === t.id)}
+      <span class="swatch" style="background:${t.color}"></span>
+      <span style="flex:1;">${escapeHtml(t.name)}</span>
+    </div>
+  `).join('');
+  return `<div class="dropdown__rows">${rows}</div>`;
+});
+$('#opTeamTrigger').addEventListener('click', () => {
+  window.__currentSingleSelect = (v) => {
+    const id = Number(v);
+    window.__opTeam = window.__opTeam === id ? null : id;  // tap-selected to deselect, per spec
+    refreshOperatorSummaries();
+  };
+});
+
+// Tags dropdown (multi-select with SET UP TAGS button — Figma 32022:19287)
+bindDropdown('#opTagsTrigger', '#opTagsMenu', () => {
+  const sel = window.__opTags || [];
+  const rows = TAGS.map(t => `
+    <div class="dropdown__row ${sel.includes(t) ? 'is-checked' : ''}" data-value="${escapeHtml(t)}">
+      ${checkboxMarker(sel.includes(t))}
+      <span style="flex:1;">${escapeHtml(t)}</span>
+    </div>
+  `).join('');
+  return `
+    <div class="dropdown__rows">${rows}</div>
+    <div class="dropdown__footer">
+      <button class="btn btn--tertiary btn--small" type="button" id="btnSetUpTags">
+        <span class="btn__icon" data-icn="open-in-new" data-size="18"></span>
+        <span class="btn__text">Set up tags</span>
+      </button>
+    </div>
+  `;
+});
+$('#opTagsTrigger').addEventListener('click', () => {
+  window.__currentMultiSelect = () => {
+    window.__opTags = $$('#opTagsMenu .dropdown__row.is-checked').map(r => r.dataset.value);
+    refreshOperatorSummaries();
+  };
+});
+
+// ─── Team modal ───
+function setTeamForm(team) {
+  $('#teamName').value = team?.name || '';
+  $('#teamNameCount').textContent = $('#teamName').value.length;
+  window.__teamColor   = team?.color || null;
+  window.__teamFactory = team?.factoryId || null;
+  refreshTeamSummaries();
+}
+function refreshTeamSummaries() {
+  const cTrig = $('#teamColorTrigger');
+  const color = window.__teamColor;
+  cTrig.classList.toggle('is-empty', !color);
+  const colorEntry = TEAM_COLOR_PALETTE.find(c => c.value === color);
+  $('.field__select-text', cTrig).innerHTML = color
+    ? `<span class="swatch" style="background:${color};margin-right:8px;vertical-align:middle;"></span>${escapeHtml(colorEntry?.label || color)}`
+    : 'Color';
+
+  const fTrig = $('#teamFactoryTrigger');
+  const f = factoryById(window.__teamFactory);
+  fTrig.classList.toggle('is-empty', !f);
+  $('.field__select-text', fTrig).textContent = f ? f.name : 'Factories';
+}
+function openTeamModal(teamId) {
+  editingTeam = teamId ? teams.find(t => t.id === teamId) : null;
+  $('#teamTitle').textContent = editingTeam ? `Edit: ${editingTeam.name}` : 'New: Team';
+  setTeamForm(editingTeam);
+  openModal('modalTeam');
+}
+$('#btnNewTeam').addEventListener('click', () => openTeamModal(null));
+$('#teamName').addEventListener('input', e => $('#teamNameCount').textContent = e.target.value.length);
+$('#teamSave').addEventListener('click', () => {
+  const name = $('#teamName').value.trim();
+  if (!name) { $('#teamName').focus(); return; }
+  const data = { name, color: window.__teamColor || '#06c', factoryId: window.__teamFactory || null };
+  const isNew = !editingTeam;
+  if (editingTeam) {
+    Object.assign(editingTeam, data);
+  } else {
+    const id = (Math.max(0, ...teams.map(t => t.id)) || 0) + 1;
+    teams.push({ id, ...data });
+  }
+  persist();
+  renderList();
+  renderTeams();
+  closeAllModals();
+  // Brand-new team: jump to Teams view so the user sees their new row in the list.
+  if (isNew) setView('teams');
+});
+
+// Color dropdown
+bindDropdown('#teamColorTrigger', '#teamColorMenu', () => {
+  const sel = window.__teamColor;
+  const rows = TEAM_COLOR_PALETTE.map(c => `
+    <div class="dropdown__row ${sel === c.value ? 'is-selected' : ''}" data-value="${c.value}">
+      ${radioCheckMarker(sel === c.value)}
+      <span class="swatch" style="background:${c.value}"></span>
+      <span style="flex:1;">${escapeHtml(c.label)}</span>
+    </div>
+  `).join('');
+  return `<div class="dropdown__rows">${rows}</div>`;
+});
+$('#teamColorTrigger').addEventListener('click', () => {
+  window.__currentSingleSelect = (v) => { window.__teamColor = v; refreshTeamSummaries(); };
+});
+
+// Factory dropdown (single-select)
+bindDropdown('#teamFactoryTrigger', '#teamFactoryMenu', () => {
+  const sel = window.__teamFactory;
+  const rows = FACTORIES.map(f => `
+    <div class="dropdown__row ${sel === f.id ? 'is-selected' : ''}" data-value="${f.id}">
+      ${radioCheckMarker(sel === f.id)}
+      <span style="flex:1;">${escapeHtml(f.name)}</span>
+    </div>
+  `).join('');
+  return `<div class="dropdown__rows">${rows}</div>`;
+});
+$('#teamFactoryTrigger').addEventListener('click', () => {
+  window.__currentSingleSelect = (v) => { window.__teamFactory = Number(v); refreshTeamSummaries(); };
+});
+
+// ─── Toggle wiring ───
+$('#toggleList').addEventListener('click',  () => setView('list'));
+$('#toggleTeams').addEventListener('click', () => setView('teams'));
+
+// ─── Initial render ───
+renderList();
+renderTeams();
+setView('list');
+</script>
+</body>
+</html>
