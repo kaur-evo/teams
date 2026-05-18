@@ -20,56 +20,40 @@ const OperatorsPanel = {
           </div>
 
           <div class="op-body">
-            <div v-if="operatorEntries.length === 0 && helperEntries.length === 0" class="op-empty">
+            <div v-if="entries.length === 0" class="op-empty">
               No operators or helpers assigned yet.
             </div>
 
-            <!-- Operator entry cards -->
-            <div v-for="entry in operatorEntries" :key="'op-' + entry.id" class="op-card">
+            <!-- Unified entry cards. Each card has up to two badges (operators,
+                 helpers), the team-color swatches, the operator name list,
+                 and the action icons. Helper-only entries omit the operator
+                 badge and show "Helpers" as the name. -->
+            <div v-for="entry in entries" :key="entry.id" class="op-card">
               <div class="op-card-top">
                 <div class="op-card-left">
-                  <span class="op-card-badge"
-                        @mouseenter="showTooltip($event, getOperatorNames(entry))"
+                  <span v-if="entry.operatorIds.length > 0"
+                        class="op-card-badge"
+                        @mouseenter="showTooltip($event, 'Operators: ' + getOperatorFirstNames(entry))"
                         @mouseleave="hideTooltip">
                     <v-icon size="18" color="#757575">mdi-account-hard-hat</v-icon> {{ entry.operatorIds.length }}
                   </span>
-                  <span v-if="entry.helperCount > 0" class="op-card-badge"
-                        @mouseenter="showTooltip($event, 'Helpers - ' + entry.helperCount)"
+                  <span v-if="entry.helperCount > 0"
+                        class="op-card-badge"
+                        @mouseenter="showTooltip($event, 'Helpers')"
                         @mouseleave="hideTooltip">
                     <v-icon size="18" color="#757575">mdi-account-group</v-icon> {{ entry.helperCount }}
                   </span>
+                  <span v-for="color in getEntryTeamColors(entry)" :key="color"
+                        class="op-card-team-swatch"
+                        :style="{ background: color }"></span>
                   <span class="op-card-names"
-                        @mouseenter="showTooltip($event, getOperatorNames(entry))"
-                        @mouseleave="hideTooltip">{{ getOperatorNames(entry) }}</span>
+                        @mouseenter="showTooltip($event, entry.operatorIds.length > 0 ? getOperatorNames(entry) : 'Helpers')"
+                        @mouseleave="hideTooltip">{{ entry.operatorIds.length > 0 ? getOperatorNames(entry) : 'Helpers: ' + entry.helperCount }}</span>
                 </div>
                 <div class="op-card-icons">
-                  <button class="op-icon-btn" @click="deleteOperatorEntry(entry.id)" title="Delete"><v-icon size="24" color="#757575">mdi-delete</v-icon></button>
-                  <button class="op-icon-btn" @click="duplicateOperatorEntry(entry.id)" title="Duplicate"><v-icon size="24" color="#757575">mdi-content-copy</v-icon></button>
-                  <button class="op-icon-btn" @click="editOperatorEntry(entry.id)" title="Edit"><v-icon size="24" color="#757575">mdi-pencil</v-icon></button>
-                </div>
-              </div>
-              <div class="op-card-bottom">
-                <v-icon size="16" color="#212121">mdi-clock-outline</v-icon>
-                <span>{{ entry.startTime }} - {{ entry.endTime }}</span>
-              </div>
-            </div>
-
-            <!-- Helper entry cards -->
-            <div v-for="entry in helperEntries" :key="'hlp-' + entry.id" class="op-card">
-              <div class="op-card-top">
-                <div class="op-card-left">
-                  <span class="op-card-badge"
-                        @mouseenter="showTooltip($event, 'Helpers - ' + entry.count)"
-                        @mouseleave="hideTooltip">
-                    <v-icon size="18" color="#757575">mdi-account-group</v-icon> {{ entry.count }}
-                  </span>
-                  <span class="op-card-names"
-                        @mouseenter="showTooltip($event, 'Helpers - ' + entry.count)"
-                        @mouseleave="hideTooltip">Helpers</span>
-                </div>
-                <div class="op-card-icons">
-                  <button class="op-icon-btn" @click="deleteHelperEntry(entry.id)" title="Delete"><v-icon size="24" color="#757575">mdi-delete</v-icon></button>
-                  <button class="op-icon-btn" @click="editHelperEntry(entry.id)" title="Edit"><v-icon size="24" color="#757575">mdi-pencil</v-icon></button>
+                  <button class="op-icon-btn" @click="deleteEntry(entry.id)" title="Delete"><v-icon size="24" color="#757575">mdi-delete</v-icon></button>
+                  <button class="op-icon-btn" @click="duplicateEntry(entry.id)" title="Duplicate"><v-icon size="24" color="#757575">mdi-content-copy</v-icon></button>
+                  <button class="op-icon-btn" @click="editEntry(entry.id)" title="Edit"><v-icon size="24" color="#757575">mdi-pencil</v-icon></button>
                 </div>
               </div>
               <div class="op-card-bottom">
@@ -113,6 +97,7 @@ const OperatorsPanel = {
                     <v-icon v-if="isTeamFullySelected(team.id)" size="18" color="white">mdi-check</v-icon>
                     <v-icon v-else-if="isTeamPartiallySelected(team.id)" size="18" color="white">mdi-minus</v-icon>
                   </span>
+                  <span class="op-team-swatch" :style="{ background: team.color }"></span>
                   <span class="op-team-label">{{ team.name }}</span>
                   <span style="margin-left:auto;display:flex;align-items:center;">
                     <v-icon size="24" color="#757575" :style="{ transform: collapsedTeams.has(team.id) ? 'rotate(0deg)' : 'rotate(180deg)', transition: 'transform 0.2s' }">mdi-chevron-down</v-icon>
@@ -150,6 +135,53 @@ const OperatorsPanel = {
                     <!-- Dropdown — multi-select checkboxes. Teleported to <body>
                          and positioned via fixed coords so it escapes the
                          scroll container's overflow clipping. -->
+                    <teleport to="body">
+                      <div v-if="tagDropdownOpId === op.id"
+                           class="op-tag-dropdown"
+                           :style="{ top: tagDropdownPos.top + 'px', left: tagDropdownPos.left + 'px' }"
+                           @click.stop>
+                        <div v-for="tag in allTags" :key="tag" class="op-tag-dropdown-item" @click="toggleOperatorTag(op, tag, $event)">
+                          <span class="op-check-box" :class="{ checked: op.tags && op.tags.includes(tag) }" style="width:18px;height:18px;flex-shrink:0;">
+                            <v-icon v-if="op.tags && op.tags.includes(tag)" size="14" color="white">mdi-check</v-icon>
+                          </span>
+                          {{ tag }}
+                        </div>
+                      </div>
+                    </teleport>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Operators with no team — flat list under the team groups -->
+              <div v-if="noTeamOperators.length > 0" class="op-team-group">
+                <div class="op-check-row op-team-row op-team-row-noteam">
+                  <span class="op-team-label">No team</span>
+                </div>
+                <div v-for="op in noTeamOperators" :key="op.id" class="op-check-row op-op-row op-op-row-flush"
+                  @mouseenter="hoveredOpId = op.id"
+                  @mouseleave="handleRowMouseleave(op.id)">
+                  <label class="op-check-row-inner">
+                    <span class="op-check-box" :class="{ checked: formSelectedOps.includes(op.id) }" @click.prevent="toggleOperator(op.id)">
+                      <v-icon v-if="formSelectedOps.includes(op.id)" size="18" color="white">mdi-check</v-icon>
+                    </span>
+                    <span class="op-op-name">{{ op.firstName }} {{ op.lastName }}</span>
+                  </label>
+                  <div class="op-tag-area" style="position:relative" @click.stop>
+                    <span v-if="op.tags && op.tags.length > 0"
+                      class="op-tag-chip-readonly op-tag-chip-editable"
+                      @click="openTagDropdown(op.id, $event)"
+                      @mouseenter="op.tags.length > 1 ? showTooltip($event, op.tags.join(', ')) : null"
+                      @mouseleave="op.tags.length > 1 ? hideTooltip() : null">
+                      <v-icon size="18" color="#2ecc71">mdi-tag</v-icon>
+                      {{ getTagLabel(op) }}
+                    </span>
+                    <span v-else-if="hoveredOpId === op.id || tagDropdownOpId === op.id"
+                      class="op-tag-chip-ghost"
+                      @click="openTagDropdown(op.id, $event)">
+                      <v-icon size="18" color="#757575">mdi-tag</v-icon>
+                      Tag
+                      <v-icon size="18" color="#757575">mdi-menu-down</v-icon>
+                    </span>
                     <teleport to="body">
                       <div v-if="tagDropdownOpId === op.id"
                            class="op-tag-dropdown"
@@ -232,11 +264,14 @@ const OperatorsPanel = {
     const { ref, computed, watch, onMounted } = Vue;
 
     // ── Core state ──
+    // entries: a single unified array of shift assignments. Each entry has
+    //   { id, operatorIds: number[], helperCount: number, startTime, endTime }
+    // A helper-only entry has operatorIds = []. There is never more than one
+    // entry covering any given moment in time — overlaps merge on save.
     const currentView = ref('overview');
     let _nextId = 10;
 
-    const operatorEntries = ref([]);
-    const helperEntries = ref([]);
+    const entries = ref([]);
 
     // ── Form state ──
     const searchQuery = ref('');
@@ -343,6 +378,18 @@ const OperatorsPanel = {
       return ops;
     }
 
+    // Operators with no team — shown as a flat list under the team groups.
+    const noTeamOperators = computed(() => {
+      const q = searchQuery.value.toLowerCase().trim();
+      let ops = allOperators.filter(o => !o.teamId);
+      if (q) {
+        ops = ops.filter(o =>
+          o.firstName.toLowerCase().includes(q) || o.lastName.toLowerCase().includes(q)
+        );
+      }
+      return ops;
+    });
+
     function isTeamFullySelected(teamId) {
       const ops = allOperators.filter(o => o.teamId === teamId);
       return ops.length > 0 && ops.every(o => formSelectedOps.value.includes(o.id));
@@ -375,6 +422,28 @@ const OperatorsPanel = {
       }
     }
 
+    function getEntryTeamColors(entry) {
+      const seen = new Set();
+      const colors = [];
+      entry.operatorIds.forEach(id => {
+        const op = allOperators.find(o => o.id === id);
+        const team = op && op.teamId ? allTeams.find(t => t.id === op.teamId) : null;
+        if (team && team.color && !seen.has(team.id)) {
+          seen.add(team.id);
+          colors.push(team.color);
+        }
+      });
+      return colors;
+    }
+
+    function getOperatorFirstNames(entry) {
+      return entry.operatorIds
+        .map(id => allOperators.find(o => o.id === id))
+        .filter(Boolean)
+        .map(op => op.firstName)
+        .join(', ');
+    }
+
     function getOperatorNames(entry) {
       const ops = entry.operatorIds
         .map(id => allOperators.find(o => o.id === id))
@@ -390,7 +459,7 @@ const OperatorsPanel = {
       const parts = [];
       grouped.forEach(g => {
         if (g.teamName) {
-          parts.push(g.teamName + ' \u2013 ' + g.names.join(', '));
+          parts.push(g.teamName + ': ' + g.names.join(', '));
         } else {
           parts.push(g.names.join(', '));
         }
@@ -428,11 +497,18 @@ const OperatorsPanel = {
       return h * 60 + m;
     }
 
-    function rangeContains(outerStart, outerEnd, innerStart, innerEnd) {
-      // Check if outer range fully contains inner range
-      const os = timeToMinutes(outerStart), oe = timeToMinutes(outerEnd);
-      const is = timeToMinutes(innerStart), ie = timeToMinutes(innerEnd);
-      return os <= is && oe >= ie;
+    function rangesOverlap(aStart, aEnd, bStart, bEnd) {
+      // Any overlap — touching ends don't count (back-to-back shifts are distinct).
+      const as = timeToMinutes(aStart), ae = timeToMinutes(aEnd);
+      const bs = timeToMinutes(bStart), be = timeToMinutes(bEnd);
+      return as < be && bs < ae;
+    }
+
+    function minTime(a, b) {
+      return timeToMinutes(a) <= timeToMinutes(b) ? a : b;
+    }
+    function maxTime(a, b) {
+      return timeToMinutes(a) >= timeToMinutes(b) ? a : b;
     }
 
     function saveOperators() {
@@ -440,14 +516,14 @@ const OperatorsPanel = {
       const hasHelpers = formHelperCount.value && formHelperCount.value > 0;
       if (!hasOps && !hasHelpers) return;
 
-      // Editing an existing operator entry: just update it (incl. merged helperCount).
-      if (editingEntryId.value && hasOps) {
-        const entry = operatorEntries.value.find(e => e.id === editingEntryId.value);
+      // Editing: update the entry in place; helperCount = the new form value (may be 0).
+      if (editingEntryId.value) {
+        const entry = entries.value.find(e => e.id === editingEntryId.value);
         if (entry) {
           entry.operatorIds = [...formSelectedOps.value];
           entry.startTime = formStartTime.value;
           entry.endTime = formEndTime.value;
-          entry.helperCount = hasHelpers ? formHelperCount.value : (entry.helperCount || 0);
+          entry.helperCount = hasHelpers ? formHelperCount.value : 0;
         }
         editingEntryId.value = null;
         currentView.value = 'overview';
@@ -455,36 +531,46 @@ const OperatorsPanel = {
         return;
       }
 
-      // Helpers-only path (no operators selected) — keep standalone helper entry behaviour.
-      if (!hasOps && hasHelpers) {
-        helperEntries.value.push({
-          id: _nextId++,
-          count: formHelperCount.value,
-          startTime: formStartTime.value,
-          endTime: formEndTime.value,
-        });
-        editingEntryId.value = null;
-        currentView.value = 'overview';
-        emitSummary();
-        return;
-      }
-
-      // Operators (+ optional helpers) — merge into a containing entry if its time range covers ours.
-      const match = operatorEntries.value.find(e =>
-        rangeContains(e.startTime, e.endTime, formStartTime.value, formEndTime.value)
+      // New entry — merge into any overlapping entries (operator-only, helper-only,
+      // or mixed all use the same logic). Touching ends (e.g. 06:00–14:00 and
+      // 14:00–22:00) stay distinct because rangesOverlap is strict (<).
+      const overlapping = entries.value.filter(e =>
+        rangesOverlap(e.startTime, e.endTime, formStartTime.value, formEndTime.value)
       );
-      if (match) {
-        const existing = new Set(match.operatorIds);
-        formSelectedOps.value.forEach(id => existing.add(id));
-        match.operatorIds = [...existing];
-        if (hasHelpers) match.helperCount = (match.helperCount || 0) + formHelperCount.value;
+
+      if (overlapping.length > 0) {
+        const base = overlapping[0];
+        const allOpIds = new Set(base.operatorIds);
+        let mergedHelpers = base.helperCount || 0;
+        let start = base.startTime, end = base.endTime;
+        // Absorb additional overlapping entries
+        for (let i = 1; i < overlapping.length; i++) {
+          const e = overlapping[i];
+          e.operatorIds.forEach(id => allOpIds.add(id));
+          mergedHelpers += (e.helperCount || 0);
+          start = minTime(start, e.startTime);
+          end   = maxTime(end,   e.endTime);
+        }
+        // Absorb the new submission
+        formSelectedOps.value.forEach(id => allOpIds.add(id));
+        if (hasHelpers) mergedHelpers += formHelperCount.value;
+        start = minTime(start, formStartTime.value);
+        end   = maxTime(end,   formEndTime.value);
+        base.operatorIds = [...allOpIds];
+        base.helperCount = mergedHelpers;
+        base.startTime = start;
+        base.endTime = end;
+        if (overlapping.length > 1) {
+          const removeIds = new Set(overlapping.slice(1).map(e => e.id));
+          entries.value = entries.value.filter(e => !removeIds.has(e.id));
+        }
       } else {
-        operatorEntries.value.push({
+        entries.value.push({
           id: _nextId++,
           operatorIds: [...formSelectedOps.value],
+          helperCount: hasHelpers ? formHelperCount.value : 0,
           startTime: formStartTime.value,
           endTime: formEndTime.value,
-          helperCount: hasHelpers ? formHelperCount.value : 0,
         });
       }
 
@@ -494,73 +580,43 @@ const OperatorsPanel = {
     }
 
     function saveHelpers() {
+      // Helpers-only view delegates to the unified save path so we apply the
+      // same overlap-merge logic. formSelectedOps is empty when this is called.
       if (!formHelperCount.value || formHelperCount.value < 1) return;
-      if (editingEntryId.value) {
-        const entry = helperEntries.value.find(e => e.id === editingEntryId.value);
-        if (entry) {
-          entry.count = formHelperCount.value;
-          entry.startTime = formStartTime.value;
-          entry.endTime = formEndTime.value;
-        }
-      } else {
-        helperEntries.value.push({
-          id: _nextId++,
-          count: formHelperCount.value,
-          startTime: formStartTime.value,
-          endTime: formEndTime.value,
-        });
-      }
+      saveOperators();
+    }
+
+    // ── CRUD (all operate on the unified entries array) ──
+    function deleteEntry(id) {
+      entries.value = entries.value.filter(e => e.id !== id);
+      emitSummary();
+    }
+
+    function duplicateEntry(id) {
+      const entry = entries.value.find(e => e.id === id);
+      if (!entry) return;
+      formSelectedOps.value = [...entry.operatorIds];
+      formStartTime.value = entry.startTime;
+      formEndTime.value = entry.endTime;
+      formHelperCount.value = entry.helperCount || null;
+      searchQuery.value = '';
       editingEntryId.value = null;
-      currentView.value = 'overview';
-      emitSummary();
+      currentView.value = 'add-operators';
     }
 
-    // ── CRUD ──
-    function deleteOperatorEntry(id) {
-      operatorEntries.value = operatorEntries.value.filter(e => e.id !== id);
-      emitSummary();
-    }
-
-    function deleteHelperEntry(id) {
-      helperEntries.value = helperEntries.value.filter(e => e.id !== id);
-      emitSummary();
-    }
-
-    function duplicateOperatorEntry(id) {
-      const entry = operatorEntries.value.find(e => e.id === id);
-      if (entry) {
-        formSelectedOps.value = [...entry.operatorIds];
-        formStartTime.value = entry.startTime;
-        formEndTime.value = entry.endTime;
-        formHelperCount.value = entry.helperCount || null;
-        searchQuery.value = '';
-        editingEntryId.value = null;
-        currentView.value = 'add-operators';
-      }
-    }
-
-    function editOperatorEntry(id) {
-      const entry = operatorEntries.value.find(e => e.id === id);
-      if (entry) {
-        formSelectedOps.value = [...entry.operatorIds];
-        formStartTime.value = entry.startTime;
-        formEndTime.value = entry.endTime;
-        formHelperCount.value = entry.helperCount || null;
-        searchQuery.value = '';
-        editingEntryId.value = id;
-        currentView.value = 'add-operators';
-      }
-    }
-
-    function editHelperEntry(id) {
-      const entry = helperEntries.value.find(e => e.id === id);
-      if (entry) {
-        formHelperCount.value = entry.count;
-        formStartTime.value = entry.startTime;
-        formEndTime.value = entry.endTime;
-        editingEntryId.value = id;
-        currentView.value = 'add-helpers';
-      }
+    function editEntry(id) {
+      // Always open the full add-operators modal — works for operator-only,
+      // helper-only, and mixed entries. A helper-only entry's edit lets the
+      // user attach operators/teams to it too.
+      const entry = entries.value.find(e => e.id === id);
+      if (!entry) return;
+      formSelectedOps.value = [...entry.operatorIds];
+      formStartTime.value = entry.startTime;
+      formEndTime.value = entry.endTime;
+      formHelperCount.value = entry.helperCount || null;
+      searchQuery.value = '';
+      editingEntryId.value = id;
+      currentView.value = 'add-operators';
     }
 
     function handleOverlayClick() {
@@ -596,26 +652,13 @@ const OperatorsPanel = {
     }
 
     function emitSummary() {
-      const totalOps = operatorEntries.value.reduce((s, e) => s + e.operatorIds.length, 0);
-      // Helpers = standalone helper entries + helpers merged onto operator entries
-      const totalHelpers =
-        helperEntries.value.reduce((s, e) => s + e.count, 0) +
-        operatorEntries.value.reduce((s, e) => s + (e.helperCount || 0), 0);
+      const totalOps = entries.value.reduce((s, e) => s + e.operatorIds.length, 0);
+      const totalHelpers = entries.value.reduce((s, e) => s + (e.helperCount || 0), 0);
       const totalPeople = totalOps + totalHelpers;
-
-      let totalHours = 0;
-      operatorEntries.value.forEach(e => {
-        const span = timeToHours(e.startTime, e.endTime);
-        totalHours += e.operatorIds.length * span;
-        totalHours += (e.helperCount || 0) * span;
-      });
-      helperEntries.value.forEach(e => {
-        totalHours += e.count * timeToHours(e.startTime, e.endTime);
-      });
 
       // Collect all unique operator IDs across entries
       const allOpIds = new Set();
-      operatorEntries.value.forEach(e => e.operatorIds.forEach(id => allOpIds.add(id)));
+      entries.value.forEach(e => e.operatorIds.forEach(id => allOpIds.add(id)));
 
       // Count operators per team
       const teamCounts = new Map(); // teamId → count
@@ -631,6 +674,7 @@ const OperatorsPanel = {
 
       // Find the primary team (most operators)
       let primaryTeamName = '';
+      let primaryTeamColor = '';
       let primaryTeamCount = 0;
       let extraCount = 0;
 
@@ -641,17 +685,20 @@ const OperatorsPanel = {
           if (count > maxCount) { maxCount = count; primaryTeamId = teamId; }
         });
         const team = allTeams.find(t => t.id === primaryTeamId);
-        if (team) primaryTeamName = team.name;
+        if (team) {
+          primaryTeamName = team.name;
+          primaryTeamColor = team.color || '';
+        }
         primaryTeamCount = maxCount;
-        // Extras = operators from other teams only. Helpers shown separately.
-        extraCount = (totalOps - primaryTeamCount);
+        // Extras = everything not in the primary team: other-team ops + no-team ops + helpers
+        extraCount = (totalOps - primaryTeamCount) + totalHelpers;
       }
 
       // First operator's name — used when totalPeople === 1
       let firstName = '';
-      const firstEntry = operatorEntries.value[0];
-      if (firstEntry && firstEntry.operatorIds.length > 0) {
-        const op = allOperators.find(o => o.id === firstEntry.operatorIds[0]);
+      const firstWithOps = entries.value.find(e => e.operatorIds.length > 0);
+      if (firstWithOps) {
+        const op = allOperators.find(o => o.id === firstWithOps.operatorIds[0]);
         if (op) firstName = op.firstName;
       }
 
@@ -661,26 +708,25 @@ const OperatorsPanel = {
       const leaderEnabled = stationSettings ? stationSettings.enableShiftLeader : false;
       let leaderName = '';
       if (leaderEnabled) {
-        for (const entry of operatorEntries.value) {
+        for (const entry of entries.value) {
           const leader = entry.operatorIds
             .map(id => allOperators.find(o => o.id === id))
             .find(op => op && (op.tags || []).includes('Supervisor'));
           if (leader) { leaderName = leader.firstName; break; }
         }
       }
-      // Leader extras = other operators (excludes helpers — those get their own chip)
-      const leaderExtras = leaderName ? Math.max(0, totalOps - 1) : 0;
+      // Leader extras = everyone else (ops + helpers)
+      const leaderExtras = leaderName ? Math.max(0, totalPeople - 1) : 0;
 
       emit('update:summary', {
         primaryTeamName,
+        primaryTeamColor,
         primaryTeamCount,
         extraCount,
-        helperCount: totalHelpers,
         firstName,
         leaderName,
         leaderExtras,
         totalPeople,
-        totalHours: Math.round(totalHours),
         hasEntries: totalPeople > 0,
       });
     }
@@ -703,8 +749,7 @@ const OperatorsPanel = {
 
     return {
       currentView,
-      operatorEntries,
-      helperEntries,
+      entries,
       searchQuery,
       formSelectedOps,
       formStartTime,
@@ -712,21 +757,22 @@ const OperatorsPanel = {
       formHelperCount,
       filteredTeams,
       getFilteredTeamOperators,
+      noTeamOperators,
       isTeamFullySelected,
       isTeamPartiallySelected,
       toggleTeam,
       toggleOperator,
+      getEntryTeamColors,
       getOperatorNames,
+      getOperatorFirstNames,
       openAddOperators,
       openAddHelpers,
       cancelForm,
       saveOperators,
       saveHelpers,
-      deleteOperatorEntry,
-      deleteHelperEntry,
-      duplicateOperatorEntry,
-      editOperatorEntry,
-      editHelperEntry,
+      deleteEntry,
+      duplicateEntry,
+      editEntry,
       handleOverlayClick,
       showTooltip,
       hideTooltip,

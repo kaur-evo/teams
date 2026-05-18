@@ -1,7 +1,7 @@
 // Shared mock data for operators & teams prototypes
 // Used by: setup-proto.html, index.html
 
-const DATA_VERSION = 7; // bump to wipe stale localStorage
+const DATA_VERSION = 8; // bump to wipe stale localStorage
 
 const MOCK_TAGS = ['Supervisor', 'Quality', 'Maintenance'];
 
@@ -33,9 +33,9 @@ const MOCK_OPERATORS = [
   { id: 5,  firstName: 'Elena',     lastName: 'Christodoulou', tags: [],             teamId: 1, stations: ['Packaging A', 'Packaging B'] },
   { id: 6,  firstName: 'Dimitris',  lastName: 'Ekonomou',      tags: [],             teamId: 1, stations: ['Packaging B'] },
   { id: 7,  firstName: 'Stavros',   lastName: 'Nikolaou',      tags: [],             teamId: 1, stations: ['Warehouse'] },
-  { id: 8,  firstName: 'Katerina',  lastName: 'Georgiou',      tags: [],             teamId: 1, stations: ['Filling Line 2'] },
-  { id: 9,  firstName: 'Andreas',   lastName: 'Karagiannis',   tags: [],             teamId: 1, stations: ['Warehouse'] },
-  { id: 10, firstName: 'Sofia',     lastName: 'Panagiotou',    tags: [],             teamId: 1, stations: ['Quality Lab'] },
+  { id: 8,  firstName: 'Katerina',  lastName: 'Georgiou',      tags: [],             teamId: null, stations: ['Filling Line 2'] },
+  { id: 9,  firstName: 'Andreas',   lastName: 'Karagiannis',   tags: [],             teamId: null, stations: ['Warehouse'] },
+  { id: 10, firstName: 'Sofia',     lastName: 'Panagiotou',    tags: [],             teamId: null, stations: ['Quality Lab'] },
 
   // ── Team Red ──
   { id: 11, firstName: 'Jonas',     lastName: 'Hermansen',     tags: ['Supervisor'], teamId: 2, stations: ['Filling Line 2', 'Packaging B'] },
@@ -46,8 +46,8 @@ const MOCK_OPERATORS = [
   { id: 16, firstName: 'Tomasz',    lastName: 'Wiśniewski',    tags: [],             teamId: 2, stations: ['Packaging A', 'Packaging B'] },
   { id: 17, firstName: 'Anna',      lastName: 'Nowak',         tags: [],             teamId: 2, stations: ['Packaging B'] },
   { id: 18, firstName: 'Piotr',     lastName: 'Kamiński',      tags: [],             teamId: 2, stations: ['Filling Line 2'] },
-  { id: 19, firstName: 'Agnieszka', lastName: 'Zielińska',     tags: [],             teamId: 2, stations: ['Warehouse'] },
-  { id: 20, firstName: 'Marek',     lastName: 'Lewandowski',   tags: [],             teamId: 2, stations: ['Quality Lab'] },
+  { id: 19, firstName: 'Agnieszka', lastName: 'Zielińska',     tags: [],             teamId: null, stations: ['Warehouse'] },
+  { id: 20, firstName: 'Marek',     lastName: 'Lewandowski',   tags: [],             teamId: null, stations: ['Quality Lab'] },
 ];
 
 // Per-station feature toggles. Off by default — Spiros constraint: "must be optional".

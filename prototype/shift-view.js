@@ -174,16 +174,13 @@ const ShiftView = {
               <span v-if="operatorSummary.leaderExtras > 0">+ {{ operatorSummary.leaderExtras }}</span>
             </template>
             <template v-else-if="operatorSummary.primaryTeamName">
+              <span v-if="operatorSummary.primaryTeamColor" class="sv-team-swatch" :style="{ background: operatorSummary.primaryTeamColor }"></span>
               <span>{{ operatorSummary.primaryTeamName }} ({{ operatorSummary.primaryTeamCount }})</span>
               <span v-if="operatorSummary.extraCount > 0">+ {{ operatorSummary.extraCount }}</span>
             </template>
             <template v-else>
               <span>{{ operatorSummary.totalPeople === 1 ? operatorSummary.firstName : 'Operators (' + operatorSummary.totalPeople + ')' }}</span>
             </template>
-            <span v-if="operatorSummary.helperCount > 0" class="sv-chip-helpers">
-              <v-icon size="18" color="white">mdi-account-group</v-icon> {{ operatorSummary.helperCount }}
-            </span>
-            <span class="sv-chip-mh"><v-icon size="18" color="white">mdi-timer-outline</v-icon> {{ operatorSummary.totalHours }} h</span>
           </template>
           <template v-else>
             <span>Operators</span>
