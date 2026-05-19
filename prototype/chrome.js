@@ -57,6 +57,8 @@
     'group':            'group (format-list-group)',
     'list':             'list, templates (format-list-bulleted)',
     'open-in-new':      'notes new window (open_in_new)',
+    'star':             'save-report',
+    'star-outline':     'star-outline',
   };
 
   /**

@@ -43,12 +43,9 @@ const OperatorsPanel = {
                         @mouseleave="hideTooltip">
                     <v-icon size="18" color="#757575">mdi-account-group</v-icon> {{ entry.helperCount }}
                   </span>
-                  <span v-for="color in getEntryTeamColors(entry)" :key="color"
-                        class="op-card-team-swatch"
-                        :style="{ background: color }"></span>
                   <span class="op-card-names"
                         @mouseenter="showTooltip($event, entry.operatorIds.length > 0 ? getOperatorNames(entry) : 'Helpers')"
-                        @mouseleave="hideTooltip">{{ entry.operatorIds.length > 0 ? getOperatorNames(entry) : 'Helpers: ' + entry.helperCount }}</span>
+                        @mouseleave="hideTooltip">{{ entry.operatorIds.length > 0 ? getEntryFlatNames(entry) : 'Helpers: ' + entry.helperCount }}</span>
                 </div>
                 <div class="op-card-icons">
                   <button class="op-icon-btn" @click="deleteEntry(entry.id)" title="Delete"><v-icon size="24" color="#757575">mdi-delete</v-icon></button>
@@ -116,33 +113,33 @@ const OperatorsPanel = {
                   </label>
                   <div class="op-tag-area" style="position:relative" @click.stop>
                     <!-- Has tags: always visible, click to open dropdown -->
-                    <span v-if="op.tags && op.tags.length > 0"
+                    <!-- A role is set (form session) OR operator has a default
+                         tag from Settings: solid chip with the role name. -->
+                    <span v-if="op.tags && op.tags.length > 0 && getTagLabel(op)"
                       class="op-tag-chip-readonly op-tag-chip-editable"
-                      @click="openTagDropdown(op.id, $event)"
-                      @mouseenter="op.tags.length > 1 ? showTooltip($event, op.tags.join(', ')) : null"
-                      @mouseleave="op.tags.length > 1 ? hideTooltip() : null">
+                      @click="openTagDropdown(op.id, $event)">
                       <v-icon size="18" color="#2ecc71">mdi-tag</v-icon>
                       {{ getTagLabel(op) }}
+                      <v-icon size="18" color="#757575">mdi-menu-down</v-icon>
                     </span>
-                    <!-- No tags: ghost chip appears on row hover -->
-                    <span v-else-if="hoveredOpId === op.id || tagDropdownOpId === op.id"
+                    <!-- Operator has tags available but no default + no pick yet: ghost chip. -->
+                    <span v-else-if="op.tags && op.tags.length > 0"
                       class="op-tag-chip-ghost"
                       @click="openTagDropdown(op.id, $event)">
                       <v-icon size="18" color="#757575">mdi-tag</v-icon>
                       Tag
                       <v-icon size="18" color="#757575">mdi-menu-down</v-icon>
                     </span>
-                    <!-- Dropdown — multi-select checkboxes. Teleported to <body>
-                         and positioned via fixed coords so it escapes the
-                         scroll container's overflow clipping. -->
+                    <!-- Operator with no available tags: no chip at all. -->
+                    <!-- Single-select dropdown listing the operator's available tags. -->
                     <teleport to="body">
                       <div v-if="tagDropdownOpId === op.id"
                            class="op-tag-dropdown"
                            :style="{ top: tagDropdownPos.top + 'px', left: tagDropdownPos.left + 'px' }"
                            @click.stop>
-                        <div v-for="tag in allTags" :key="tag" class="op-tag-dropdown-item" @click="toggleOperatorTag(op, tag, $event)">
-                          <span class="op-check-box" :class="{ checked: op.tags && op.tags.includes(tag) }" style="width:18px;height:18px;flex-shrink:0;">
-                            <v-icon v-if="op.tags && op.tags.includes(tag)" size="14" color="white">mdi-check</v-icon>
+                        <div v-for="tag in (op.tags || [])" :key="tag" class="op-tag-dropdown-item" @click="pickOperatorRole(op, tag, $event)">
+                          <span class="op-check-box" :class="{ checked: effectiveRoles(op).includes(tag) }" style="width:18px;height:18px;flex-shrink:0;">
+                            <v-icon v-if="effectiveRoles(op).includes(tag)" size="14" color="white">mdi-check</v-icon>
                           </span>
                           {{ tag }}
                         </div>
@@ -154,9 +151,7 @@ const OperatorsPanel = {
 
               <!-- Operators with no team — flat list under the team groups -->
               <div v-if="noTeamOperators.length > 0" class="op-team-group">
-                <div class="op-check-row op-team-row op-team-row-noteam">
-                  <span class="op-team-label">No team</span>
-                </div>
+                
                 <div v-for="op in noTeamOperators" :key="op.id" class="op-check-row op-op-row op-op-row-flush"
                   @mouseenter="hoveredOpId = op.id"
                   @mouseleave="handleRowMouseleave(op.id)">
@@ -167,15 +162,13 @@ const OperatorsPanel = {
                     <span class="op-op-name">{{ op.firstName }} {{ op.lastName }}</span>
                   </label>
                   <div class="op-tag-area" style="position:relative" @click.stop>
-                    <span v-if="op.tags && op.tags.length > 0"
+                    <span v-if="op.tags && op.tags.length > 0 && formOperatorRoles[op.id]"
                       class="op-tag-chip-readonly op-tag-chip-editable"
-                      @click="openTagDropdown(op.id, $event)"
-                      @mouseenter="op.tags.length > 1 ? showTooltip($event, op.tags.join(', ')) : null"
-                      @mouseleave="op.tags.length > 1 ? hideTooltip() : null">
+                      @click="openTagDropdown(op.id, $event)">
                       <v-icon size="18" color="#2ecc71">mdi-tag</v-icon>
                       {{ getTagLabel(op) }}
                     </span>
-                    <span v-else-if="hoveredOpId === op.id || tagDropdownOpId === op.id"
+                    <span v-else-if="op.tags && op.tags.length > 0 && (hoveredOpId === op.id || tagDropdownOpId === op.id)"
                       class="op-tag-chip-ghost"
                       @click="openTagDropdown(op.id, $event)">
                       <v-icon size="18" color="#757575">mdi-tag</v-icon>
@@ -187,9 +180,9 @@ const OperatorsPanel = {
                            class="op-tag-dropdown"
                            :style="{ top: tagDropdownPos.top + 'px', left: tagDropdownPos.left + 'px' }"
                            @click.stop>
-                        <div v-for="tag in allTags" :key="tag" class="op-tag-dropdown-item" @click="toggleOperatorTag(op, tag, $event)">
-                          <span class="op-check-box" :class="{ checked: op.tags && op.tags.includes(tag) }" style="width:18px;height:18px;flex-shrink:0;">
-                            <v-icon v-if="op.tags && op.tags.includes(tag)" size="14" color="white">mdi-check</v-icon>
+                        <div v-for="tag in (op.tags || [])" :key="tag" class="op-tag-dropdown-item" @click="pickOperatorRole(op, tag, $event)">
+                          <span class="op-check-box" :class="{ checked: effectiveRoles(op).includes(tag) }" style="width:18px;height:18px;flex-shrink:0;">
+                            <v-icon v-if="effectiveRoles(op).includes(tag)" size="14" color="white">mdi-check</v-icon>
                           </span>
                           {{ tag }}
                         </div>
@@ -265,9 +258,12 @@ const OperatorsPanel = {
 
     // ── Core state ──
     // entries: a single unified array of shift assignments. Each entry has
-    //   { id, operatorIds: number[], helperCount: number, startTime, endTime }
+    //   { id, operatorIds: number[], roles: { [opId]: tag|null },
+    //     helperCount: number, startTime, endTime }
     // A helper-only entry has operatorIds = []. There is never more than one
     // entry covering any given moment in time — overlaps merge on save.
+    // Per-entry roles let the same person carry different roles on
+    // non-overlapping entries (e.g. Supervisor 12-15, plain operator 15-18).
     const currentView = ref('overview');
     let _nextId = 10;
 
@@ -276,6 +272,10 @@ const OperatorsPanel = {
     // ── Form state ──
     const searchQuery = ref('');
     const formSelectedOps = ref([]);
+    // formOperatorRoles: per-operator role *for this form session*. Initialized
+    // from the operator's defaultTag when checked, cleared when unchecked.
+    // Persisted onto the entry as `roles` when the form saves.
+    const formOperatorRoles = Vue.reactive({});
     const formStartTime = ref('06:00');
     const formEndTime = ref('14:00');
     const formHelperCount = ref(null);
@@ -287,7 +287,9 @@ const OperatorsPanel = {
     const allTags = MOCK_TAGS;
 
     // ── Collapsible teams (collapsed by default) ──
-    const collapsedTeams = Vue.reactive(new Set(allTeams.map(t => t.id)));
+    // Groups are expanded by default in the Shift View picker so operators
+    // are immediately visible without an extra click.
+    const collapsedTeams = Vue.reactive(new Set());
     function toggleTeamCollapse(teamId) {
       collapsedTeams.has(teamId) ? collapsedTeams.delete(teamId) : collapsedTeams.add(teamId);
     }
@@ -334,28 +336,56 @@ const OperatorsPanel = {
       if (tagDropdownOpId.value != null) positionTagDropdown(_tagAnchorEl);
     }
 
-    function toggleOperatorTag(op, tag, event) {
+    // Pick / unpick a role for THIS form's entry. Multi-select against the
+    // operator's available tags. Each row click toggles a tag on/off; the
+    // dropdown stays open so the user can pick several. Picking a tag does
+    // NOT change the operator's checked state — those are independent.
+    function pickOperatorRole(op, tag, event) {
       event.stopPropagation();
-      const tags = op.tags || [];
-      op.tags = tags.includes(tag) ? tags.filter(t => t !== tag) : [...tags, tag];
-      SharedData.saveOperators(allOperators);
+      const current = effectiveRoles(op);
+      const next = current.includes(tag)
+        ? current.filter(t => t !== tag)
+        : [...current, tag];
+      formOperatorRoles[op.id] = next;
     }
 
     function closeTagDropdown() { tagDropdownOpId.value = null; }
 
-    // ── Read-only tag label ──
+    // The roles currently in effect for this operator in the picker. Priority:
+    //   1. Roles the user has picked in this form session (formOperatorRoles).
+    //   2. The operator's defaultTag from Settings (single tag) when nothing
+    //      has been picked yet — shown even before the operator is checked.
+    // Both the chip and the dropdown checkboxes read from here, so the
+    // pre-selected default appears ticked in the dropdown.
+    function effectiveRoles(op) {
+      if (op.id in formOperatorRoles) {
+        const v = formOperatorRoles[op.id];
+        return Array.isArray(v) ? v : (v ? [v] : []);
+      }
+      return op.defaultTag ? [op.defaultTag] : [];
+    }
+
+    // Convenience helpers used by templates that still expect a single string
+    // (chip label) or array (multi-check dropdown).
+    function effectiveRole(op) {
+      const roles = effectiveRoles(op);
+      return roles.length === 0 ? '' : roles.join(', ');
+    }
+
     function getTagLabel(op) {
-      const tags = op.tags || [];
-      if (tags.length === 0) return '';
-      if (tags.length === 1) return tags[0];
-      return tags[0] + ' + ' + (tags.length - 1);
+      return effectiveRole(op) || '';
     }
 
     // ── Filtered teams for search ──
     const filteredTeams = computed(() => {
       const q = searchQuery.value.toLowerCase().trim();
-      if (!q) return allTeams;
-      return allTeams.filter(team => {
+      // Only show groups that have at least one operator assigned. Empty
+      // groups still exist in Settings but don't clutter the Shift View picker.
+      const teamsWithMembers = allTeams.filter(team =>
+        allOperators.some(o => o.teamId === team.id)
+      );
+      if (!q) return teamsWithMembers;
+      return teamsWithMembers.filter(team => {
         if (team.name.toLowerCase().includes(q)) return true;
         return allOperators.some(o =>
           o.teamId === team.id &&
@@ -406,10 +436,11 @@ const OperatorsPanel = {
       if (isTeamFullySelected(teamId)) {
         const removeIds = new Set(ops.map(o => o.id));
         formSelectedOps.value = formSelectedOps.value.filter(id => !removeIds.has(id));
+        removeIds.forEach(id => { delete formOperatorRoles[id]; });
       } else {
         const addIds = ops.map(o => o.id).filter(id => !formSelectedOps.value.includes(id));
         formSelectedOps.value = [...formSelectedOps.value, ...addIds];
-        // Auto-expand the team group so the new selections are visible.
+        addIds.forEach(id => seedRoleForOp(id));
         collapsedTeams.delete(teamId);
       }
     }
@@ -417,8 +448,25 @@ const OperatorsPanel = {
     function toggleOperator(opId) {
       if (formSelectedOps.value.includes(opId)) {
         formSelectedOps.value = formSelectedOps.value.filter(id => id !== opId);
+        delete formOperatorRoles[opId];
       } else {
         formSelectedOps.value = [...formSelectedOps.value, opId];
+        seedRoleForOp(opId);
+      }
+    }
+
+    // Initialize this operator's role-in-this-form to their setup defaultTag.
+    // Only runs if the user hasn't already picked a role for this operator —
+    // we don't want to overwrite a manual choice when they later check the box.
+    function seedRoleForOp(opId) {
+      if (opId in formOperatorRoles) return;
+      const op = allOperators.find(o => o.id === opId);
+      if (!op) return;
+      const def = op.defaultTag || null;
+      if (def && (op.tags || []).includes(def)) {
+        formOperatorRoles[opId] = [def];
+      } else {
+        formOperatorRoles[opId] = [];
       }
     }
 
@@ -436,11 +484,38 @@ const OperatorsPanel = {
       return colors;
     }
 
+    // Render a single operator's name with their entry-level roles appended.
+    // E.g. "Vasilis (Supervisor)" or "Pawel (Quality, Maintenance)".
+    function nameWithRole(op, entry) {
+      const r = entry && entry.roles ? entry.roles[op.id] : null;
+      const list = Array.isArray(r) ? r : (r ? [r] : []);
+      return list.length ? `${op.firstName} (${list.join(', ')})` : op.firstName;
+    }
+
+    function entryHasRole(entry, opId, role) {
+      const r = entry && entry.roles ? entry.roles[opId] : null;
+      const list = Array.isArray(r) ? r : (r ? [r] : []);
+      return list.includes(role);
+    }
+
+    // Flat name list with supervisors first, then everyone else (entry order
+    // preserved within each group). Used on the operator-modal card.
+    function getEntryFlatNames(entry) {
+      const ops = entry.operatorIds
+        .map(id => allOperators.find(o => o.id === id))
+        .filter(Boolean);
+      const sups = ops.filter(op => entryHasRole(entry, op.id, 'Supervisor'));
+      const rest = ops.filter(op => !entryHasRole(entry, op.id, 'Supervisor'));
+      return [...sups, ...rest]
+        .map(op => nameWithRole(op, entry))
+        .join(', ');
+    }
+
     function getOperatorFirstNames(entry) {
       return entry.operatorIds
         .map(id => allOperators.find(o => o.id === id))
         .filter(Boolean)
-        .map(op => op.firstName)
+        .map(op => nameWithRole(op, entry))
         .join(', ');
     }
 
@@ -454,7 +529,7 @@ const OperatorsPanel = {
         const team = op.teamId ? allTeams.find(t => t.id === op.teamId) : null;
         const key = team ? team.id : 0;
         if (!grouped.has(key)) grouped.set(key, { teamName: team ? team.name : null, names: [] });
-        grouped.get(key).names.push(op.firstName);
+        grouped.get(key).names.push(nameWithRole(op, entry));
       });
       const parts = [];
       grouped.forEach(g => {
@@ -470,6 +545,7 @@ const OperatorsPanel = {
     // ── Navigation ──
     function openAddOperators() {
       formSelectedOps.value = [];
+      Object.keys(formOperatorRoles).forEach(k => delete formOperatorRoles[k]);
       formStartTime.value = '06:00';
       formEndTime.value = '14:00';
       formHelperCount.value = null;
@@ -516,11 +592,20 @@ const OperatorsPanel = {
       const hasHelpers = formHelperCount.value && formHelperCount.value > 0;
       if (!hasOps && !hasHelpers) return;
 
+      // Snapshot the form-level role map for the operators being saved.
+      // Each entry.roles[id] is always a string[] (may be empty).
+      const newRoles = {};
+      formSelectedOps.value.forEach(id => {
+        const v = formOperatorRoles[id];
+        newRoles[id] = Array.isArray(v) ? [...v] : (v ? [v] : []);
+      });
+
       // Editing: update the entry in place; helperCount = the new form value (may be 0).
       if (editingEntryId.value) {
         const entry = entries.value.find(e => e.id === editingEntryId.value);
         if (entry) {
           entry.operatorIds = [...formSelectedOps.value];
+          entry.roles = newRoles;
           entry.startTime = formStartTime.value;
           entry.endTime = formEndTime.value;
           entry.helperCount = hasHelpers ? formHelperCount.value : 0;
@@ -538,25 +623,44 @@ const OperatorsPanel = {
         rangesOverlap(e.startTime, e.endTime, formStartTime.value, formEndTime.value)
       );
 
+      // Helper: merge two role lists (string[]) into a union with no dups.
+      const mergeRoleLists = (a, b) => {
+        const set = new Set([...(Array.isArray(a) ? a : (a ? [a] : [])),
+                             ...(Array.isArray(b) ? b : (b ? [b] : []))]);
+        return [...set];
+      };
+
       if (overlapping.length > 0) {
         const base = overlapping[0];
         const allOpIds = new Set(base.operatorIds);
+        const mergedRoles = {};
+        Object.entries(base.roles || {}).forEach(([id, r]) => {
+          mergedRoles[id] = Array.isArray(r) ? [...r] : (r ? [r] : []);
+        });
         let mergedHelpers = base.helperCount || 0;
         let start = base.startTime, end = base.endTime;
         // Absorb additional overlapping entries
         for (let i = 1; i < overlapping.length; i++) {
           const e = overlapping[i];
           e.operatorIds.forEach(id => allOpIds.add(id));
+          Object.entries(e.roles || {}).forEach(([id, r]) => {
+            mergedRoles[id] = mergeRoleLists(mergedRoles[id], r);
+          });
           mergedHelpers += (e.helperCount || 0);
           start = minTime(start, e.startTime);
           end   = maxTime(end,   e.endTime);
         }
-        // Absorb the new submission
+        // Absorb the new submission — new role values override existing ones
+        // for that operator (the user's latest pick wins on conflict).
         formSelectedOps.value.forEach(id => allOpIds.add(id));
+        Object.entries(newRoles).forEach(([id, r]) => {
+          mergedRoles[id] = [...r]; // copy current picks verbatim
+        });
         if (hasHelpers) mergedHelpers += formHelperCount.value;
         start = minTime(start, formStartTime.value);
         end   = maxTime(end,   formEndTime.value);
         base.operatorIds = [...allOpIds];
+        base.roles = mergedRoles;
         base.helperCount = mergedHelpers;
         base.startTime = start;
         base.endTime = end;
@@ -568,6 +672,7 @@ const OperatorsPanel = {
         entries.value.push({
           id: _nextId++,
           operatorIds: [...formSelectedOps.value],
+          roles: newRoles,
           helperCount: hasHelpers ? formHelperCount.value : 0,
           startTime: formStartTime.value,
           endTime: formEndTime.value,
@@ -592,16 +697,28 @@ const OperatorsPanel = {
       emitSummary();
     }
 
-    function duplicateEntry(id) {
-      const entry = entries.value.find(e => e.id === id);
-      if (!entry) return;
+    function loadFormFromEntry(entry, opts) {
       formSelectedOps.value = [...entry.operatorIds];
       formStartTime.value = entry.startTime;
       formEndTime.value = entry.endTime;
       formHelperCount.value = entry.helperCount || null;
+      // Wipe + restore per-operator roles as string[] (multi-tag model).
+      Object.keys(formOperatorRoles).forEach(k => delete formOperatorRoles[k]);
+      Object.entries(entry.roles || {}).forEach(([id, r]) => {
+        formOperatorRoles[Number(id)] = Array.isArray(r) ? [...r] : (r ? [r] : []);
+      });
+      // For any selected op missing from roles, seed with their defaultTag.
+      entry.operatorIds.forEach(id => {
+        if (!(id in formOperatorRoles)) seedRoleForOp(id);
+      });
       searchQuery.value = '';
-      editingEntryId.value = null;
+      editingEntryId.value = opts && opts.editing ? entry.id : null;
       currentView.value = 'add-operators';
+    }
+
+    function duplicateEntry(id) {
+      const entry = entries.value.find(e => e.id === id);
+      if (entry) loadFormFromEntry(entry, { editing: false });
     }
 
     function editEntry(id) {
@@ -609,14 +726,7 @@ const OperatorsPanel = {
       // helper-only, and mixed entries. A helper-only entry's edit lets the
       // user attach operators/teams to it too.
       const entry = entries.value.find(e => e.id === id);
-      if (!entry) return;
-      formSelectedOps.value = [...entry.operatorIds];
-      formStartTime.value = entry.startTime;
-      formEndTime.value = entry.endTime;
-      formHelperCount.value = entry.helperCount || null;
-      searchQuery.value = '';
-      editingEntryId.value = id;
-      currentView.value = 'add-operators';
+      if (entry) loadFormFromEntry(entry, { editing: true });
     }
 
     function handleOverlayClick() {
@@ -702,21 +812,63 @@ const OperatorsPanel = {
         if (op) firstName = op.firstName;
       }
 
-      // Find shift leader — first operator across all entries with the "Supervisor" tag.
-      // Gated by the per-station "Enable shift leader selection" toggle (Spiros: must be optional).
-      const stationSettings = SharedData.getStations().find(s => s.name === SHIFT_VIEW_STATION);
-      const leaderEnabled = stationSettings ? stationSettings.enableShiftLeader : false;
-      let leaderName = '';
-      if (leaderEnabled) {
+      // Find all shift leaders — every operator on any entry whose ENTRY-LEVEL
+      // role is "Supervisor". Multiple supervisors render comma-separated; the
+      // chip then shows "Alice, Bob + N" where N is everyone else (ops + helpers).
+      // Supervisors always take precedence in the chip — no per-station gating.
+      const leaderIds = new Set();
+      const leaderFirstNames = [];
+      {
         for (const entry of entries.value) {
-          const leader = entry.operatorIds
-            .map(id => allOperators.find(o => o.id === id))
-            .find(op => op && (op.tags || []).includes('Supervisor'));
-          if (leader) { leaderName = leader.firstName; break; }
+          entry.operatorIds.forEach(id => {
+            if (entryHasRole(entry, id, 'Supervisor') && !leaderIds.has(id)) {
+              leaderIds.add(id);
+              const op = allOperators.find(o => o.id === id);
+              if (op) leaderFirstNames.push(op.firstName);
+            }
+          });
         }
       }
-      // Leader extras = everyone else (ops + helpers)
-      const leaderExtras = leaderName ? Math.max(0, totalPeople - 1) : 0;
+      const leaderName = leaderFirstNames.join(', ');
+      // Leader extras = everyone who isn't already listed as a leader (ops + helpers).
+      const leaderExtras = leaderName ? Math.max(0, totalPeople - leaderIds.size) : 0;
+
+      // Full team-grouped operator+helper list (for chip hover tooltip).
+      // Aggregates across all entries so the user sees the entire shift.
+      const fullTooltip = (() => {
+        const lines = [];
+        // Group all unique operators by their team
+        const byTeam = new Map(); // teamId|0 → { teamName, names[] }
+        const seenOpIds = new Set();
+        // Union all role lists across entries for each operator id.
+        const allEntryRoles = {}; // opId → string[]
+        entries.value.forEach(e => {
+          Object.entries(e.roles || {}).forEach(([id, r]) => {
+            const list = Array.isArray(r) ? r : (r ? [r] : []);
+            const existing = allEntryRoles[id] || [];
+            allEntryRoles[id] = [...new Set([...existing, ...list])];
+          });
+        });
+        entries.value.forEach(e => {
+          e.operatorIds.forEach(id => {
+            if (seenOpIds.has(id)) return;
+            seenOpIds.add(id);
+            const op = allOperators.find(o => o.id === id);
+            if (!op) return;
+            const team = op.teamId ? allTeams.find(t => t.id === op.teamId) : null;
+            const key = team ? team.id : 0;
+            if (!byTeam.has(key)) byTeam.set(key, { teamName: team ? team.name : null, names: [] });
+            const roles = allEntryRoles[id] || [];
+            byTeam.get(key).names.push(roles.length ? `${op.firstName} (${roles.join(', ')})` : op.firstName);
+          });
+        });
+        byTeam.forEach(g => {
+          if (g.teamName) lines.push(`${g.teamName}: ${g.names.join(', ')}`);
+          else if (g.names.length) lines.push(g.names.join(', '));
+        });
+        if (totalHelpers > 0) lines.push(`Helpers: ${totalHelpers}`);
+        return lines.join('\n');
+      })();
 
       emit('update:summary', {
         primaryTeamName,
@@ -727,6 +879,7 @@ const OperatorsPanel = {
         leaderName,
         leaderExtras,
         totalPeople,
+        fullTooltip,
         hasEntries: totalPeople > 0,
       });
     }
@@ -765,6 +918,7 @@ const OperatorsPanel = {
       getEntryTeamColors,
       getOperatorNames,
       getOperatorFirstNames,
+      getEntryFlatNames,
       openAddOperators,
       openAddHelpers,
       cancelForm,
@@ -784,7 +938,10 @@ const OperatorsPanel = {
       tagDropdownPos,
       handleRowMouseleave,
       openTagDropdown,
-      toggleOperatorTag,
+      pickOperatorRole,
+      effectiveRole,
+      effectiveRoles,
+      formOperatorRoles,
       allTags,
     };
   }

@@ -49,7 +49,7 @@
     <div class="page-header__actions">
       <button class="btn btn--secondary" id="btnNewTeam">
         <span class="btn__icon" data-icn="add" data-tint="green"></span>
-        <span class="btn__text">Team</span>
+        <span class="btn__text">Group</span>
       </button>
       <button class="btn btn--primary" id="btnNewOperator">
         <span class="btn__icon" data-icn="add" data-tint="white"></span>
@@ -83,7 +83,7 @@
     <div class="view-toggle">
       <button class="view-toggle__btn" data-view="teams" id="toggleTeams">
         <span data-icn="group" data-size="16"></span>
-        Teams
+        Groups
       </button>
       <button class="view-toggle__btn is-active" data-view="list" id="toggleList">
         <span data-icn="list" data-size="16"></span>
@@ -105,7 +105,7 @@
             <th><span class="th-inner">First name</span></th>
             <th><span class="th-inner">Last name</span></th>
             <th><span class="th-inner">Factories</span></th>
-            <th><span class="th-inner">Team</span></th>
+            <th><span class="th-inner">Operator group</span></th>
             <th>
               <span class="th-inner">
                 <span data-icn="tags" data-size="16"></span>
@@ -178,11 +178,11 @@
         </div>
         <div class="field" style="position:relative;">
           <button type="button" class="field__select is-empty" id="opTeamTrigger">
-            <span class="field__select-text">Team</span>
+            <span class="field__select-text">Operator group</span>
             <span class="field__select-caret" data-icn="menu-down"></span>
           </button>
           <div class="field__bottom">
-            <span class="field__hint">Team (Optional)</span>
+            <span class="field__hint">Operator group (Optional)</span>
           </div>
           <div class="dropdown" id="opTeamMenu" data-anchor="#opTeamTrigger"></div>
         </div>
@@ -230,14 +230,14 @@
 <div class="modal-overlay" id="modalTeam">
   <div class="modal modal--narrow">
     <div class="modal__header">
-      <div class="modal__title" id="teamTitle">New: Team</div>
+      <div class="modal__title" id="teamTitle">New: Operator group</div>
     </div>
     <div class="modal__body">
       <div class="field-row">
         <div class="field">
-          <input class="field__input" id="teamName" placeholder="Team name" maxlength="100">
+          <input class="field__input" id="teamName" placeholder="Operator group name" maxlength="100">
           <div class="field__bottom">
-            <span class="field__hint">Team name</span>
+            <span class="field__hint">Operator group name</span>
             <span class="field__counter"><span id="teamNameCount">0</span> / 100</span>
           </div>
         </div>
@@ -247,7 +247,7 @@
             <span class="field__select-caret" data-icn="menu-down"></span>
           </button>
           <div class="field__bottom">
-            <span class="field__hint">Team color in reports</span>
+            <span class="field__hint">Operator group color in reports</span>
           </div>
           <div class="dropdown" id="teamColorMenu" data-anchor="#teamColorTrigger"></div>
         </div>
@@ -357,6 +357,19 @@ function teamFactoryName(teamObj) {
 }
 
 // ─── List view rendering ───
+// Renders each tag; the operator's defaultTag gets a small filled star
+// BEFORE its name (4px gap) to signal it's the pre-selected role in shift view.
+function renderTagsCell(op) {
+  const tags = op.tags || [];
+  if (tags.length === 0) return '-';
+  return tags.map(t => {
+    const star = (op.defaultTag === t)
+      ? `<img src="icn/save-report.svg" alt="default tag" width="14" height="14" style="vertical-align:-2px;margin-right:4px;">`
+      : '';
+    return `${star}${escapeHtml(t)}`;
+  }).join(', ');
+}
+
 function renderList() {
   const body = $('#listBody');
   body.innerHTML = operators.map(op => {
@@ -368,7 +381,7 @@ function renderList() {
         <td class="td-bold">${escapeHtml(op.lastName)}</td>
         <td>${escapeHtml(factoryName || 'All')}</td>
         <td>${team ? escapeHtml(team.name) : '-'}</td>
-        <td>${op.tags && op.tags.length ? escapeHtml(op.tags.join(', ')) : '-'}</td>
+        <td>${renderTagsCell(op)}</td>
         <td>${escapeHtml((op.stations || []).join(', '))}</td>
         <td>No</td>
         <td></td>
@@ -432,7 +445,7 @@ function renderTeams(expandTeamId) {
                   <td>${escapeHtml(op.lastName)}</td>
                   <td>${escapeHtml((op.stations || []).slice(0, 2).join(', '))}</td>
                   <td>${escapeHtml((op.stations || []).slice(2).join(', ') || (op.stations || [])[0] || '-')}</td>
-                  <td>${op.tags && op.tags.length ? escapeHtml(op.tags.join(', ')) : '-'}</td>
+                  <td>${renderTagsCell(op)}</td>
                   <td>No</td>
                 </tr>
               `).join('')}
@@ -469,12 +482,12 @@ function renderTeams(expandTeamId) {
 function setView(v) {
   $('#viewList').style.display  = v === 'list'  ? '' : 'none';
   $('#viewTeams').style.display = v === 'teams' ? '' : 'none';
-  $('#pageTitle').textContent   = v === 'teams' ? 'Teams' : 'Operators';
+  $('#pageTitle').textContent   = v === 'teams' ? 'Operator groups' : 'Operators';
   $('#toggleList').classList.toggle('is-active',  v === 'list');
   $('#toggleTeams').classList.toggle('is-active', v === 'teams');
   // Also update the top bar title (already drawn into chrome)
   const titleEl = document.querySelector('.topbar__title-text');
-  if (titleEl) titleEl.textContent = v === 'teams' ? 'Teams' : 'Operators';
+  if (titleEl) titleEl.textContent = v === 'teams' ? 'Operator groups' : 'Operators';
 }
 
 // ─── Modal helpers ───
@@ -566,6 +579,9 @@ function getOperatorFormState() {
     stations: window.__opStations || [],
     teamId:   window.__opTeam ?? null,
     tags:     window.__opTags || [],
+    // Default tag: must be one of the available tags. Pre-selects this tag
+    // in the Shift View tag picker. May be null (no default).
+    defaultTag: window.__opDefaultTag || null,
   };
 }
 function setOperatorFormState(op) {
@@ -576,6 +592,7 @@ function setOperatorFormState(op) {
   window.__opStations = [...(op?.stations || [])];
   window.__opTeam = op?.teamId ?? null;
   window.__opTags = [...(op?.tags || [])];
+  window.__opDefaultTag = op?.defaultTag || null;
   refreshOperatorSummaries();
 }
 function refreshOperatorSummaries() {
@@ -585,11 +602,13 @@ function refreshOperatorSummaries() {
   sTrig.classList.toggle('is-empty', s.length === 0);
   $('.field__select-text', sTrig).textContent = s.length ? (s.length === 1 ? s[0] : `${s[0]} + ${s.length - 1} more`) : 'Stations';
 
-  // Team
+  // Team — show a small color swatch before the name when one is picked.
   const tTrig = $('#opTeamTrigger');
   const team = teamById(window.__opTeam);
   tTrig.classList.toggle('is-empty', !team);
-  $('.field__select-text', tTrig).textContent = team ? team.name : 'Team';
+  $('.field__select-text', tTrig).innerHTML = team
+    ? `<span class="swatch" style="background:${team.color};margin-right:8px;vertical-align:middle;"></span>${escapeHtml(team.name)}`
+    : 'Team';
 
   // Tags
   const gTrig = $('#opTagsTrigger');
@@ -681,14 +700,30 @@ $('#opTeamTrigger').addEventListener('click', () => {
 });
 
 // Tags dropdown (multi-select with SET UP TAGS button — Figma 32022:19287)
-bindDropdown('#opTagsTrigger', '#opTagsMenu', () => {
+// Each checked tag has a star to its right. Clicking the star promotes that
+// tag to the operator's *default* (pre-selected in Shift View). Only one
+// tag at a time may be the default.
+function renderOpTagsMenu() {
   const sel = window.__opTags || [];
-  const rows = TAGS.map(t => `
-    <div class="dropdown__row ${sel.includes(t) ? 'is-checked' : ''}" data-value="${escapeHtml(t)}">
-      ${checkboxMarker(sel.includes(t))}
-      <span style="flex:1;">${escapeHtml(t)}</span>
-    </div>
-  `).join('');
+  const def = window.__opDefaultTag;
+  const rows = TAGS.map(t => {
+    const checked = sel.includes(t);
+    const isDefault = def === t;
+    // Star behaviour:
+    //  - default tag  → filled star always visible (icn/save-report.svg)
+    //  - other tags   → outline star visible only on row hover (CSS-driven)
+    // Both stay the standard #707070 icon grey (no green tint).
+    return `
+      <div class="dropdown__row ${checked ? 'is-checked' : ''}" data-value="${escapeHtml(t)}">
+        ${checkboxMarker(checked)}
+        <span style="flex:1;">${escapeHtml(t)}</span>
+        <button type="button" class="dropdown__row-star ${isDefault ? 'is-default' : ''}" data-default="${escapeHtml(t)}" data-tip="Set as default tag selected in shift view" aria-label="Set as default tag selected in shift view">
+          <img src="icn/save-report.svg" alt="" width="24" height="24" class="dropdown__row-star-img dropdown__row-star-img--filled">
+          <img src="icn/star-outline.svg" alt="" width="24" height="24" class="dropdown__row-star-img dropdown__row-star-img--outline">
+        </button>
+      </div>
+    `;
+  }).join('');
   return `
     <div class="dropdown__rows">${rows}</div>
     <div class="dropdown__footer">
@@ -698,13 +733,71 @@ bindDropdown('#opTagsTrigger', '#opTagsMenu', () => {
       </button>
     </div>
   `;
-});
+}
+bindDropdown('#opTagsTrigger', '#opTagsMenu', renderOpTagsMenu);
+function rebuildOpTagsMenu() {
+  const menu = $('#opTagsMenu');
+  menu.innerHTML = renderOpTagsMenu();
+  // Reposition relative to the trigger (in case the menu height changed).
+  positionDropdown(menu, $('#opTagsTrigger'));
+  hydrateIcons(menu);
+  wireDropdownMenu(menu);
+  wireOpTagsStars(menu);
+}
 $('#opTagsTrigger').addEventListener('click', () => {
   window.__currentMultiSelect = () => {
-    window.__opTags = $$('#opTagsMenu .dropdown__row.is-checked').map(r => r.dataset.value);
+    const checkedTags = $$('#opTagsMenu .dropdown__row.is-checked').map(r => r.dataset.value);
+    window.__opTags = checkedTags;
+    if (window.__opDefaultTag && !checkedTags.includes(window.__opDefaultTag)) {
+      window.__opDefaultTag = null;
+    }
     refreshOperatorSummaries();
+    rebuildOpTagsMenu();
   };
+  setTimeout(() => wireOpTagsStars($('#opTagsMenu')), 0);
 });
+// Wire star clicks so they don't toggle the parent row's checkbox.
+// Clicking a star auto-checks the tag if it wasn't, and sets it as default.
+// Clicking the filled star clears the default (the tag stays checked).
+function wireOpTagsStars(menu) {
+  $$('.dropdown__row-star', menu).forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      const tag = btn.dataset.default;
+      if (window.__opDefaultTag === tag) {
+        window.__opDefaultTag = null;
+      } else {
+        // Setting a new default auto-checks the tag if it wasn't.
+        if (!(window.__opTags || []).includes(tag)) {
+          window.__opTags = [...(window.__opTags || []), tag];
+        }
+        window.__opDefaultTag = tag;
+      }
+      rebuildOpTagsMenu();
+      refreshOperatorSummaries();
+    });
+    btn.addEventListener('mouseenter', e => evoShowTooltip(e, btn.dataset.tip));
+    btn.addEventListener('mouseleave', evoHideTooltip);
+  });
+}
+
+// ─── Evocon-style tooltip (shared by anything with [data-tip]) ───
+let _evoTooltipEl = null;
+function evoShowTooltip(event, text) {
+  if (!text) return;
+  evoHideTooltip();
+  const el = document.createElement('div');
+  el.className = 'evo-tooltip';
+  el.textContent = text;
+  document.body.appendChild(el);
+  _evoTooltipEl = el;
+  const r = event.currentTarget.getBoundingClientRect();
+  el.style.left = (r.left + r.width / 2 - el.offsetWidth / 2) + 'px';
+  el.style.top  = (r.top - el.offsetHeight - 6) + 'px';
+}
+function evoHideTooltip() {
+  if (_evoTooltipEl) { _evoTooltipEl.remove(); _evoTooltipEl = null; }
+}
 
 // ─── Team modal ───
 function setTeamForm(team) {
@@ -730,7 +823,7 @@ function refreshTeamSummaries() {
 }
 function openTeamModal(teamId) {
   editingTeam = teamId ? teams.find(t => t.id === teamId) : null;
-  $('#teamTitle').textContent = editingTeam ? `Edit: ${editingTeam.name}` : 'New: Team';
+  $('#teamTitle').textContent = editingTeam ? `Edit: ${editingTeam.name}` : 'New: Operator group';
   setTeamForm(editingTeam);
   openModal('modalTeam');
 }

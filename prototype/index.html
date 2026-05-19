@@ -637,13 +637,15 @@
       border: 1px solid #2ecc71;
       color: #fff;
     }
-    .sv-leader-name { font-weight: 600; }
+    /* Operator chip text matches the rest of the legend (font-weight 400,
+       14px, 20px line-height — inherited from .sv-legend-item). */
+    .sv-leader-name { font-weight: 400; }
     /* Tight inline group inside the operator chip so the team-name and "+N"
        sit as one flowing line rather than being spaced by the legend gap. */
     .sv-op-summary {
       display: inline-flex;
       align-items: center;
-      gap: 6px;
+      gap: 4px;
       white-space: nowrap;
     }
     .sv-team-swatch {
@@ -669,7 +671,7 @@
     .op-modal {
       background: white;
       border-radius: 4px;
-      width: 800px;
+      width: 700px;;
       max-height: 80vh;
       display: flex;
       flex-direction: column;
@@ -679,7 +681,7 @@
         0px 3px 1px -2px rgba(0,0,0,0.12);
       overflow: hidden;
     }
-    .op-modal-tall { height: 700px; }
+    .op-modal-tall { height: 900px; }
 
     /* Header */
     .op-header {
@@ -929,11 +931,12 @@
       padding: 0 16px;
       gap: 16px;
     }
+    /* Tighten group name → color swatch gap to 8px (overrides the row gap). */
+    .op-team-row .op-team-swatch + .op-team-label { margin-left: -8px; }
     .op-op-row {
       height: 40px;
       padding: 0 16px 0 32px;
       gap: 8px;
-      justify-content: space-between;
     }
     /* No-team operator rows: no parent team group, so align the checkbox
        with the team-row level (16px) rather than the indented operator level. */
@@ -964,6 +967,7 @@
       font-weight: 400;
       line-height: 20px;
       color: #212121;
+      margin-right: 0px;
     }
     .op-team-swatch {
       display: inline-block;
@@ -971,7 +975,7 @@
       height: 16px;
       border-radius: 4px;
       flex-shrink: 0;
-      margin-right: -4px;
+      margin-left: 0px;
     }
     .op-card-team-swatch {
       display: inline-block;
@@ -1021,6 +1025,7 @@
     .op-tag-chip-editable { cursor: pointer; }
     .op-tag-chip-editable:hover { background: rgba(46, 204, 113, 0.2); }
 
+    /* "No tag selected" CTA — solid grey filter-chip per Figma 32002:25201 */
     .op-tag-chip-ghost {
       display: inline-flex;
       align-items: center;
@@ -1030,15 +1035,15 @@
       font-weight: 400;
       line-height: 20px;
       color: #212121;
-      background: transparent;
-      border: 1px dashed #707070;
+      background: #eee;
+      border: none;
       border-radius: 24px;
       height: 32px;
       padding: 0 12px;
       white-space: nowrap;
       cursor: pointer;
     }
-    .op-tag-chip-ghost:hover { border-color: #212121; }
+    .op-tag-chip-ghost:hover { background: #e0e0e0; }
 
     .op-tag-dropdown {
       position: fixed;
@@ -1062,6 +1067,26 @@
     }
     .op-tag-dropdown-item:hover { background: #f5f5f5; }
     .op-tag-dropdown-remove { color: #d32f2f; border-top: 1px solid #eee; }
+    /* Single-select radio for the entry-level role picker. */
+    .op-tag-dropdown-radio {
+      width: 18px;
+      height: 18px;
+      border: 2px solid #9e9e9e;
+      border-radius: 50%;
+      flex-shrink: 0;
+      position: relative;
+      background: #fff;
+    }
+    .op-tag-dropdown-radio.checked {
+      border-color: #2ecc71;
+    }
+    .op-tag-dropdown-radio.checked::after {
+      content: '';
+      position: absolute;
+      inset: 3px;
+      border-radius: 50%;
+      background: #2ecc71;
+    }
 
     /* Time inputs */
     .op-time-row {

@@ -166,7 +166,9 @@ const ShiftView = {
       <!-- ── Bottom bar ── -->
       <div class="sv-bottombar">
         <div class="sv-bottombar-icon"><v-icon size="24" color="white">mdi-dots-vertical</v-icon></div>
-        <div class="sv-legend-item" @click="$emit('open-operators')">
+        <div class="sv-legend-item" @click="$emit('open-operators')"
+             @mouseenter="showChipTooltip($event)"
+             @mouseleave="hideChipTooltip">
           <v-icon size="24" color="white">mdi-account-hard-hat</v-icon>
           <template v-if="operatorSummary && operatorSummary.hasEntries">
             <span class="sv-op-summary">
@@ -197,8 +199,30 @@ const ShiftView = {
       </div>
     </div>
   `,
-  setup() {
+  setup(props) {
     const { ref, onMounted, onUnmounted } = Vue;
+
+    // ── Evocon-style tooltip for the operator chip ──
+    let _tipEl = null;
+    function showChipTooltip(event) {
+      hideChipTooltip();
+      const summary = props.operatorSummary;
+      if (!summary || !summary.hasEntries || !summary.fullTooltip) return;
+      const el = document.createElement('div');
+      el.className = 'evo-tooltip';
+      // Multi-line text via white-space pre-line so '\n' renders as line breaks
+      el.style.whiteSpace = 'pre-line';
+      el.textContent = summary.fullTooltip;
+      document.body.appendChild(el);
+      _tipEl = el;
+      const r = event.currentTarget.getBoundingClientRect();
+      el.style.left = Math.max(8, r.left + r.width / 2 - el.offsetWidth / 2) + 'px';
+      el.style.top  = (r.top - el.offsetHeight - 8) + 'px';
+    }
+    function hideChipTooltip() {
+      if (_tipEl) { _tipEl.remove(); _tipEl = null; }
+    }
+    onUnmounted(hideChipTooltip);
 
     const pad2 = (n) => String(n).padStart(2, '0');
 
@@ -237,7 +261,7 @@ const ShiftView = {
       onTarget: ACTUALS[i] >= TARGETS[i] * 0.8,
     }));
 
-    return { clockHM, clockSec, timelineRows };
+    return { clockHM, clockSec, timelineRows, showChipTooltip, hideChipTooltip };
   }
 };
 

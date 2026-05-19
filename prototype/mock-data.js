@@ -1,9 +1,9 @@
 // Shared mock data for operators & teams prototypes
 // Used by: setup-proto.html, index.html
 
-const DATA_VERSION = 8; // bump to wipe stale localStorage
+const DATA_VERSION = 13; // bump to wipe stale localStorage
 
-const MOCK_TAGS = ['Supervisor', 'Quality', 'Maintenance'];
+const MOCK_TAGS = ['Supervisor', 'Quality', 'Maintenance', 'External'];
 
 const MOCK_STATIONS = [
   'Filling Line 1', 'Filling Line 2', 'Packaging A', 'Packaging B',
@@ -19,35 +19,39 @@ const MOCK_FACTORIES = [
 // Team colors come from the Evocon Design System "Chart colors" palette
 // (Figma node 178:218 / --chart-* tokens in evocon-ui.css).
 const MOCK_TEAMS = [
-  { id: 1, name: 'Team Green', color: '#2ecc71', factoryId: 1 }, // --chart-green
-  { id: 2, name: 'Team Red',   color: '#800808', factoryId: 2 }, // --chart-red
+  { id: 1, name: 'Group A', color: '#2ecc71', factoryId: 1 }, // --chart-green
+  { id: 2, name: 'Group B',   color: '#800808', factoryId: 2 }, // --chart-red
 ];
 
-// First operator in each team carries ['Supervisor']. All others have no tags.
+// Tag config:
+//  - 1st operator in each group → tags=[Supervisor], defaultTag=Supervisor
+//  - 2nd operator in each group → tags=[Supervisor, Quality, Maintenance], no default
+//  - everyone else → no tags
+const ALT_TAGS = ['Supervisor', 'Quality', 'Maintenance'];
 const MOCK_OPERATORS = [
-  // ── Team Green ──
-  { id: 1,  firstName: 'Vasilis',   lastName: 'Mavroeidis',    tags: ['Supervisor'], teamId: 1, stations: ['Filling Line 1', 'Filling Line 2'] },
-  { id: 2,  firstName: 'Nikos',     lastName: 'Papadopoulos',  tags: [],             teamId: 1, stations: ['Filling Line 1'] },
-  { id: 3,  firstName: 'Maria',     lastName: 'Kostopoulou',   tags: [],             teamId: 1, stations: ['Filling Line 1'] },
-  { id: 4,  firstName: 'Giorgos',   lastName: 'Antoniou',      tags: [],             teamId: 1, stations: ['Packaging A'] },
-  { id: 5,  firstName: 'Elena',     lastName: 'Christodoulou', tags: [],             teamId: 1, stations: ['Packaging A', 'Packaging B'] },
-  { id: 6,  firstName: 'Dimitris',  lastName: 'Ekonomou',      tags: [],             teamId: 1, stations: ['Packaging B'] },
-  { id: 7,  firstName: 'Stavros',   lastName: 'Nikolaou',      tags: [],             teamId: 1, stations: ['Warehouse'] },
-  { id: 8,  firstName: 'Katerina',  lastName: 'Georgiou',      tags: [],             teamId: null, stations: ['Filling Line 2'] },
-  { id: 9,  firstName: 'Andreas',   lastName: 'Karagiannis',   tags: [],             teamId: null, stations: ['Warehouse'] },
-  { id: 10, firstName: 'Sofia',     lastName: 'Panagiotou',    tags: [],             teamId: null, stations: ['Quality Lab'] },
+  // ── Group A (Green) ──
+  { id: 1,  firstName: 'Vasilis',   lastName: 'Mavroeidis',    tags: ['Supervisor'], defaultTag: 'Supervisor', teamId: 1, stations: ['Filling Line 1', 'Filling Line 2', 'Packaging A', 'Packaging B'] },
+  { id: 2,  firstName: 'Nikos',     lastName: 'Papadopoulos',  tags: [...ALT_TAGS],                          teamId: 1, stations: ['Filling Line 1', 'Filling Line 2', 'Warehouse'] },
+  { id: 3,  firstName: 'Maria',     lastName: 'Kostopoulou',   tags: [],                                     teamId: 1, stations: ['Filling Line 1', 'Packaging A', 'Packaging B'] },
+  { id: 4,  firstName: 'Giorgos',   lastName: 'Antoniou',      tags: [],                                     teamId: 1, stations: ['Packaging A', 'Packaging B', 'Warehouse'] },
+  { id: 5,  firstName: 'Elena',     lastName: 'Christodoulou', tags: [],                                     teamId: 1, stations: ['Filling Line 2', 'Packaging A', 'Packaging B', 'Quality Lab'] },
+  { id: 6,  firstName: 'Dimitris',  lastName: 'Ekonomou',      tags: [],                                     teamId: 1, stations: ['Packaging A', 'Packaging B', 'Warehouse'] },
+  { id: 7,  firstName: 'Stavros',   lastName: 'Nikolaou',      tags: [],                                     teamId: 1, stations: ['Filling Line 1', 'Warehouse', 'Quality Lab'] },
+  { id: 8,  firstName: 'Katerina',  lastName: 'Georgiou',      tags: [],                                     teamId: null, stations: ['Filling Line 1', 'Filling Line 2', 'Quality Lab'] },
+  { id: 9,  firstName: 'Andreas',   lastName: 'Karagiannis',   tags: [],                                     teamId: null, stations: ['Filling Line 2', 'Warehouse', 'Packaging A'] },
+  { id: 10, firstName: 'Sofia',     lastName: 'Panagiotou',    tags: [],                                     teamId: null, stations: ['Quality Lab', 'Packaging B'] },
 
-  // ── Team Red ──
-  { id: 11, firstName: 'Jonas',     lastName: 'Hermansen',     tags: ['Supervisor'], teamId: 2, stations: ['Filling Line 2', 'Packaging B'] },
-  { id: 12, firstName: 'Pawel',     lastName: 'Herchel',       tags: [],             teamId: 2, stations: ['Filling Line 2'] },
-  { id: 13, firstName: 'Rafal',     lastName: 'Cebula',        tags: [],             teamId: 2, stations: ['Filling Line 1'] },
-  { id: 14, firstName: 'Łukasz',    lastName: 'Biłas',         tags: [],             teamId: 2, stations: ['Filling Line 1', 'Warehouse'] },
-  { id: 15, firstName: 'Marta',     lastName: 'Kowalska',      tags: [],             teamId: 2, stations: ['Packaging A'] },
-  { id: 16, firstName: 'Tomasz',    lastName: 'Wiśniewski',    tags: [],             teamId: 2, stations: ['Packaging A', 'Packaging B'] },
-  { id: 17, firstName: 'Anna',      lastName: 'Nowak',         tags: [],             teamId: 2, stations: ['Packaging B'] },
-  { id: 18, firstName: 'Piotr',     lastName: 'Kamiński',      tags: [],             teamId: 2, stations: ['Filling Line 2'] },
-  { id: 19, firstName: 'Agnieszka', lastName: 'Zielińska',     tags: [],             teamId: null, stations: ['Warehouse'] },
-  { id: 20, firstName: 'Marek',     lastName: 'Lewandowski',   tags: [],             teamId: null, stations: ['Quality Lab'] },
+  // ── Group B (Red) ──
+  { id: 11, firstName: 'Jonas',     lastName: 'Hermansen',     tags: ['Supervisor'], defaultTag: 'Supervisor', teamId: 2, stations: ['Filling Line 1', 'Filling Line 2', 'Packaging A', 'Packaging B'] },
+  { id: 12, firstName: 'Pawel',     lastName: 'Herchel',       tags: [...ALT_TAGS],                          teamId: 2, stations: ['Filling Line 1', 'Filling Line 2', 'Warehouse'] },
+  { id: 13, firstName: 'Rafal',     lastName: 'Cebula',        tags: [],                                     teamId: 2, stations: ['Filling Line 1', 'Packaging A', 'Packaging B'] },
+  { id: 14, firstName: 'Łukasz',    lastName: 'Biłas',         tags: [],                                     teamId: 2, stations: ['Filling Line 1', 'Filling Line 2', 'Warehouse'] },
+  { id: 15, firstName: 'Marta',     lastName: 'Kowalska',      tags: [],                                     teamId: 2, stations: ['Packaging A', 'Packaging B', 'Warehouse'] },
+  { id: 16, firstName: 'Tomasz',    lastName: 'Wiśniewski',    tags: [],                                     teamId: 2, stations: ['Filling Line 2', 'Packaging A', 'Packaging B'] },
+  { id: 17, firstName: 'Anna',      lastName: 'Nowak',         tags: [],                                     teamId: 2, stations: ['Packaging A', 'Packaging B', 'Quality Lab'] },
+  { id: 18, firstName: 'Piotr',     lastName: 'Kamiński',      tags: [],                                     teamId: 2, stations: ['Filling Line 1', 'Filling Line 2', 'Warehouse'] },
+  { id: 19, firstName: 'Agnieszka', lastName: 'Zielińska',     tags: [],                                     teamId: null, stations: ['Warehouse', 'Packaging A', 'Quality Lab'] },
+  { id: 20, firstName: 'Marek',     lastName: 'Lewandowski',   tags: [],                                     teamId: null, stations: ['Quality Lab', 'Packaging B', 'Filling Line 2'] },
 ];
 
 // Per-station feature toggles. Off by default — Spiros constraint: "must be optional".
