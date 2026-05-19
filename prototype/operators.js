@@ -31,17 +31,17 @@ const OperatorsPanel = {
             <div v-for="entry in entries" :key="entry.id" class="op-card">
               <div class="op-card-top">
                 <div class="op-card-left">
-                  <span v-if="entry.operatorIds.length > 0"
-                        class="op-card-badge"
-                        @mouseenter="showTooltip($event, 'Operators: ' + getOperatorFirstNames(entry))"
-                        @mouseleave="hideTooltip">
-                    <v-icon size="18" color="#757575">mdi-account-hard-hat</v-icon> {{ entry.operatorIds.length }}
-                  </span>
                   <span v-if="entry.helperCount > 0"
                         class="op-card-badge"
                         @mouseenter="showTooltip($event, 'Helpers')"
                         @mouseleave="hideTooltip">
                     <v-icon size="18" color="#757575">mdi-account-group</v-icon> {{ entry.helperCount }}
+                  </span>
+                  <span v-if="entry.operatorIds.length > 0"
+                        class="op-card-badge"
+                        @mouseenter="showTooltip($event, 'Operators: ' + getOperatorFirstNames(entry))"
+                        @mouseleave="hideTooltip">
+                    <v-icon size="18" color="#757575">mdi-account-hard-hat</v-icon> {{ entry.operatorIds.length }}
                   </span>
                   <span class="op-card-names"
                         @mouseenter="showTooltip($event, entry.operatorIds.length > 0 ? getOperatorNames(entry) : 'Helpers')"
@@ -75,7 +75,7 @@ const OperatorsPanel = {
         <template v-if="currentView === 'add-operators'">
           <div class="op-header">
             <v-icon size="24" color="#212121">mdi-account-hard-hat</v-icon>
-            <span class="op-header-title">Operators</span>
+            <span class="op-header-title">{{ editingEntryId ? 'Edit: Operators' : 'Add: Operators' }}</span>
           </div>
 
           <div class="op-body op-body-scroll">
@@ -484,12 +484,14 @@ const OperatorsPanel = {
       return colors;
     }
 
-    // Render a single operator's name with their entry-level roles appended.
-    // E.g. "Vasilis (Supervisor)" or "Pawel (Quality, Maintenance)".
+    // Render a single operator's full name + entry-level roles. Tooltips
+    // always carry the full data so users can identify people unambiguously.
+    // E.g. "Vasilis Mavroeidis (Supervisor)" or "Pawel Herchel (Quality, Maintenance)".
     function nameWithRole(op, entry) {
       const r = entry && entry.roles ? entry.roles[op.id] : null;
       const list = Array.isArray(r) ? r : (r ? [r] : []);
-      return list.length ? `${op.firstName} (${list.join(', ')})` : op.firstName;
+      const name = `${op.firstName} ${op.lastName}`.trim();
+      return list.length ? `${name} (${list.join(', ')})` : name;
     }
 
     function entryHasRole(entry, opId, role) {
@@ -499,7 +501,8 @@ const OperatorsPanel = {
     }
 
     // Flat name list with supervisors first, then everyone else (entry order
-    // preserved within each group). Used on the operator-modal card.
+    // preserved within each group). Used on the operator-modal card —
+    // full names only, no role parentheses (those live in the tooltip).
     function getEntryFlatNames(entry) {
       const ops = entry.operatorIds
         .map(id => allOperators.find(o => o.id === id))
@@ -507,7 +510,7 @@ const OperatorsPanel = {
       const sups = ops.filter(op => entryHasRole(entry, op.id, 'Supervisor'));
       const rest = ops.filter(op => !entryHasRole(entry, op.id, 'Supervisor'));
       return [...sups, ...rest]
-        .map(op => nameWithRole(op, entry))
+        .map(op => `${op.firstName} ${op.lastName}`.trim())
         .join(', ');
     }
 
@@ -859,7 +862,8 @@ const OperatorsPanel = {
             const key = team ? team.id : 0;
             if (!byTeam.has(key)) byTeam.set(key, { teamName: team ? team.name : null, names: [] });
             const roles = allEntryRoles[id] || [];
-            byTeam.get(key).names.push(roles.length ? `${op.firstName} (${roles.join(', ')})` : op.firstName);
+            const fullName = `${op.firstName} ${op.lastName}`.trim();
+            byTeam.get(key).names.push(roles.length ? `${fullName} (${roles.join(', ')})` : fullName);
           });
         });
         byTeam.forEach(g => {
@@ -867,7 +871,7 @@ const OperatorsPanel = {
           else if (g.names.length) lines.push(g.names.join(', '));
         });
         if (totalHelpers > 0) lines.push(`Helpers: ${totalHelpers}`);
-        return lines.join('\n');
+        return lines.join(', ');
       })();
 
       emit('update:summary', {
@@ -902,6 +906,7 @@ const OperatorsPanel = {
 
     return {
       currentView,
+      editingEntryId,
       entries,
       searchQuery,
       formSelectedOps,

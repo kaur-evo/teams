@@ -210,8 +210,6 @@ const ShiftView = {
       if (!summary || !summary.hasEntries || !summary.fullTooltip) return;
       const el = document.createElement('div');
       el.className = 'evo-tooltip';
-      // Multi-line text via white-space pre-line so '\n' renders as line breaks
-      el.style.whiteSpace = 'pre-line';
       el.textContent = summary.fullTooltip;
       document.body.appendChild(el);
       _tipEl = el;
