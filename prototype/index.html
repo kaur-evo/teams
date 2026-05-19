@@ -638,6 +638,14 @@
       color: #fff;
     }
     .sv-leader-name { font-weight: 600; }
+    /* Tight inline group inside the operator chip so the team-name and "+N"
+       sit as one flowing line rather than being spaced by the legend gap. */
+    .sv-op-summary {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      white-space: nowrap;
+    }
     .sv-team-swatch {
       display: inline-block;
       width: 12px;

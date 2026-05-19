@@ -169,18 +169,20 @@ const ShiftView = {
         <div class="sv-legend-item" @click="$emit('open-operators')">
           <v-icon size="24" color="white">mdi-account-hard-hat</v-icon>
           <template v-if="operatorSummary && operatorSummary.hasEntries">
-            <template v-if="operatorSummary.leaderName">
-              <span class="sv-leader-name">{{ operatorSummary.leaderName }}</span>
-              <span v-if="operatorSummary.leaderExtras > 0">+ {{ operatorSummary.leaderExtras }}</span>
-            </template>
-            <template v-else-if="operatorSummary.primaryTeamName">
-              <span v-if="operatorSummary.primaryTeamColor" class="sv-team-swatch" :style="{ background: operatorSummary.primaryTeamColor }"></span>
-              <span>{{ operatorSummary.primaryTeamName }} ({{ operatorSummary.primaryTeamCount }})</span>
-              <span v-if="operatorSummary.extraCount > 0">+ {{ operatorSummary.extraCount }}</span>
-            </template>
-            <template v-else>
-              <span>{{ operatorSummary.totalPeople === 1 ? operatorSummary.firstName : 'Operators (' + operatorSummary.totalPeople + ')' }}</span>
-            </template>
+            <span class="sv-op-summary">
+              <template v-if="operatorSummary.leaderName">
+                <span class="sv-leader-name">{{ operatorSummary.leaderName }}</span>
+                <span v-if="operatorSummary.leaderExtras > 0">&nbsp;+ {{ operatorSummary.leaderExtras }}</span>
+              </template>
+              <template v-else-if="operatorSummary.primaryTeamName">
+                <span v-if="operatorSummary.primaryTeamColor" class="sv-team-swatch" :style="{ background: operatorSummary.primaryTeamColor }"></span>
+                <span>{{ operatorSummary.primaryTeamName }} ({{ operatorSummary.primaryTeamCount }})</span>
+                <span v-if="operatorSummary.extraCount > 0">&nbsp;+ {{ operatorSummary.extraCount }}</span>
+              </template>
+              <template v-else>
+                <span>{{ operatorSummary.totalPeople === 1 ? operatorSummary.firstName : 'Operators (' + operatorSummary.totalPeople + ')' }}</span>
+              </template>
+            </span>
           </template>
           <template v-else>
             <span>Operators</span>
