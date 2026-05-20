@@ -99,14 +99,10 @@ const OperatorsPanel = {
                         @mouseleave="hideTooltip">{{ getEntryUntaggedNames(entry) }}</span>
                 </div>
 
-                <!-- Time row + TOTAL. TOTAL is operators + helpers; omitted on
-                     helper-only entries since the helper chip already states it. -->
+                <!-- Time row at the bottom of the card. -->
                 <div class="op-card-alt-time">
                   <v-icon size="16" color="#212121">mdi-clock-outline</v-icon>
                   <span>{{ entry.startTime }} - {{ entry.endTime }}</span>
-                  <span v-if="entry.operatorIds.length > 0 && entry.helperCount > 0" class="op-card-alt-total">
-                    TOTAL {{ getEntryTotal(entry) }}
-                  </span>
                 </div>
               </div>
               <!-- Kebab menu — Edit / Duplicate / Delete. stopPropagation so
