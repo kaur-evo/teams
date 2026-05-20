@@ -13,6 +13,33 @@
     .sv-with-sidebar { display: flex; width: 100vw; height: 100vh; overflow: hidden; }
     .sv-with-sidebar .sb1 { position: static; height: 100vh; flex-shrink: 0; }
     .sv-with-sidebar #app { flex: 1; min-width: 0; }
+
+    /* Prototype settings panel (H-key toggle) */
+    .proto-panel {
+      position: fixed;
+      top: 12px;
+      right: 12px;
+      background: #fff;
+      border-radius: 4px;
+      box-shadow: 0px 1px 5px 0px rgba(0,0,0,0.25),
+                  0px 2px 2px 0px rgba(0,0,0,0.12),
+                  0px 3px 1px -2px rgba(0,0,0,0.12);
+      padding: 16px;
+      min-width: 280px;
+      z-index: 9999;
+      font-family: 'Open Sans', sans-serif;
+      color: #212121;
+    }
+    .proto-panel__title { font-size: 14px; font-weight: 600; line-height: 20px; }
+    .proto-panel__hint  { font-size: 12px; color: #707070; margin-top: 2px; margin-bottom: 12px; }
+    .proto-panel__hint kbd {
+      background: #eee; border-radius: 3px; padding: 1px 5px;
+      font-family: inherit; font-size: 11px;
+    }
+    .proto-panel__group { display: flex; flex-direction: column; gap: 8px; }
+    .proto-panel__label { font-size: 12px; font-weight: 600; color: #707070; text-transform: uppercase; letter-spacing: 0.4px; }
+    .proto-panel__opt { display: flex; gap: 8px; align-items: center; cursor: pointer; font-size: 14px; }
+    .proto-panel__opt small { color: #707070; }
   </style>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -883,6 +910,118 @@
       color: #212121;
     }
 
+    /* ── Alternative card prototype (Figma 32042:7348) ──
+       Two-column layout: stacked rows on the left, kebab on the right. */
+    .op-card--alt {
+      display: flex;
+      flex-direction: row;
+      align-items: flex-start;
+      gap: 16px;
+      padding: 8px 16px;
+      min-height: 62px;
+      cursor: pointer;
+      transition: background 0.1s;
+    }
+    .op-card--alt:hover { background: #fafafa; }
+    .op-card-alt-content {
+      flex: 1 1 0;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .op-card-alt-actions {
+      display: flex;
+      align-items: center;
+      flex-shrink: 0;
+    }
+    /* Time row: 12px caption with clock icon + optional TOTAL label. */
+    .op-card-alt-time {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      font-family: 'Open Sans', sans-serif;
+      font-size: 12px;
+      line-height: 16px;
+      color: #212121;
+    }
+    .op-card-alt-total {
+      margin-left: 12px;
+      font-weight: 600;
+      letter-spacing: 0.4px;
+      color: #707070;
+      text-transform: uppercase;
+    }
+    /* A heading-style row: chip(s) + bold-name(s). */
+    .op-card-alt-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-height: 28px;
+      flex-wrap: wrap;
+    }
+    /* Grey pill chip used for counts (helper/operator) and tag labels. */
+    .op-card-alt-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 5px 12px;
+      border-radius: 24px;
+      background: #eee;
+      color: #212121;
+      font-family: 'Open Sans', sans-serif;
+      font-size: 12px;
+      line-height: 16px;
+      white-space: nowrap;
+    }
+    /* Bold name line — Body 1 Bold per Figma. */
+    .op-card-alt-names {
+      font-family: 'Open Sans', sans-serif;
+      font-size: 16px;
+      font-weight: 600;
+      line-height: 24px;
+      color: #212121;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      min-width: 0;
+      flex: 1 1 0;
+    }
+    .op-card-alt-names--sub { font-weight: 600; }
+    .op-card-alt-extras { color: #707070; font-weight: 400; }
+    /* Kebab popup menu — teleported to <body>, positioned fixed via JS so
+       it escapes the modal's overflow:auto. */
+    .op-card-alt-actions { position: relative; }
+    .op-kebab-menu {
+      position: fixed;
+      background: #fff;
+      border-radius: 4px;
+      box-shadow:
+        0 1px 5px 0 rgba(0,0,0,0.25),
+        0 2px 2px 0 rgba(0,0,0,0.12),
+        0 3px 1px -2px rgba(0,0,0,0.12);
+      min-width: 180px;
+      z-index: 9000;
+      padding: 4px 0;
+      display: flex;
+      flex-direction: column;
+    }
+    .op-kebab-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 8px 16px;
+      border: none;
+      background: transparent;
+      cursor: pointer;
+      font-family: 'Open Sans', sans-serif;
+      font-size: 14px;
+      color: #212121;
+      text-align: left;
+      white-space: nowrap;
+    }
+    .op-kebab-item:hover { background: #f5f5f5; }
+
     /* Search (add-operators) */
     .op-search {
       display: flex;
@@ -1242,6 +1381,29 @@
           @close="operatorsPanelOpen = false"
           @update:summary="operatorSummary = $event"
         ></operators-panel>
+
+        <!-- Prototype settings panel — hidden by default, toggled with the H key.
+             Lets us flip between operator-card layouts (classic vs two-row) so
+             we can compare side-by-side without committing to one. -->
+        <div v-if="protoPanelOpen" class="proto-panel" @click.stop>
+          <div class="proto-panel__title">Prototype settings</div>
+          <div class="proto-panel__hint">Press <kbd>H</kbd> to toggle</div>
+          <div class="proto-panel__group">
+            <div class="proto-panel__label">Operator card layout</div>
+            <label class="proto-panel__opt">
+              <input type="radio" name="cardLayout" value="classic"
+                     :checked="cardLayout === 'classic'"
+                     @change="setCardLayout('classic')">
+              <span>Classic <small>(badge + flat name list)</small></span>
+            </label>
+            <label class="proto-panel__opt">
+              <input type="radio" name="cardLayout" value="twoRow"
+                     :checked="cardLayout === 'twoRow'"
+                     @change="setCardLayout('twoRow')">
+              <span>Alternative <small>(time + roles + one row per tag)</small></span>
+            </label>
+          </div>
+        </div>
       </v-app>
     </div>
   </div>
@@ -1276,9 +1438,38 @@
     const app = createApp({
       components: { ShiftView, OperatorsPanel },
       setup() {
+        const { onMounted, onUnmounted } = Vue;
         const operatorsPanelOpen = ref(false);
         const operatorSummary = ref(null);
-        return { operatorsPanelOpen, operatorSummary };
+        // ── Prototype settings (H-key toggle) ──
+        const protoPanelOpen = ref(false);
+        const cardLayout = ref(localStorage.getItem('protoCardLayout') || 'twoRow');
+        // Expose to other components (operators.js reads window.__protoCardLayout).
+        window.__protoCardLayout = cardLayout.value;
+        function setCardLayout(v) {
+          cardLayout.value = v;
+          window.__protoCardLayout = v;
+          localStorage.setItem('protoCardLayout', v);
+          // Nudge Vue reactivity by re-emitting a fake update — operators.js
+          // watches the global via a computed.
+          window.dispatchEvent(new CustomEvent('proto:cardLayout', { detail: v }));
+        }
+        function onKey(e) {
+          // Don't fire when typing in an input/textarea/contentEditable
+          const t = e.target;
+          if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+          if (e.key === 'h' || e.key === 'H') {
+            protoPanelOpen.value = !protoPanelOpen.value;
+          } else if (e.key === 'Escape' && protoPanelOpen.value) {
+            protoPanelOpen.value = false;
+          }
+        }
+        onMounted(() => document.addEventListener('keydown', onKey));
+        onUnmounted(() => document.removeEventListener('keydown', onKey));
+        return {
+          operatorsPanelOpen, operatorSummary,
+          protoPanelOpen, cardLayout, setCardLayout,
+        };
       }
     });
 

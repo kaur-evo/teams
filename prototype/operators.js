@@ -24,10 +24,8 @@ const OperatorsPanel = {
               No operators or helpers assigned yet.
             </div>
 
-            <!-- Unified entry cards. Each card has up to two badges (operators,
-                 helpers), the team-color swatches, the operator name list,
-                 and the action icons. Helper-only entries omit the operator
-                 badge and show "Helpers" as the name. -->
+            <!-- ── CLASSIC CARD ── single-row card (badges + flat name list) -->
+            <template v-if="cardLayout !== 'twoRow'">
             <div v-for="entry in entries" :key="entry.id" class="op-card">
               <div class="op-card-top">
                 <div class="op-card-left">
@@ -58,6 +56,87 @@ const OperatorsPanel = {
                 <span>{{ entry.startTime }} - {{ entry.endTime }}</span>
               </div>
             </div>
+            </template>
+
+            <!-- ── ALTERNATIVE CARD ── (Figma 32042:7348). Layout:
+                 - Top: clock + time range (12px caption).
+                 - "Heading" row: helper chip + operator chip + bold name list.
+                 - One row per role tag present: chip + first tagged op name.
+                 - Right-side kebab (3-dot menu) replaces individual icons. -->
+            <template v-else>
+            <div v-for="entry in entries" :key="entry.id" class="op-card op-card--alt"
+                 @click="editEntry(entry.id)">
+              <div class="op-card-alt-content">
+                <!-- One row per role tag — every tagged operator named in full -->
+                <div v-for="row in getEntryTagRows(entry)" :key="row.tag" class="op-card-alt-row">
+                  <span class="op-card-alt-chip">
+                    <v-icon size="18" color="#757575">mdi-tag</v-icon>
+                    {{ row.tag }}
+                  </span>
+                  <span class="op-card-alt-names">{{ row.allNames }}</span>
+                </div>
+
+                <!-- Operators row — helper chip + UNTAGGED operator chip + name
+                     list. Tagged people appear on their own rows above. -->
+                <div v-if="entry.helperCount > 0 || getEntryUntaggedCount(entry) > 0" class="op-card-alt-row">
+                  <span v-if="entry.helperCount > 0"
+                        class="op-card-alt-chip"
+                        @mouseenter="showTooltip($event, 'Helpers')"
+                        @mouseleave="hideTooltip">
+                    <v-icon size="18" color="#757575">mdi-account-group</v-icon>
+                    {{ entry.helperCount }}
+                  </span>
+                  <span v-if="getEntryUntaggedCount(entry) > 0"
+                        class="op-card-alt-chip"
+                        @mouseenter="showTooltip($event, 'Operators: ' + getEntryUntaggedNames(entry))"
+                        @mouseleave="hideTooltip">
+                    <v-icon size="18" color="#757575">mdi-account-hard-hat</v-icon>
+                    {{ getEntryUntaggedCount(entry) }}
+                  </span>
+                  <span v-if="getEntryUntaggedCount(entry) > 0"
+                        class="op-card-alt-names"
+                        @mouseenter="showTooltip($event, getEntryUntaggedNames(entry))"
+                        @mouseleave="hideTooltip">{{ getEntryUntaggedNames(entry) }}</span>
+                </div>
+
+                <!-- Time row + TOTAL. TOTAL is operators + helpers; omitted on
+                     helper-only entries since the helper chip already states it. -->
+                <div class="op-card-alt-time">
+                  <v-icon size="16" color="#212121">mdi-clock-outline</v-icon>
+                  <span>{{ entry.startTime }} - {{ entry.endTime }}</span>
+                  <span v-if="entry.operatorIds.length > 0 && entry.helperCount > 0" class="op-card-alt-total">
+                    TOTAL {{ getEntryTotal(entry) }}
+                  </span>
+                </div>
+              </div>
+              <!-- Kebab menu — Edit / Duplicate / Delete. stopPropagation so
+                   opening the menu doesn't also fire the card-level edit. -->
+              <div class="op-card-alt-actions" @click.stop>
+                <button class="op-icon-btn" :class="{ 'is-open': kebabEntryId === entry.id }"
+                        @click.stop="toggleKebab(entry.id, $event)" title="More">
+                  <v-icon size="24" color="#757575">mdi-dots-vertical</v-icon>
+                </button>
+                <teleport to="body">
+                  <div v-if="kebabEntryId === entry.id" class="op-kebab-menu"
+                       :style="{ top: kebabPos.top + 'px', left: kebabPos.left + 'px' }"
+                       @click.stop>
+                    <button class="op-kebab-item" @click="closeKebab(); editEntry(entry.id)">
+                      <v-icon size="24" color="#757575">mdi-pencil</v-icon>
+                      Edit
+                    </button>
+                    <button class="op-kebab-item" @click="closeKebab(); duplicateEntry(entry.id)">
+                      <v-icon size="24" color="#757575">mdi-content-copy</v-icon>
+                      Duplicate
+                    </button>
+                    <button class="op-kebab-item" @click="closeKebab(); deleteEntry(entry.id)">
+                      <v-icon size="24" color="#757575">mdi-delete</v-icon>
+                      Delete
+                    </button>
+                  </div>
+                </teleport>
+              </div>
+            </div>
+            </template>
           </div>
 
           <div class="op-footer">
@@ -268,6 +347,33 @@ const OperatorsPanel = {
     let _nextId = 10;
 
     const entries = ref([]);
+
+    // ── Prototype: operator-card layout switch (toggled via H-key panel). ──
+    const cardLayout = ref(window.__protoCardLayout || 'twoRow');
+    window.addEventListener('proto:cardLayout', (e) => { cardLayout.value = e.detail; });
+
+    // ── Kebab menu (alternative card): one open at a time. ──
+    // Teleported to <body> + position: fixed so the menu escapes the modal's
+    // overflow:auto scroll container.
+    const kebabEntryId = ref(null);
+    const kebabPos = ref({ top: 0, left: 0 });
+    function toggleKebab(id, event) {
+      if (kebabEntryId.value === id) { kebabEntryId.value = null; return; }
+      kebabEntryId.value = id;
+      if (event && event.currentTarget) {
+        const r = event.currentTarget.getBoundingClientRect();
+        // Anchor below + right-aligned to the kebab button. Flip up if it would
+        // overflow the viewport bottom.
+        const menuW = 180;
+        const menuH = 156;
+        let top = r.bottom + 4;
+        let left = r.right - menuW;
+        if (top + menuH > window.innerHeight - 8) top = r.top - menuH - 4;
+        if (left < 8) left = 8;
+        kebabPos.value = { top, left };
+      }
+    }
+    function closeKebab() { kebabEntryId.value = null; }
 
     // ── Form state ──
     const searchQuery = ref('');
@@ -492,6 +598,73 @@ const OperatorsPanel = {
       const list = Array.isArray(r) ? r : (r ? [r] : []);
       const name = `${op.firstName} ${op.lastName}`.trim();
       return list.length ? `${name} (${list.join(', ')})` : name;
+    }
+
+    // For the alternative card (Figma 32042:7348): one row per tag present
+    // in the entry, naming the FIRST operator carrying that tag. Multi-tag
+    // operators surface on every applicable row. Order follows MOCK_TAGS.
+    function getEntryTagRows(entry) {
+      const rows = [];
+      const roles = entry.roles || {};
+      MOCK_TAGS.forEach(tag => {
+        const ids = entry.operatorIds.filter(id => {
+          const r = roles[id];
+          const list = Array.isArray(r) ? r : (r ? [r] : []);
+          return list.includes(tag);
+        });
+        if (ids.length === 0) return;
+        const ops = ids
+          .map(id => allOperators.find(o => o.id === id))
+          .filter(Boolean);
+        if (ops.length === 0) return;
+        const names = ops.map(op => `${op.firstName} ${op.lastName}`.trim());
+        rows.push({
+          tag,
+          name: names[0],
+          // Surface remaining same-tag people via "+N" suffix if more than one.
+          extras: ops.length - 1,
+          allNames: names.join(', '),
+        });
+      });
+      return rows;
+    }
+
+    // For the alternative card: the bolded line of all operator names.
+    // Supervisors first, full names, no role parens (those are on tag rows).
+    function getEntryAllNames(entry) {
+      const ops = entry.operatorIds
+        .map(id => allOperators.find(o => o.id === id))
+        .filter(Boolean);
+      const sups = ops.filter(op => entryHasRole(entry, op.id, 'Supervisor'));
+      const rest = ops.filter(op => !entryHasRole(entry, op.id, 'Supervisor'));
+      return [...sups, ...rest]
+        .map(op => `${op.firstName} ${op.lastName}`.trim())
+        .join(', ');
+    }
+
+    // Returns the operators that DON'T have any tag — they belong on the
+    // generic "operators" row (tagged people surface in their own tag rows).
+    function getEntryUntaggedOps(entry) {
+      const roles = entry.roles || {};
+      const isTagged = (id) => {
+        const r = roles[id];
+        const list = Array.isArray(r) ? r : (r ? [r] : []);
+        return list.length > 0;
+      };
+      return entry.operatorIds
+        .map(id => allOperators.find(o => o.id === id))
+        .filter(op => op && !isTagged(op.id));
+    }
+    function getEntryUntaggedNames(entry) {
+      return getEntryUntaggedOps(entry)
+        .map(op => `${op.firstName} ${op.lastName}`.trim())
+        .join(', ');
+    }
+    function getEntryUntaggedCount(entry) {
+      return getEntryUntaggedOps(entry).length;
+    }
+    function getEntryTotal(entry) {
+      return entry.operatorIds.length + (entry.helperCount || 0);
     }
 
     function entryHasRole(entry, opId, role) {
@@ -891,6 +1064,7 @@ const OperatorsPanel = {
     onMounted(() => {
       emitSummary();
       document.addEventListener('click', closeTagDropdown);
+      document.addEventListener('click', closeKebab);
       // Scroll capture catches the inner scroll containers (.op-body-scroll)
       // so the dropdown follows the anchor on scroll.
       window.addEventListener('scroll', repositionTagDropdown, true);
@@ -907,6 +1081,16 @@ const OperatorsPanel = {
     return {
       currentView,
       editingEntryId,
+      cardLayout,
+      getEntryTagRows,
+      getEntryAllNames,
+      getEntryUntaggedNames,
+      getEntryUntaggedCount,
+      getEntryTotal,
+      kebabEntryId,
+      kebabPos,
+      toggleKebab,
+      closeKebab,
       entries,
       searchQuery,
       formSelectedOps,
