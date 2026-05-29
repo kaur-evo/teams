@@ -446,6 +446,11 @@ const OperatorsPanel = {
     const opList = ref(window.__protoOpList || 'flat');
     window.addEventListener('proto:opList', (e) => { opList.value = e.detail; });
 
+    // Shift-leader auto-assign (H-key). 'off' (default) → user must pick the
+    // leader manually; 'on' → first eligible operator auto-fills.
+    const leaderAutopick = ref(window.__protoLeaderAutopick || 'off');
+    window.addEventListener('proto:leaderAutopick', (e) => { leaderAutopick.value = e.detail; });
+
     // ── Kebab menu (alternative card): one open at a time. ──
     // Teleported to <body> + position: fixed so the menu escapes the modal's
     // overflow:auto scroll container.
@@ -665,11 +670,11 @@ const OperatorsPanel = {
         formLeaderId.value = null;
       }
     });
-    // Option B: as soon as ANY eligible operator is checked into the shift and
-    // no leader is set yet, auto-pick the first one. The "-" clear option was
-    // removed, so the leader is either one of the eligible operators or null
-    // (only when zero eligibles are checked in → field is disabled).
+    // Option B (auto-assign ON only): as soon as ANY eligible operator is
+    // checked in and no leader is set, auto-pick the first one. With auto-assign
+    // OFF (default), the user always picks the leader manually.
     watch(leaderOptions, (opts) => {
+      if (leaderAutopick.value !== 'on') return;
       if (opts.length > 0 && formLeaderId.value == null) {
         formLeaderId.value = opts[0].id;
       }
@@ -1256,72 +1261,31 @@ const OperatorsPanel = {
       const totalHelpers = entries.value.reduce((s, e) => s + (e.helperCount || 0), 0);
       const totalPeople = totalOps + totalHelpers;
 
-      // Collect all unique operator IDs across entries
-      const allOpIds = new Set();
-      entries.value.forEach(e => e.operatorIds.forEach(id => allOpIds.add(id)));
+      const fullName = (op) => op ? `${op.firstName} ${op.lastName}`.trim() : '';
 
-      // Count operators per team
-      const teamCounts = new Map(); // teamId → count
-      let noTeamCount = 0;
-      allOpIds.forEach(id => {
-        const op = allOperators.find(o => o.id === id);
-        if (op && op.teamId) {
-          teamCounts.set(op.teamId, (teamCounts.get(op.teamId) || 0) + 1);
-        } else {
-          noTeamCount++;
-        }
-      });
-
-      // Find the primary team (most operators)
-      let primaryTeamName = '';
-      let primaryTeamColor = '';
-      let primaryTeamCount = 0;
-      let extraCount = 0;
-
-      if (teamCounts.size > 0) {
-        let primaryTeamId = null;
-        let maxCount = 0;
-        teamCounts.forEach((count, teamId) => {
-          if (count > maxCount) { maxCount = count; primaryTeamId = teamId; }
-        });
-        const team = allTeams.find(t => t.id === primaryTeamId);
-        if (team) {
-          primaryTeamName = team.name;
-          primaryTeamColor = team.color || '';
-        }
-        primaryTeamCount = maxCount;
-        // Extras = everything not in the primary team: other-team ops + no-team ops + helpers
-        extraCount = (totalOps - primaryTeamCount) + totalHelpers;
-      }
-
-      // First operator's name — used when totalPeople === 1
-      let firstName = '';
-      const firstWithOps = entries.value.find(e => e.operatorIds.length > 0);
-      if (firstWithOps) {
-        const op = allOperators.find(o => o.id === firstWithOps.operatorIds[0]);
-        if (op) firstName = op.firstName;
-      }
-
-      // Find all shift leaders — every operator on any entry whose ENTRY-LEVEL
-      // role is "Supervisor". Multiple supervisors render comma-separated; the
-      // chip then shows "Alice, Bob + N" where N is everyone else (ops + helpers).
-      // Supervisors always take precedence in the chip — no per-station gating.
+      // Footer name = the assigned shift leader if one is set on any entry;
+      // otherwise just the first operator on the shift. Then "+ N" = everyone
+      // else (operators + additional workforce). No team name, no color.
       const leaderIds = new Set();
-      const leaderFirstNames = [];
-      {
-        for (const entry of entries.value) {
-          entry.operatorIds.forEach(id => {
-            if (entryHasRole(entry, id, 'Supervisor') && !leaderIds.has(id)) {
-              leaderIds.add(id);
-              const op = allOperators.find(o => o.id === id);
-              if (op) leaderFirstNames.push(op.firstName);
-            }
-          });
+      const leaderNames = [];
+      for (const entry of entries.value) {
+        if (entry.leaderId != null && !leaderIds.has(entry.leaderId)) {
+          const op = allOperators.find(o => o.id === entry.leaderId);
+          if (op) { leaderIds.add(entry.leaderId); leaderNames.push(fullName(op)); }
         }
       }
-      const leaderName = leaderFirstNames.join(', ');
-      // Leader extras = everyone who isn't already listed as a leader (ops + helpers).
-      const leaderExtras = leaderName ? Math.max(0, totalPeople - leaderIds.size) : 0;
+
+      let footerName = '';
+      let footerExtras = 0;
+      if (leaderNames.length > 0) {
+        footerName = leaderNames.join(', ');
+        footerExtras = Math.max(0, totalPeople - leaderIds.size);
+      } else {
+        const firstWithOps = entries.value.find(e => e.operatorIds.length > 0);
+        const firstOp = firstWithOps ? allOperators.find(o => o.id === firstWithOps.operatorIds[0]) : null;
+        footerName = firstOp ? fullName(firstOp) : '';
+        footerExtras = Math.max(0, totalPeople - (firstOp ? 1 : 0));
+      }
 
       // Full team-grouped operator+helper list (for chip hover tooltip).
       // Aggregates across all entries so the user sees the entire shift.
@@ -1362,13 +1326,8 @@ const OperatorsPanel = {
       })();
 
       emit('update:summary', {
-        primaryTeamName,
-        primaryTeamColor,
-        primaryTeamCount,
-        extraCount,
-        firstName,
-        leaderName,
-        leaderExtras,
+        footerName,
+        footerExtras,
         totalPeople,
         fullTooltip,
         hasEntries: totalPeople > 0,
