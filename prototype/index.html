@@ -14,32 +14,6 @@
     .sv-with-sidebar .sb1 { position: static; height: 100vh; flex-shrink: 0; }
     .sv-with-sidebar #app { flex: 1; min-width: 0; }
 
-    /* Prototype settings panel (H-key toggle) */
-    .proto-panel {
-      position: fixed;
-      top: 12px;
-      right: 12px;
-      background: #fff;
-      border-radius: 4px;
-      box-shadow: 0px 1px 5px 0px rgba(0,0,0,0.25),
-                  0px 2px 2px 0px rgba(0,0,0,0.12),
-                  0px 3px 1px -2px rgba(0,0,0,0.12);
-      padding: 16px;
-      min-width: 280px;
-      z-index: 9999;
-      font-family: 'Open Sans', sans-serif;
-      color: #212121;
-    }
-    .proto-panel__title { font-size: 14px; font-weight: 600; line-height: 20px; }
-    .proto-panel__hint  { font-size: 12px; color: #707070; margin-top: 2px; margin-bottom: 12px; }
-    .proto-panel__hint kbd {
-      background: #eee; border-radius: 3px; padding: 1px 5px;
-      font-family: inherit; font-size: 11px;
-    }
-    .proto-panel__group { display: flex; flex-direction: column; gap: 8px; }
-    .proto-panel__label { font-size: 12px; font-weight: 600; color: #707070; text-transform: uppercase; letter-spacing: 0.4px; }
-    .proto-panel__opt { display: flex; gap: 8px; align-items: center; cursor: pointer; font-size: 14px; }
-    .proto-panel__opt small { color: #707070; }
   </style>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -708,7 +682,8 @@
         0px 3px 1px -2px rgba(0,0,0,0.12);
       overflow: hidden;
     }
-    .op-modal-tall { height: 900px; }
+    /* Picker height matches Figma frame 32083:88708 (~702px). */
+    .op-modal-tall { height: 800px; }
 
     /* Header */
     .op-header {
@@ -974,12 +949,13 @@
       line-height: 16px;
       white-space: nowrap;
     }
-    /* Bold name line — Body 1 Bold per Figma. */
+    .op-card-alt-chip-icn { width: 18px; height: 18px; display: block; flex-shrink: 0; }
+    /* Bold name line — Body 2 Bold per Figma 32084:89233 (14px / 20px). */
     .op-card-alt-names {
       font-family: 'Open Sans', sans-serif;
-      font-size: 16px;
+      font-size: 14px;
       font-weight: 600;
-      line-height: 24px;
+      line-height: 20px;
       color: #212121;
       overflow: hidden;
       text-overflow: ellipsis;
@@ -989,6 +965,26 @@
     }
     .op-card-alt-names--sub { font-weight: 600; }
     .op-card-alt-extras { color: #707070; font-weight: 400; }
+    /* Leading operator-hat icon on the saved card name row. */
+    .op-card-alt-opicn {
+      display: inline-block;
+      width: 18px;
+      height: 18px;
+      vertical-align: middle;
+      margin-right: 6px;
+    }
+    /* Inline supervisor star — sits next to the name with 2px gap. */
+    .op-card-alt-star {
+      display: inline-block;
+      width: 18px;
+      height: 18px;
+      vertical-align: middle;
+      /* Vuetify v-icon sits on the text baseline (font glyph). Nudge up so
+         the icon's optical center aligns with the 14px name baseline. */
+      position: relative;
+      top: -2px;
+      margin: 0 2px;
+    }
     /* Kebab popup menu — teleported to <body>, positioned fixed via JS so
        it escapes the modal's overflow:auto. */
     .op-card-alt-actions { position: relative; }
@@ -1051,7 +1047,6 @@
       overflow-x: hidden;
       overflow-y: auto;
     }
-    .op-team-group {}
     .op-check-row {
       display: flex;
       align-items: center;
@@ -1080,6 +1075,9 @@
     /* No-team operator rows: no parent team group, so align the checkbox
        with the team-row level (16px) rather than the indented operator level. */
     .op-op-row-flush { padding-left: 16px; }
+    /* Flat opList mode: no group hierarchy → rows sit at the left edge (16px)
+       instead of the 32px under-team indent. */
+    .op-op-row--flat { padding-left: 16px; }
     .op-check-box {
       width: 24px;
       height: 24px;
@@ -1136,6 +1134,154 @@
       line-height: 20px;
       color: #212121;
     }
+
+    /* Two-line label inside an operator row (Figma 32085:94780):
+       line 1 = name + optional star
+       line 2 = role caption (12px / 16px, #707070) when toggle is OFF */
+    .op-op-text {
+      flex: 1; min-width: 0;
+      display: flex; flex-direction: column;
+      justify-content: center;
+    }
+    .op-op-name-line {
+      display: flex; align-items: center; gap: 4px;
+      min-width: 0;
+    }
+    .op-op-star {
+      width: 18px; height: 18px;
+      display: inline-block;
+      flex-shrink: 0;
+    }
+    .op-op-role-desc {
+      font-family: 'Open Sans', sans-serif;
+      font-size: 12px;
+      line-height: 16px;
+      color: #707070;
+    }
+
+    /* Role chip on the right of each row when 'Adjust operator roles' is ON.
+       Default (no role yet) — grey background. Active (role chosen) —
+       green tint + green border (Figma chip/selected). */
+    .op-rolechip {
+      display: inline-flex; align-items: center; gap: 4px;
+      height: 28px;
+      padding: 5px 12px;
+      border-radius: 24px;
+      background: #eee;
+      border: 1px solid transparent;
+      font-family: 'Open Sans', sans-serif;
+      font-size: 12px;
+      line-height: 16px;
+      color: #212121;
+      cursor: pointer;
+    }
+    .op-rolechip:hover { background: #e0e0e0; }
+    /* Valid responsibility selected → green. Default ("-") stays grey. */
+    .op-rolechip.is-selected {
+      background: rgba(46, 204, 113, 0.12);
+      border-color: #2ecc71;
+    }
+    .op-rolechip.is-selected:hover { background: rgba(46, 204, 113, 0.12); }
+    .op-rolechip-icn { width: 18px; height: 18px; display: block; }
+    /* Paint the (grey) operator icon green when a responsibility is selected.
+       Filter recolors the baked #707070 SVG fill toward #2ecc71. */
+    .op-rolechip.is-selected .op-rolechip-icn {
+      filter: invert(58%) sepia(82%) saturate(380%) hue-rotate(86deg) brightness(95%) contrast(88%);
+    }
+
+    /* Helpers row chip: same shape as the role chip, but with an editable
+       number on the left of "people". Greyed at 50% when not checked. */
+    .op-helpers-chip {
+      display: inline-flex; align-items: center; gap: 4px;
+      padding: 5px 12px;
+      border-radius: 24px;
+      background: #eee;
+      border: 1px solid transparent;
+      font-family: 'Open Sans', sans-serif;
+      /* "people" text is Caption (12px / 16px) per Figma 32106:13541. */
+      font-size: 12px;
+      line-height: 16px;
+      color: #212121;
+      opacity: 0.5;
+      transition: opacity 0.15s, background 0.15s, border-color 0.15s;
+    }
+    .op-helpers-chip.is-active {
+      opacity: 1;
+      background: rgba(46, 204, 113, 0.12);
+      border-color: #2ecc71;
+    }
+    .op-helpers-chip-input {
+      /* Underline starts at 16px and grows with the number of digits typed
+         (field-sizing: content sizes the input to its value). */
+      min-width: 16px;
+      width: 16px;
+      field-sizing: content;
+      border: none;
+      border-bottom: 1px solid #707070;
+      background: transparent;
+      font-family: inherit;
+      font-size: 14px;
+      line-height: 20px;
+      color: #212121;
+      text-align: center;
+      padding: 0;
+      -moz-appearance: textfield;
+              appearance: textfield;
+    }
+    .op-helpers-chip-input::-webkit-inner-spin-button,
+    .op-helpers-chip-input::-webkit-outer-spin-button {
+      -webkit-appearance: none;
+              appearance: none;
+      margin: 0;
+    }
+    .op-helpers-chip-input:focus { outline: none; }
+    /* Helpers row checkbox sits at the group-checkbox level (16px from left),
+       not at the indented operator level. */
+    .op-op-row-helpers { padding-left: 16px; }
+    /* 8px gap between the "Additional workforce" label and the chip — applies
+       in both grouped and flat opList modes. */
+    .op-op-row-helpers .op-op-name-line,
+    .op-op-row .op-op-name-line:has(.op-helpers-chip) { gap: 8px; }
+
+    /* Adjust operator roles toggle row */
+    .op-toggle-row {
+      display: flex; align-items: center; gap: 16px;
+      padding: 0 0;
+      min-height: 28px;
+      margin-top: 4px;
+    }
+    .op-toggle-label {
+      flex: 1; min-width: 0;
+      font-family: 'Open Sans', sans-serif;
+      font-size: 14px;
+      line-height: 20px;
+      color: #212121;
+    }
+    /* Switch (Figma toggle): 48x28 track, 20px knob */
+    .op-switch {
+      width: 48px; height: 28px;
+      flex-shrink: 0;
+      position: relative;
+      border: none;
+      border-radius: 16px;
+      background: rgba(158, 158, 158, 0.5);
+      cursor: pointer;
+      padding: 0;
+      transition: background 0.15s;
+    }
+    .op-switch-knob {
+      position: absolute;
+      top: 4px;
+      left: 4px;
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: white;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+      transition: transform 0.15s;
+    }
+    .op-switch.is-on { background: #2ecc71; }
+    .op-switch.is-on .op-switch-knob { transform: translateX(20px); }
 
     /* Tag chips */
     .op-tag-area {
@@ -1205,6 +1351,25 @@
       white-space: nowrap;
     }
     .op-tag-dropdown-item:hover { background: #f5f5f5; }
+    .op-tag-dropdown-label { flex: 1; min-width: 0; }
+    /* Enterprise-locked role row: greyed, not pickable, no hover highlight. */
+    .op-tag-dropdown-item.is-disabled { color: #9e9e9e; cursor: default; }
+    .op-tag-dropdown-item.is-disabled:hover { background: transparent; }
+    /* ENTERPRISE badge — mirrors setup-proto's .dropdown__row-pill. */
+    .op-tag-dropdown-pill {
+      flex-shrink: 0;
+      display: inline-flex;
+      align-items: center;
+      padding: 2px 4px;
+      border-radius: 4px;
+      background: #2ecc71;
+      color: #fff;
+      font-size: 8px;
+      line-height: 8px;
+      font-weight: 700;
+      letter-spacing: 0.2px;
+      text-transform: uppercase;
+    }
     .op-tag-dropdown-remove { color: #d32f2f; border-top: 1px solid #eee; }
     /* Single-select radio for the entry-level role picker. */
     .op-tag-dropdown-radio {
@@ -1226,6 +1391,61 @@
       border-radius: 50%;
       background: #2ecc71;
     }
+
+    /* Role picker dropdown — matches Settings single-select (Figma 32091:15259):
+       48px rows, check-circle marker + role icon + 16px label. Selected row:
+       green tint + bold + green check-circle. */
+    .op-role-dropdown { min-width: 240px; padding: 8px 0; }
+    .op-role-row {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      height: 48px;
+      padding: 0 16px;
+      font-family: 'Open Sans', sans-serif;
+      font-size: 16px;
+      line-height: 24px;
+      color: #212121;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .op-role-row:hover { background: rgba(0,0,0,0.04); }
+    .op-role-row.is-selected { background: rgba(46,204,113,0.12); font-weight: 600; }
+    .op-role-row.is-selected:hover { background: rgba(46,204,113,0.12); }
+    /* 24px marker slot — green check-circle when selected, empty otherwise. */
+    .op-role-marker { width: 24px; height: 24px; flex-shrink: 0; }
+    /* Role icon — fixed 24px slot (also acts as a spacer on the "No role" row
+       so its label aligns with the role labels). 8px from the label. */
+    .op-role-row .op-role-icn { width: 24px; height: 24px; flex-shrink: 0; margin-right: -8px; }
+    .op-role-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+
+    /* Leader mode: "Shift leader" select field (Figma 32105:12291). Input-style
+       field (star + value + caret) with a caption below. Disabled = 0.5 opacity
+       on the WHOLE field until an eligible operator is checked in. */
+    .op-leader-field { display: flex; flex-direction: column; gap: 2px; flex-shrink: 0; }
+    .op-leader-field.is-disabled { opacity: 0.5; }
+    .op-leader-field.is-disabled .op-leader-select { cursor: not-allowed; }
+    .op-leader-select {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      width: 100%;
+      padding: 16px;
+      background: #f5f5f5;
+      border: none;
+      border-bottom: 1px solid #707070;
+      border-radius: 4px 4px 0 0;
+      font-family: 'Open Sans', sans-serif;
+      font-size: 16px;
+      line-height: 24px;
+      color: #212121;
+      cursor: pointer;
+      text-align: left;
+    }
+    .op-leader-icn { width: 24px; height: 24px; flex-shrink: 0; }
+    .op-leader-value { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .op-leader-value.is-placeholder { color: #9e9e9e; }
+    .op-leader-caption { padding: 0 16px; font-size: 12px; line-height: 16px; color: #707070; }
 
     /* Time inputs */
     .op-time-row {
@@ -1254,8 +1474,8 @@
     }
     .op-time-input:focus { border-bottom-color: #2ecc71; }
     .op-helpers-input::-webkit-inner-spin-button,
-    .op-helpers-input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
-    .op-helpers-input { -moz-appearance: textfield; }
+    .op-helpers-input::-webkit-outer-spin-button { -webkit-appearance: none; appearance: none; margin: 0; }
+    .op-helpers-input { -moz-appearance: textfield; appearance: textfield; }
     .op-time-label {
       font-family: 'Open Sans', sans-serif;
       font-size: 12px;
@@ -1381,34 +1601,12 @@
           @close="operatorsPanelOpen = false"
           @update:summary="operatorSummary = $event"
         ></operators-panel>
-
-        <!-- Prototype settings panel — hidden by default, toggled with the H key.
-             Lets us flip between operator-card layouts (classic vs two-row) so
-             we can compare side-by-side without committing to one. -->
-        <div v-if="protoPanelOpen" class="proto-panel" @click.stop>
-          <div class="proto-panel__title">Prototype settings</div>
-          <div class="proto-panel__hint">Press <kbd>H</kbd> to toggle</div>
-          <div class="proto-panel__group">
-            <div class="proto-panel__label">Operator card layout</div>
-            <label class="proto-panel__opt">
-              <input type="radio" name="cardLayout" value="classic"
-                     :checked="cardLayout === 'classic'"
-                     @change="setCardLayout('classic')">
-              <span>Classic <small>(badge + flat name list)</small></span>
-            </label>
-            <label class="proto-panel__opt">
-              <input type="radio" name="cardLayout" value="twoRow"
-                     :checked="cardLayout === 'twoRow'"
-                     @change="setCardLayout('twoRow')">
-              <span>Alternative <small>(time + roles + one row per tag)</small></span>
-            </label>
-          </div>
-        </div>
       </v-app>
     </div>
   </div>
 
   <script src="mock-data.js"></script>
+  <script src="proto-panel.js"></script>
   <script src="chrome.js"></script>
   <script>
     // Inject only the 1st-level dark sidebar (Shift View is its own dark surface — no top bar).
@@ -1438,38 +1636,12 @@
     const app = createApp({
       components: { ShiftView, OperatorsPanel },
       setup() {
-        const { onMounted, onUnmounted } = Vue;
         const operatorsPanelOpen = ref(false);
         const operatorSummary = ref(null);
-        // ── Prototype settings (H-key toggle) ──
-        const protoPanelOpen = ref(false);
-        const cardLayout = ref(localStorage.getItem('protoCardLayout') || 'twoRow');
-        // Expose to other components (operators.js reads window.__protoCardLayout).
-        window.__protoCardLayout = cardLayout.value;
-        function setCardLayout(v) {
-          cardLayout.value = v;
-          window.__protoCardLayout = v;
-          localStorage.setItem('protoCardLayout', v);
-          // Nudge Vue reactivity by re-emitting a fake update — operators.js
-          // watches the global via a computed.
-          window.dispatchEvent(new CustomEvent('proto:cardLayout', { detail: v }));
-        }
-        function onKey(e) {
-          // Don't fire when typing in an input/textarea/contentEditable
-          const t = e.target;
-          if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
-          if (e.key === 'h' || e.key === 'H') {
-            protoPanelOpen.value = !protoPanelOpen.value;
-          } else if (e.key === 'Escape' && protoPanelOpen.value) {
-            protoPanelOpen.value = false;
-          }
-        }
-        onMounted(() => document.addEventListener('keydown', onKey));
-        onUnmounted(() => document.removeEventListener('keydown', onKey));
-        return {
-          operatorsPanelOpen, operatorSummary,
-          protoPanelOpen, cardLayout, setCardLayout,
-        };
+        // Prototype settings (H-key panel) are owned by proto-panel.js, which
+        // persists them + dispatches proto:* events. operators.js listens for
+        // those directly — nothing to wire here.
+        return { operatorsPanelOpen, operatorSummary };
       }
     });
 

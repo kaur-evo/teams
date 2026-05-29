@@ -868,6 +868,108 @@ svg { color: var(--solid-grey-600); }
   height: 24px;
   flex-shrink: 0;
 }
+/* Disabled row (Enterprise-locked roles): greyed, not clickable. */
+.dropdown__row.is-disabled {
+  color: var(--solid-grey-400);
+  cursor: default;
+}
+.dropdown__row.is-disabled:hover { background: transparent; }
+.dropdown__row.is-disabled .dropdown__row-radio { opacity: 0.4; }
+/* Role-icon slot inside the role-picker dropdown (Figma 32059:7483).
+   24px square; disabled rows tone the icon down to 0.5 opacity. */
+.dropdown__row-roleicn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  padding-right: 4px;
+}
+.dropdown__row-rolelabel {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dropdown__row-roleicn.is-dim,
+.dropdown__row-rolelabel.is-dim { opacity: 0.5; }
+
+/* Enterprise badge: square 4px-radius green pill with 8px bold uppercase
+   text — matches Figma "Badge / live" pattern. */
+.dropdown__row-pill {
+  display: inline-flex;
+  align-items: center;
+  min-width: 12px;
+  padding: 2px 4px;
+  border-radius: 4px;
+  background: var(--evocon-green);
+  color: var(--solid-white);
+  font-size: 8px;
+  line-height: 8px;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+  text-transform: uppercase;
+  flex-shrink: 0;
+}
+/* ─── "Available roles" multi-select card (Figma 32091:12366) ───
+   Rows are checkbox + label (+ star on Supervisor) + a static "Default" chip
+   pinned to the right. Used by the operator-setup Role field in multi mode. */
+.role-card__row { gap: 16px; }
+/* Left cluster: label + optional Supervisor star, 8px gap (Figma). Takes the
+   remaining width so the "Default" chip floats to the right edge. */
+.role-card__main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.role-card__label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.role-card__label.is-dim { opacity: 0.38; }
+/* Inline star next to Supervisor — grey, 16px, matches Figma "save report".
+   Renders as an <img> via Chrome.icon (embedded #707070 fill, no tint). */
+.role-card__star { flex-shrink: 0; display: inline-flex; }
+img.role-card__star { width: 16px; height: 16px; }
+/* Right-aligned clickable "Default" chip — pill, 32px tall. It's an
+   independent radio-like pick of the operator's default role (not driven by
+   the checkbox). Grey by default; green when this role is the chosen default. */
+.role-card__chip {
+  margin-left: auto;
+  flex-shrink: 0;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 12px;
+  border-radius: 24px;
+  border: 1px solid transparent;
+  background: var(--bg-chip);
+  color: var(--text-body);
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 20px;
+  cursor: pointer;
+}
+.role-card__chip:hover { background: #e0e0e0; }
+.role-card__chip.is-selected {
+  background: var(--evocon-green-12);
+  border-color: var(--evocon-green);
+}
+.role-card__chip.is-selected:hover { background: var(--evocon-green-12); }
+/* Muted: role not available (row unchecked) — chip is inert / not pickable. */
+.role-card__chip.is-muted {
+  opacity: 0.38;
+  cursor: default;
+}
+.role-card__chip.is-muted:hover { background: var(--bg-chip); }
+.role-card__chip.is-dim { opacity: 0.38; }
+
 /* Star button for "default tag" on operator-setup tag picker. */
 .dropdown__row-star {
   width: 36px;
@@ -971,3 +1073,68 @@ svg { color: var(--solid-grey-600); }
 
 /* utility */
 .spacer-1 { flex: 1; }
+
+/* ─── Prototype settings panel (H-key toggle, shared across views) ───
+   Rendered by proto-panel.js into <body> on both Settings and Shift View. */
+.proto-panel {
+  position: fixed;
+  top: 12px;
+  right: 12px;
+  background: #fff;
+  border-radius: 4px;
+  box-shadow: 0px 1px 5px 0px rgba(0,0,0,0.25),
+              0px 2px 2px 0px rgba(0,0,0,0.12),
+              0px 3px 1px -2px rgba(0,0,0,0.12);
+  padding: 16px;
+  min-width: 280px;
+  z-index: 9999;
+  font-family: 'Open Sans', sans-serif;
+  color: #212121;
+}
+.proto-panel[hidden] { display: none; }
+.proto-panel__title { font-size: 14px; font-weight: 600; line-height: 20px; }
+.proto-panel__hint  { font-size: 12px; color: #707070; margin-top: 2px; margin-bottom: 12px; }
+.proto-panel__hint kbd {
+  background: #eee; border-radius: 3px; padding: 1px 5px;
+  font-family: inherit; font-size: 11px;
+}
+.proto-panel__group { display: flex; flex-direction: column; gap: 8px; }
+.proto-panel__group + .proto-panel__group { margin-top: 16px; }
+.proto-panel__label { font-size: 12px; font-weight: 600; color: #707070; text-transform: uppercase; letter-spacing: 0.4px; }
+.proto-panel__opt { display: flex; gap: 8px; align-items: center; cursor: pointer; font-size: 14px; }
+.proto-panel__opt small { color: #707070; }
+
+/* ─── "Allow as shift leader" toggle row (Leader mode, Figma 32106:13385) ─── */
+.op-leader-toggle-row {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  min-height: 28px;
+  padding: 8px 0;
+}
+.op-leader-toggle-text { display: flex; flex-direction: column; }
+.op-leader-toggle-label { font-size: 14px; line-height: 20px; color: var(--text-body); }
+.op-leader-toggle-hint  { font-size: 12px; line-height: 16px; color: #707070; }
+/* Standard Evocon toggle switch (48x28 track, 20px knob). */
+.op-switch {
+  width: 48px; height: 28px;
+  flex-shrink: 0;
+  position: relative;
+  border: none;
+  border-radius: 16px;
+  background: rgba(158, 158, 158, 0.5);
+  cursor: pointer;
+  padding: 0;
+  transition: background 0.15s;
+}
+.op-switch-knob {
+  position: absolute;
+  top: 4px; left: 4px;
+  width: 20px; height: 20px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+  transition: transform 0.15s;
+}
+.op-switch.is-on { background: #2ecc71; }
+.op-switch.is-on .op-switch-knob { transform: translateX(20px); }

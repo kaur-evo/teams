@@ -1,9 +1,14 @@
 // Shared mock data for operators & teams prototypes
 // Used by: setup-proto.html, index.html
 
-const DATA_VERSION = 13; // bump to wipe stale localStorage
+const DATA_VERSION = 18; // bump to wipe stale localStorage
 
-const MOCK_TAGS = ['Supervisor', 'Quality', 'Maintenance', 'External'];
+// Tags are setup-only descriptive labels (not used in Shift View role pick).
+const MOCK_TAGS = ['Night-shift', 'Trainer', 'Newcomer', 'Bilingual'];
+
+// Roles are picked per operator (single-select). Supervisor is available on
+// the Pro tier; the rest are Enterprise-flagged in the UI (greyed + pill).
+const MOCK_ROLES = ['Supervisor', 'Quality', 'Maintenance', 'External'];
 
 const MOCK_STATIONS = [
   'Filling Line 1', 'Filling Line 2', 'Packaging A', 'Packaging B',
@@ -16,42 +21,27 @@ const MOCK_FACTORIES = [
   { id: 3, name: 'Casablanca Production' },
 ];
 
-// Team colors come from the Evocon Design System "Chart colors" palette
-// (Figma node 178:218 / --chart-* tokens in evocon-ui.css).
+// Operator groups. "Default" is the mandatory fallback bucket for operators
+// who don't fit into any named group. Always present.
+// Teams (operator groups). `isGlobal: true` → visible across all factories
+// (factoryIds ignored). Otherwise `factoryIds: number[]` lists which factories
+// the group is scoped to.
 const MOCK_TEAMS = [
-  { id: 1, name: 'Group A', color: '#2ecc71', factoryId: 1 }, // --chart-green
-  { id: 2, name: 'Group B',   color: '#800808', factoryId: 2 }, // --chart-red
+  { id: 1, name: 'Default', color: '#9e9e9e', isGlobal: true, factoryIds: [], tags: [] },
 ];
 
-// Tag config:
-//  - 1st operator in each group → tags=[Supervisor], defaultTag=Supervisor
-//  - 2nd operator in each group → tags=[Supervisor, Quality, Maintenance], no default
-//  - everyone else → no tags
-const ALT_TAGS = ['Supervisor', 'Quality', 'Maintenance'];
+// Operators all sit in the Default group out of the box — Kaur creates named
+// groups if/when needed. `canLead` (Leader mode) is granted to a couple of
+// operators so the leader-select demo works.
 const MOCK_OPERATORS = [
-  // ── Group A (Green) ──
-  { id: 1,  firstName: 'Vasilis',   lastName: 'Mavroeidis',    tags: ['Supervisor'], defaultTag: 'Supervisor', teamId: 1, stations: ['Filling Line 1', 'Filling Line 2', 'Packaging A', 'Packaging B'] },
-  { id: 2,  firstName: 'Nikos',     lastName: 'Papadopoulos',  tags: [...ALT_TAGS],                          teamId: 1, stations: ['Filling Line 1', 'Filling Line 2', 'Warehouse'] },
-  { id: 3,  firstName: 'Maria',     lastName: 'Kostopoulou',   tags: [],                                     teamId: 1, stations: ['Filling Line 1', 'Packaging A', 'Packaging B'] },
-  { id: 4,  firstName: 'Giorgos',   lastName: 'Antoniou',      tags: [],                                     teamId: 1, stations: ['Packaging A', 'Packaging B', 'Warehouse'] },
-  { id: 5,  firstName: 'Elena',     lastName: 'Christodoulou', tags: [],                                     teamId: 1, stations: ['Filling Line 2', 'Packaging A', 'Packaging B', 'Quality Lab'] },
-  { id: 6,  firstName: 'Dimitris',  lastName: 'Ekonomou',      tags: [],                                     teamId: 1, stations: ['Packaging A', 'Packaging B', 'Warehouse'] },
-  { id: 7,  firstName: 'Stavros',   lastName: 'Nikolaou',      tags: [],                                     teamId: 1, stations: ['Filling Line 1', 'Warehouse', 'Quality Lab'] },
-  { id: 8,  firstName: 'Katerina',  lastName: 'Georgiou',      tags: [],                                     teamId: null, stations: ['Filling Line 1', 'Filling Line 2', 'Quality Lab'] },
-  { id: 9,  firstName: 'Andreas',   lastName: 'Karagiannis',   tags: [],                                     teamId: null, stations: ['Filling Line 2', 'Warehouse', 'Packaging A'] },
-  { id: 10, firstName: 'Sofia',     lastName: 'Panagiotou',    tags: [],                                     teamId: null, stations: ['Quality Lab', 'Packaging B'] },
-
-  // ── Group B (Red) ──
-  { id: 11, firstName: 'Jonas',     lastName: 'Hermansen',     tags: ['Supervisor'], defaultTag: 'Supervisor', teamId: 2, stations: ['Filling Line 1', 'Filling Line 2', 'Packaging A', 'Packaging B'] },
-  { id: 12, firstName: 'Pawel',     lastName: 'Herchel',       tags: [...ALT_TAGS],                          teamId: 2, stations: ['Filling Line 1', 'Filling Line 2', 'Warehouse'] },
-  { id: 13, firstName: 'Rafal',     lastName: 'Cebula',        tags: [],                                     teamId: 2, stations: ['Filling Line 1', 'Packaging A', 'Packaging B'] },
-  { id: 14, firstName: 'Łukasz',    lastName: 'Biłas',         tags: [],                                     teamId: 2, stations: ['Filling Line 1', 'Filling Line 2', 'Warehouse'] },
-  { id: 15, firstName: 'Marta',     lastName: 'Kowalska',      tags: [],                                     teamId: 2, stations: ['Packaging A', 'Packaging B', 'Warehouse'] },
-  { id: 16, firstName: 'Tomasz',    lastName: 'Wiśniewski',    tags: [],                                     teamId: 2, stations: ['Filling Line 2', 'Packaging A', 'Packaging B'] },
-  { id: 17, firstName: 'Anna',      lastName: 'Nowak',         tags: [],                                     teamId: 2, stations: ['Packaging A', 'Packaging B', 'Quality Lab'] },
-  { id: 18, firstName: 'Piotr',     lastName: 'Kamiński',      tags: [],                                     teamId: 2, stations: ['Filling Line 1', 'Filling Line 2', 'Warehouse'] },
-  { id: 19, firstName: 'Agnieszka', lastName: 'Zielińska',     tags: [],                                     teamId: null, stations: ['Warehouse', 'Packaging A', 'Quality Lab'] },
-  { id: 20, firstName: 'Marek',     lastName: 'Lewandowski',   tags: [],                                     teamId: null, stations: ['Quality Lab', 'Packaging B', 'Filling Line 2'] },
+  { id: 1, firstName: 'Vasilis',  lastName: 'Mavroeidis',   role: null, tags: ['Night-shift'], teamId: 1, canLead: true, stations: ['Filling Line 1', 'Filling Line 2', 'Packaging A', 'Packaging B'] },
+  { id: 2, firstName: 'Nikos',    lastName: 'Papadopoulos', role: null, tags: ['Trainer'],     teamId: 1, canLead: true, stations: ['Filling Line 1', 'Filling Line 2', 'Warehouse'] },
+  { id: 3, firstName: 'Maria',    lastName: 'Kostopoulou',  role: null, tags: [],              teamId: 1,                stations: ['Filling Line 1', 'Packaging A', 'Packaging B'] },
+  { id: 4, firstName: 'Giorgos',  lastName: 'Antoniou',     role: null, tags: [],              teamId: 1,                stations: ['Packaging A', 'Packaging B', 'Warehouse'] },
+  { id: 5, firstName: 'Elena',    lastName: 'Christodoulou',role: null, tags: ['Newcomer'],    teamId: 1,                stations: ['Filling Line 2', 'Packaging A', 'Quality Lab'] },
+  { id: 6, firstName: 'Dimitris', lastName: 'Ekonomou',     role: null, tags: [],              teamId: 1,                stations: ['Packaging A', 'Packaging B', 'Warehouse'] },
+  { id: 7, firstName: 'Stavros',  lastName: 'Nikolaou',     role: null, tags: [],              teamId: 1,                stations: ['Filling Line 1', 'Warehouse', 'Quality Lab'] },
+  { id: 8, firstName: 'Sofia',    lastName: 'Panagiotou',   role: null, tags: ['Night-shift'], teamId: 1,                stations: ['Quality Lab', 'Packaging B'] },
 ];
 
 // Per-station feature toggles. Off by default — Spiros constraint: "must be optional".

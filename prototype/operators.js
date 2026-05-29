@@ -31,7 +31,7 @@ const OperatorsPanel = {
                 <div class="op-card-left">
                   <span v-if="entry.helperCount > 0"
                         class="op-card-badge"
-                        @mouseenter="showTooltip($event, 'Helpers')"
+                        @mouseenter="showTooltip($event, 'Additional workforce')"
                         @mouseleave="hideTooltip">
                     <v-icon size="18" color="#757575">mdi-account-group</v-icon> {{ entry.helperCount }}
                   </span>
@@ -42,8 +42,8 @@ const OperatorsPanel = {
                     <v-icon size="18" color="#757575">mdi-account-hard-hat</v-icon> {{ entry.operatorIds.length }}
                   </span>
                   <span class="op-card-names"
-                        @mouseenter="showTooltip($event, entry.operatorIds.length > 0 ? getOperatorNames(entry) : 'Helpers')"
-                        @mouseleave="hideTooltip">{{ entry.operatorIds.length > 0 ? getEntryFlatNames(entry) : 'Helpers: ' + entry.helperCount }}</span>
+                        @mouseenter="showTooltip($event, entry.operatorIds.length > 0 ? getOperatorNames(entry) : 'Additional workforce')"
+                        @mouseleave="hideTooltip">{{ entry.operatorIds.length > 0 ? getEntryFlatNames(entry) : 'Additional workforce: ' + entry.helperCount }}</span>
                 </div>
                 <div class="op-card-icons">
                   <button class="op-icon-btn" @click="deleteEntry(entry.id)" title="Delete"><v-icon size="24" color="#757575">mdi-delete</v-icon></button>
@@ -58,48 +58,44 @@ const OperatorsPanel = {
             </div>
             </template>
 
-            <!-- ── ALTERNATIVE CARD ── (Figma 32042:7348). Layout:
-                 - Top: clock + time range (12px caption).
-                 - "Heading" row: helper chip + operator chip + bold name list.
-                 - One row per role tag present: chip + first tagged op name.
-                 - Right-side kebab (3-dot menu) replaces individual icons. -->
+            <!-- ── ALTERNATIVE CARD ── (Figma 32084:89233). Layout:
+                 Row 1: single bold name line — supervisors first (with a star
+                        icon inline after each supervisor's name), then the
+                        rest, separated by commas.
+                 Row 2: helper chip only (if any). No operators chip.
+                 Row 3: clock + time range (12px caption).
+                 Right side: kebab menu only. Whole card is clickable. -->
             <template v-else>
             <div v-for="entry in entries" :key="entry.id" class="op-card op-card--alt"
                  @click="editEntry(entry.id)">
               <div class="op-card-alt-content">
-                <!-- One row per role tag — every tagged operator named in full -->
-                <div v-for="row in getEntryTagRows(entry)" :key="row.tag" class="op-card-alt-row">
-                  <span class="op-card-alt-chip">
-                    <v-icon size="18" color="#757575">mdi-tag</v-icon>
-                    {{ row.tag }}
+                <!-- Row 1: names (single line, truncated). Supervisors first,
+                     each with an inline star after the name, then the rest. -->
+                <div v-if="entry.operatorIds.length > 0" class="op-card-alt-row">
+                  <span class="op-card-alt-names"
+                        @mouseenter="showTooltip($event, getOperatorNames(entry))"
+                        @mouseleave="hideTooltip">
+                    <template v-for="(part, i) in getEntryNameParts(entry)" :key="i">
+                      <template v-if="i > 0">, </template><!--
+                      --><v-icon v-if="part.supervisor" class="op-card-alt-star" size="18" color="#707070">mdi-flag</v-icon><!--
+                      --><span>{{ part.name }}</span>
+                    </template>
                   </span>
-                  <span class="op-card-alt-names">{{ row.allNames }}</span>
                 </div>
 
-                <!-- Operators row — helper chip + UNTAGGED operator chip + name
-                     list. Tagged people appear on their own rows above. -->
-                <div v-if="entry.helperCount > 0 || getEntryUntaggedCount(entry) > 0" class="op-card-alt-row">
-                  <span v-if="entry.helperCount > 0"
-                        class="op-card-alt-chip"
-                        @mouseenter="showTooltip($event, 'Helpers')"
+                <!-- Row 2: single people-count chip (Figma 32124:11673). Operators
+                     + additional workforce combined. Hover surfaces the
+                     additional-workforce breakdown when present. -->
+                <div v-if="entry.operatorIds.length > 0 || entry.helperCount > 0" class="op-card-alt-row">
+                  <span class="op-card-alt-chip"
+                        @mouseenter="showTooltip($event, getEntryPeopleTooltip(entry))"
                         @mouseleave="hideTooltip">
-                    <v-icon size="18" color="#757575">mdi-account-group</v-icon>
-                    {{ entry.helperCount }}
+                    <img src="icn/operators%20%28account-hard-hat%29.svg" alt="" width="18" height="18" class="op-card-alt-chip-icn">
+                    {{ entry.operatorIds.length + (entry.helperCount || 0) }}
                   </span>
-                  <span v-if="getEntryUntaggedCount(entry) > 0"
-                        class="op-card-alt-chip"
-                        @mouseenter="showTooltip($event, 'Operators: ' + getEntryUntaggedNames(entry))"
-                        @mouseleave="hideTooltip">
-                    <v-icon size="18" color="#757575">mdi-account-hard-hat</v-icon>
-                    {{ getEntryUntaggedCount(entry) }}
-                  </span>
-                  <span v-if="getEntryUntaggedCount(entry) > 0"
-                        class="op-card-alt-names"
-                        @mouseenter="showTooltip($event, getEntryUntaggedNames(entry))"
-                        @mouseleave="hideTooltip">{{ getEntryUntaggedNames(entry) }}</span>
                 </div>
 
-                <!-- Time row at the bottom of the card. -->
+                <!-- Time row at the bottom. -->
                 <div class="op-card-alt-time">
                   <v-icon size="16" color="#212121">mdi-clock-outline</v-icon>
                   <span>{{ entry.startTime }} - {{ entry.endTime }}</span>
@@ -147,10 +143,19 @@ const OperatorsPanel = {
         </template>
 
         <!-- ═══════════ ADD OPERATORS ═══════════ -->
+        <!-- ═══════════ ADD/EDIT OPERATORS — Figma 32083:88708 ═══════════
+             700px modal. Header has profile icon + "Operators" title (no
+             "Add:"/"Edit:" prefix). Search input. Group sections with one
+             collapsible level: group checkbox + name + caret. Operators are
+             14px rows with a left checkbox + name (and a 12px caption line
+             showing the operator's role when toggle is OFF, or a role chip
+             on the right when the toggle is ON). Helpers row matches the
+             same checkbox shape with an inline "N people" chip. Footer holds
+             a toggle "Adjust operator roles" + Start/End time inputs. -->
         <template v-if="currentView === 'add-operators'">
-          <div class="op-header">
-            <v-icon size="24" color="#212121">mdi-account-hard-hat</v-icon>
-            <span class="op-header-title">{{ editingEntryId ? 'Edit: Operators' : 'Add: Operators' }}</span>
+          <div class="op-header op-header--centered">
+            <v-icon size="24" color="#212121">mdi-account</v-icon>
+            <span class="op-header-title">Operators</span>
           </div>
 
           <div class="op-body op-body-scroll">
@@ -160,123 +165,199 @@ const OperatorsPanel = {
               <input type="text" v-model="searchQuery" placeholder="Search" class="op-search-input" />
             </div>
 
-            <!-- Team-grouped checkboxes -->
+            <!-- Group + operator + helpers checkbox list -->
             <div class="op-team-list">
+              <template v-if="opList === 'grouped'">
               <div v-for="team in filteredTeams" :key="team.id" class="op-team-group">
-                <!-- Team header -->
+                <!-- Group header row (48px tall, full-width) -->
                 <label class="op-check-row op-team-row" @click="toggleTeamCollapse(team.id)">
                   <span class="op-check-box" :class="{ checked: isTeamFullySelected(team.id), partial: isTeamPartiallySelected(team.id) }" @click.stop="toggleTeam(team.id)">
                     <v-icon v-if="isTeamFullySelected(team.id)" size="18" color="white">mdi-check</v-icon>
                     <v-icon v-else-if="isTeamPartiallySelected(team.id)" size="18" color="white">mdi-minus</v-icon>
                   </span>
-                  <span class="op-team-swatch" :style="{ background: team.color }"></span>
                   <span class="op-team-label">{{ team.name }}</span>
                   <span style="margin-left:auto;display:flex;align-items:center;">
                     <v-icon size="24" color="#757575" :style="{ transform: collapsedTeams.has(team.id) ? 'rotate(0deg)' : 'rotate(180deg)', transition: 'transform 0.2s' }">mdi-chevron-down</v-icon>
                   </span>
                 </label>
 
-                <!-- Operator rows -->
-                <div v-if="!collapsedTeams.has(team.id)" v-for="op in getFilteredTeamOperators(team.id)" :key="op.id" class="op-check-row op-op-row"
-                  @mouseenter="hoveredOpId = op.id"
-                  @mouseleave="handleRowMouseleave(op.id)">
+                <!-- Operator rows: 32px tall, 14px label, left-indented 16px -->
+                <div v-if="!collapsedTeams.has(team.id)" v-for="op in getFilteredTeamOperators(team.id)" :key="op.id" class="op-check-row op-op-row">
                   <label class="op-check-row-inner">
                     <span class="op-check-box" :class="{ checked: formSelectedOps.includes(op.id) }" @click.prevent="toggleOperator(op.id)">
                       <v-icon v-if="formSelectedOps.includes(op.id)" size="18" color="white">mdi-check</v-icon>
                     </span>
-                    <span class="op-op-name">{{ op.firstName }} {{ op.lastName }}</span>
+                    <span class="op-op-text">
+                      <span class="op-op-name-line">
+                        <span class="op-op-name">{{ op.firstName }} {{ op.lastName }}</span>
+                        <!-- Star marks Supervisor inline AFTER the name — single
+                             mode only. Multi uses the chip; leader has no pre-
+                             assigned star in the picker list. -->
+                        <img v-if="rolesMode === 'single' && op.role === 'Supervisor'" src="icn/save-report.svg" alt="" width="18" height="18" class="op-op-star">
+                      </span>
+                      <!-- Role caption on the 2nd line — single mode, toggle OFF only.
+                           Multi uses the chip; leader uses the Shift leader select. -->
+                      <span v-if="rolesMode === 'single' && !adjustRolesOn && op.role" class="op-op-role-desc">{{ op.role }}</span>
+                    </span>
                   </label>
-                  <div class="op-tag-area" style="position:relative" @click.stop>
-                    <!-- Has tags: always visible, click to open dropdown -->
-                    <!-- A role is set (form session) OR operator has a default
-                         tag from Settings: solid chip with the role name. -->
-                    <span v-if="op.tags && op.tags.length > 0 && getTagLabel(op)"
-                      class="op-tag-chip-readonly op-tag-chip-editable"
-                      @click="openTagDropdown(op.id, $event)">
-                      <v-icon size="18" color="#2ecc71">mdi-tag</v-icon>
-                      {{ getTagLabel(op) }}
+                  <!-- Role chip on the right. Single mode: shown only when the
+                       "Adjust operator roles" toggle is ON. Multi mode: always
+                       shown for any operator that has ≥1 allowed role. -->
+                  <div v-if="showRoleChip(op)" class="op-tag-area" @click.stop>
+                    <!-- Chip always shows the operator icon (the star lives only
+                         in the dropdown + on the saved card). -->
+                    <button class="op-rolechip" :class="{ 'is-selected': effectiveRoles(op).length > 0 }" @click="openTagDropdown(op.id, $event)">
+                      <img src="icn/operators%20%28account-hard-hat%29.svg" alt="" width="18" height="18" class="op-rolechip-icn">
+                      <span>{{ effectiveRoles(op)[0] || '-' }}</span>
                       <v-icon size="18" color="#757575">mdi-menu-down</v-icon>
-                    </span>
-                    <!-- Operator has tags available but no default + no pick yet: ghost chip. -->
-                    <span v-else-if="op.tags && op.tags.length > 0"
-                      class="op-tag-chip-ghost"
-                      @click="openTagDropdown(op.id, $event)">
-                      <v-icon size="18" color="#757575">mdi-tag</v-icon>
-                      Tag
-                      <v-icon size="18" color="#757575">mdi-menu-down</v-icon>
-                    </span>
-                    <!-- Operator with no available tags: no chip at all. -->
-                    <!-- Single-select dropdown listing the operator's available tags. -->
+                    </button>
+                    <!-- Picker dropdown — single-select, matches the Settings
+                         single-select role list (Figma 32091:15259): radio
+                         marker + role icon (star for Supervisor, operator icon
+                         otherwise, dimmed when unselected) + 16px label.
+                         A "No role" row at the top clears the selection (MUI
+                         <MenuItem value=""><em>None</em></MenuItem> pattern). -->
                     <teleport to="body">
                       <div v-if="tagDropdownOpId === op.id"
-                           class="op-tag-dropdown"
+                           class="op-tag-dropdown op-role-dropdown"
                            :style="{ top: tagDropdownPos.top + 'px', left: tagDropdownPos.left + 'px' }"
                            @click.stop>
-                        <div v-for="tag in (op.tags || [])" :key="tag" class="op-tag-dropdown-item" @click="pickOperatorRole(op, tag, $event)">
-                          <span class="op-check-box" :class="{ checked: effectiveRoles(op).includes(tag) }" style="width:18px;height:18px;flex-shrink:0;">
-                            <v-icon v-if="effectiveRoles(op).includes(tag)" size="14" color="white">mdi-check</v-icon>
-                          </span>
-                          {{ tag }}
+                        <div v-for="role in roleOptionsFor(op)" :key="role.name"
+                             class="op-role-row" :class="{ 'is-selected': effectiveRoles(op).includes(role.name) }"
+                             @click="pickOperatorRole(op, role, $event)">
+                          <v-icon v-if="effectiveRoles(op).includes(role.name)" class="op-role-marker" size="24" color="#2ecc71">mdi-check-circle</v-icon>
+                          <span v-else class="op-role-marker"></span>
+                          <!-- Role icon hidden for now — bring back later.
+                          <img v-if="role.name === 'Supervisor'" src="icn/save-report.svg" alt="" width="24" height="24" class="op-role-icn">
+                          <img v-else src="icn/operators%20%28account-hard-hat%29.svg" alt="" width="24" height="24" class="op-role-icn">
+                          -->
+                          <span class="op-role-label">{{ role.name }}</span>
+                        </div>
+                        <div class="op-role-row op-role-row--none" :class="{ 'is-selected': effectiveRoles(op).length === 0 }"
+                             @click="clearOperatorRole(op, $event)">
+                          <v-icon v-if="effectiveRoles(op).length === 0" class="op-role-marker" size="24" color="#2ecc71">mdi-check-circle</v-icon>
+                          <span v-else class="op-role-marker"></span>
+                          <!-- Icon spacer hidden along with role icons — bring back later.
+                          <span class="op-role-icn"></span>
+                          -->
+                          <span class="op-role-label">-</span>
                         </div>
                       </div>
                     </teleport>
                   </div>
                 </div>
               </div>
+              </template>
 
-              <!-- Operators with no team — flat list under the team groups -->
-              <div v-if="noTeamOperators.length > 0" class="op-team-group">
-                
-                <div v-for="op in noTeamOperators" :key="op.id" class="op-check-row op-op-row op-op-row-flush"
-                  @mouseenter="hoveredOpId = op.id"
-                  @mouseleave="handleRowMouseleave(op.id)">
+              <!-- Flat list (proto: opList === 'flat') — all operators, no group
+                   separation. Mirrors the live Evocon picker. Same row markup
+                   as the grouped block so role chips / leader behaviour match. -->
+              <template v-else>
+                <div v-for="op in flatOperators" :key="op.id" class="op-check-row op-op-row op-op-row--flat">
                   <label class="op-check-row-inner">
                     <span class="op-check-box" :class="{ checked: formSelectedOps.includes(op.id) }" @click.prevent="toggleOperator(op.id)">
                       <v-icon v-if="formSelectedOps.includes(op.id)" size="18" color="white">mdi-check</v-icon>
                     </span>
-                    <span class="op-op-name">{{ op.firstName }} {{ op.lastName }}</span>
+                    <span class="op-op-text">
+                      <span class="op-op-name-line">
+                        <span class="op-op-name">{{ op.firstName }} {{ op.lastName }}</span>
+                        <img v-if="rolesMode === 'single' && op.role === 'Supervisor'" src="icn/save-report.svg" alt="" width="18" height="18" class="op-op-star">
+                      </span>
+                      <span v-if="rolesMode === 'single' && !adjustRolesOn && op.role" class="op-op-role-desc">{{ op.role }}</span>
+                    </span>
                   </label>
-                  <div class="op-tag-area" style="position:relative" @click.stop>
-                    <span v-if="op.tags && op.tags.length > 0 && formOperatorRoles[op.id]"
-                      class="op-tag-chip-readonly op-tag-chip-editable"
-                      @click="openTagDropdown(op.id, $event)">
-                      <v-icon size="18" color="#2ecc71">mdi-tag</v-icon>
-                      {{ getTagLabel(op) }}
-                    </span>
-                    <span v-else-if="op.tags && op.tags.length > 0 && (hoveredOpId === op.id || tagDropdownOpId === op.id)"
-                      class="op-tag-chip-ghost"
-                      @click="openTagDropdown(op.id, $event)">
-                      <v-icon size="18" color="#757575">mdi-tag</v-icon>
-                      Tag
+                  <div v-if="showRoleChip(op)" class="op-tag-area" @click.stop>
+                    <button class="op-rolechip" :class="{ 'is-selected': effectiveRoles(op).length > 0 }" @click="openTagDropdown(op.id, $event)">
+                      <img src="icn/operators%20%28account-hard-hat%29.svg" alt="" width="18" height="18" class="op-rolechip-icn">
+                      <span>{{ effectiveRoles(op)[0] || '-' }}</span>
                       <v-icon size="18" color="#757575">mdi-menu-down</v-icon>
-                    </span>
+                    </button>
                     <teleport to="body">
                       <div v-if="tagDropdownOpId === op.id"
-                           class="op-tag-dropdown"
+                           class="op-tag-dropdown op-role-dropdown"
                            :style="{ top: tagDropdownPos.top + 'px', left: tagDropdownPos.left + 'px' }"
                            @click.stop>
-                        <div v-for="tag in (op.tags || [])" :key="tag" class="op-tag-dropdown-item" @click="pickOperatorRole(op, tag, $event)">
-                          <span class="op-check-box" :class="{ checked: effectiveRoles(op).includes(tag) }" style="width:18px;height:18px;flex-shrink:0;">
-                            <v-icon v-if="effectiveRoles(op).includes(tag)" size="14" color="white">mdi-check</v-icon>
-                          </span>
-                          {{ tag }}
+                        <div v-for="role in roleOptionsFor(op)" :key="role.name"
+                             class="op-role-row" :class="{ 'is-selected': effectiveRoles(op).includes(role.name) }"
+                             @click="pickOperatorRole(op, role, $event)">
+                          <v-icon v-if="effectiveRoles(op).includes(role.name)" class="op-role-marker" size="24" color="#2ecc71">mdi-check-circle</v-icon>
+                          <span v-else class="op-role-marker"></span>
+                          <span class="op-role-label">{{ role.name }}</span>
                         </div>
                       </div>
                     </teleport>
                   </div>
                 </div>
+              </template>
+
+              <!-- Helpers row: checkbox + "Helpers" label + inline number chip.
+                   Chip sits right next to the label (not pushed to the right
+                   like the operator role chip). Active state: green tinted bg
+                   + green border once the user enters a number. -->
+              <div class="op-check-row op-op-row"
+                   :class="{ 'op-op-row-helpers': opList === 'grouped', 'op-op-row--flat': opList === 'flat' }">
+                <label class="op-check-row-inner">
+                  <span class="op-check-box" :class="{ checked: helpersOn }" @click.prevent.stop="toggleHelpersOn">
+                    <v-icon v-if="helpersOn" size="18" color="white">mdi-check</v-icon>
+                  </span>
+                  <span class="op-op-text">
+                    <span class="op-op-name-line">
+                      <!-- Users icon before the label, per Figma 32106:13541. -->
+                      <v-icon class="op-helpers-icn" size="18" color="#757575">mdi-account-hard-hat</v-icon>
+                      <span class="op-op-name">Additional workforce</span>
+                      <span class="op-helpers-chip" :class="{ 'is-active': helpersOn }" @click.prevent.stop>
+                        <input type="number" min="1"
+                               v-model.number="formHelperCount"
+                               @focus="helpersOn = true; if (!formHelperCount) formHelperCount = 1"
+                               class="op-helpers-chip-input" />
+                        <span>people</span>
+                      </span>
+                    </span>
+                  </span>
+                </label>
               </div>
             </div>
 
-            <!-- Helpers (full width, above time inputs) -->
-            <div class="op-time-row">
-              <div class="op-time-field" style="position:relative;">
-                <v-icon size="24" color="#757575" style="position:absolute;left:16px;top:16px;pointer-events:none;">mdi-account-group</v-icon>
-                <input type="number" v-model.number="formHelperCount" min="0" placeholder="Number of helpers" class="op-time-input op-helpers-input" style="padding-left:56px;" />
-                <span class="op-time-label">Add here any additional helpers on shift (optional)</span>
-              </div>
+            <!-- 'Adjust operator roles' toggle (Figma standard switch).
+                 Single mode only — multi uses always-on chips, leader uses the
+                 Shift leader select below. -->
+            <div v-if="rolesMode === 'single'" class="op-toggle-row">
+              <span class="op-toggle-label">Adjust operator roles</span>
+              <button class="op-switch" :class="{ 'is-on': adjustRolesOn }"
+                      @click="adjustRolesOn = !adjustRolesOn"
+                      aria-label="Adjust operator roles">
+                <span class="op-switch-knob"></span>
+              </button>
             </div>
-            <!-- Time inputs (side by side) -->
+
+            <!-- Leader mode: "Shift leader" select (Figma 32105:12291). Options
+                 are operators who can lead AND are checked into the shift.
+                 Disabled (0.5 opacity whole field) until ≥1 eligible is picked. -->
+            <div v-if="rolesMode === 'leader' && anyCanLead" class="op-leader-field" :class="{ 'is-disabled': !leaderEnabled }"
+                 @mouseenter="!leaderEnabled && showTooltip($event, 'No leading operators selected')"
+                 @mouseleave="hideTooltip">
+              <button type="button" class="op-leader-select" :disabled="!leaderEnabled" @click.stop="toggleLeaderDropdown">
+                <v-icon class="op-leader-icn" size="24" color="#707070">mdi-flag</v-icon>
+                <span class="op-leader-value" :class="{ 'is-placeholder': !leaderName }">{{ leaderName || 'Shift leader' }}</span>
+                <v-icon size="24" color="#757575">mdi-menu-down</v-icon>
+              </button>
+              <span class="op-leader-caption">Leading operator who leads the shift</span>
+              <teleport to="body">
+                <div v-if="leaderDropdownOpen" class="op-tag-dropdown op-role-dropdown"
+                     :style="{ top: leaderDropdownPos.top + 'px', left: leaderDropdownPos.left + 'px', width: leaderDropdownPos.width + 'px' }"
+                     @click.stop>
+                  <div v-for="op in leaderOptions" :key="op.id"
+                       class="op-role-row" :class="{ 'is-selected': formLeaderId === op.id }"
+                       @click="pickLeader(op)">
+                    <v-icon v-if="formLeaderId === op.id" class="op-role-marker" size="24" color="#2ecc71">mdi-check-circle</v-icon>
+                    <span v-else class="op-role-marker"></span>
+                    <span class="op-role-label">{{ op.firstName }} {{ op.lastName }}</span>
+                  </div>
+                </div>
+              </teleport>
+            </div>
+
+            <!-- Time inputs (start / end side by side) -->
             <div class="op-time-row">
               <div class="op-time-field">
                 <input type="time" v-model="formStartTime" class="op-time-input" />
@@ -291,7 +372,7 @@ const OperatorsPanel = {
 
           <div class="op-footer op-footer-right-only">
             <button class="op-btn op-btn-text" @click="cancelForm">CANCEL</button>
-            <button class="op-btn op-btn-save" :disabled="formSelectedOps.length === 0 && (!formHelperCount || formHelperCount < 1)" @click="saveOperators">SAVE</button>
+            <button class="op-btn op-btn-save" :disabled="formSelectedOps.length === 0 && !helpersOn" @click="saveOperators">SAVE</button>
           </div>
         </template>
 
@@ -299,13 +380,13 @@ const OperatorsPanel = {
         <template v-if="currentView === 'add-helpers'">
           <div class="op-header">
             <v-icon size="24" color="#212121">mdi-account-group</v-icon>
-            <span class="op-header-title">Helpers</span>
+            <span class="op-header-title">Additional workforce</span>
           </div>
 
           <div class="op-body">
             <div class="op-helper-field">
-              <input type="number" v-model.number="formHelperCount" min="1" placeholder="Number of helpers" class="op-number-input" />
-              <span class="op-helper-hint">How many helpers are assisting during this shift?</span>
+              <input type="number" v-model.number="formHelperCount" min="1" placeholder="Number of people" class="op-number-input" />
+              <span class="op-helper-hint">How many additional people are working during this shift?</span>
             </div>
             <div class="op-time-row">
               <div class="op-time-field">
@@ -348,6 +429,23 @@ const OperatorsPanel = {
     const cardLayout = ref(window.__protoCardLayout || 'twoRow');
     window.addEventListener('proto:cardLayout', (e) => { cardLayout.value = e.detail; });
 
+    // Roles mode: 'single' (legacy — Settings role caption + "Adjust operator
+    // Leader mode is now the committed design (Single/Multi were prototype A/B
+    // variants that have been dropped). Kept as a ref so the template branches
+    // still resolve cleanly, but it's effectively a constant.
+    const rolesMode = ref('leader');
+
+    // Plan tier — 'pro' or 'enterprise'. On Pro the Enterprise-locked roles
+    // (Quality, Maintenance) are hidden in the picker entirely, leaving just
+    // Supervisor; on Enterprise they're listed but disabled + tooltip.
+    const tier = ref(window.__protoTier || 'pro');
+    window.addEventListener('proto:tier', (e) => { tier.value = e.detail; });
+
+    // SV operator list mode: 'grouped' (by operator group, current proto) or
+    // 'flat' (all ops in one flat list — like Evocon today). Set via H-key.
+    const opList = ref(window.__protoOpList || 'grouped');
+    window.addEventListener('proto:opList', (e) => { opList.value = e.detail; });
+
     // ── Kebab menu (alternative card): one open at a time. ──
     // Teleported to <body> + position: fixed so the menu escapes the modal's
     // overflow:auto scroll container.
@@ -370,6 +468,21 @@ const OperatorsPanel = {
       }
     }
     function closeKebab() { kebabEntryId.value = null; }
+
+    // "Adjust operator roles" toggle in the picker. OFF (default): role is
+    // shown as a 12px caption under each operator's name; chips are hidden.
+    // ON: role chip appears on the right of every operator row and is
+    // clickable to change the role for this entry.
+    const adjustRolesOn = ref(false);
+    // Helpers checkbox/chip state — replaces the old standalone helper count
+    // input. When OFF, the chip is greyed and helperCount is ignored on save.
+    const helpersOn = ref(false);
+    function toggleHelpersOn() {
+      helpersOn.value = !helpersOn.value;
+      if (helpersOn.value && (!formHelperCount.value || formHelperCount.value < 1)) {
+        formHelperCount.value = 1;
+      }
+    }
 
     // ── Form state ──
     const searchQuery = ref('');
@@ -411,7 +524,7 @@ const OperatorsPanel = {
     function positionTagDropdown(triggerEl) {
       if (!triggerEl) return;
       const r = triggerEl.getBoundingClientRect();
-      const menuW = 200;
+      const menuW = 240;
       const menuH = 200;
       // Default: open below + right-aligned to the trigger.
       let top  = r.bottom + 4;
@@ -438,33 +551,48 @@ const OperatorsPanel = {
       if (tagDropdownOpId.value != null) positionTagDropdown(_tagAnchorEl);
     }
 
-    // Pick / unpick a role for THIS form's entry. Multi-select against the
-    // operator's available tags. Each row click toggles a tag on/off; the
-    // dropdown stays open so the user can pick several. Picking a tag does
-    // NOT change the operator's checked state — those are independent.
-    function pickOperatorRole(op, tag, event) {
+    // Pick / unpick a role for THIS form's entry. SINGLE-select against the
+    // operator's available tags. Clicking the active tag again clears it.
+    // Closing on pick keeps the interaction snappy. Picking a tag does NOT
+    // change the operator's checked state — those are independent.
+    function pickOperatorRole(op, role, event) {
       event.stopPropagation();
+      // Accept either a plain role name (legacy callers) or a { name, disabled }
+      // row from roleOptionsFor. Disabled (Enterprise-locked) rows are ignored
+      // and keep the dropdown open so the tooltip stays readable.
+      const name = typeof role === 'string' ? role : role.name;
+      if (role && typeof role === 'object' && role.disabled) return;
       const current = effectiveRoles(op);
-      const next = current.includes(tag)
-        ? current.filter(t => t !== tag)
-        : [...current, tag];
-      formOperatorRoles[op.id] = next;
+      const isActive = current.length === 1 && current[0] === name;
+      formOperatorRoles[op.id] = isActive ? [] : [name];
+      tagDropdownOpId.value = null;
+    }
+
+    // Explicit "No role" clear (MUI None pattern) — empties the picked role for
+    // this operator regardless of what was selected.
+    function clearOperatorRole(op, event) {
+      event.stopPropagation();
+      formOperatorRoles[op.id] = [];
+      tagDropdownOpId.value = null;
     }
 
     function closeTagDropdown() { tagDropdownOpId.value = null; }
 
     // The roles currently in effect for this operator in the picker. Priority:
     //   1. Roles the user has picked in this form session (formOperatorRoles).
-    //   2. The operator's defaultTag from Settings (single tag) when nothing
-    //      has been picked yet — shown even before the operator is checked.
+    //   2. The operator's Settings `role` (single role per the new data model)
+    //      when nothing has been picked yet — shown even before the operator
+    //      is checked.
     // Both the chip and the dropdown checkboxes read from here, so the
-    // pre-selected default appears ticked in the dropdown.
+    // Settings role appears ticked in the dropdown by default.
     function effectiveRoles(op) {
       if (op.id in formOperatorRoles) {
         const v = formOperatorRoles[op.id];
         return Array.isArray(v) ? v : (v ? [v] : []);
       }
-      return op.defaultTag ? [op.defaultTag] : [];
+      // Back-compat: old data carried op.defaultTag; the new model uses op.role.
+      const def = op.role || op.defaultTag || null;
+      return def ? [def] : [];
     }
 
     // Convenience helpers used by templates that still expect a single string
@@ -476,6 +604,109 @@ const OperatorsPanel = {
 
     function getTagLabel(op) {
       return effectiveRole(op) || '';
+    }
+
+    // Whether to show the role chip for this operator row.
+    //  • leader → never (leader mode uses a single "Shift leader" select, not
+    //             per-operator chips)
+    //  • multi  → any operator that carries ≥1 allowed role (always on, no toggle)
+    //  • single → only when the "Adjust operator roles" toggle is ON
+    function showRoleChip(op) {
+      if (rolesMode.value === 'leader') return false;
+      if (rolesMode.value === 'multi') {
+        return Array.isArray(op.allowedRoles) && op.allowedRoles.length > 0;
+      }
+      return adjustRolesOn.value;
+    }
+
+    // ── Leader mode (single "Shift leader" select) ──
+    // The leader is chosen from operators who (a) have canLead enabled AND
+    // (b) are checked into this shift. Field is disabled until ≥1 eligible
+    // operator is selected.
+    const formLeaderId = ref(null);
+    const leaderDropdownOpen = ref(false);
+    const leaderDropdownPos = ref({ top: 0, left: 0 });
+    let _leaderAnchorEl = null;
+    const leaderOptions = computed(() =>
+      allOperators.filter(o => o.canLead && formSelectedOps.value.includes(o.id))
+    );
+    // No operator in the org can lead → hide the whole field (nothing to pick,
+    // ever). Different from leaderEnabled, which gates the disabled state when
+    // operators *could* lead but none are checked into this shift yet.
+    const anyCanLead = computed(() => allOperators.some(o => o.canLead));
+    const leaderEnabled = computed(() => leaderOptions.value.length > 0);
+    const leaderName = computed(() => {
+      const op = allOperators.find(o => o.id === formLeaderId.value);
+      return op ? `${op.firstName} ${op.lastName}`.trim() : '';
+    });
+    function positionLeaderDropdown(triggerEl) {
+      if (!triggerEl) return;
+      const r = triggerEl.getBoundingClientRect();
+      const menuH = 240;
+      let top = r.bottom + 4;
+      if (top + menuH > window.innerHeight - 8) top = Math.max(8, r.top - menuH - 4);
+      leaderDropdownPos.value = { top, left: r.left, width: r.width };
+    }
+    function toggleLeaderDropdown(event) {
+      if (!leaderEnabled.value) return;
+      if (leaderDropdownOpen.value) { leaderDropdownOpen.value = false; return; }
+      leaderDropdownOpen.value = true;
+      _leaderAnchorEl = event && event.currentTarget;
+      positionLeaderDropdown(_leaderAnchorEl);
+    }
+    function closeLeaderDropdown() { leaderDropdownOpen.value = false; }
+    function pickLeader(op) {
+      formLeaderId.value = formLeaderId.value === op.id ? null : op.id;
+      leaderDropdownOpen.value = false;
+    }
+    // If the chosen leader gets unchecked from the shift, drop the selection.
+    watch(formSelectedOps, (ids) => {
+      if (formLeaderId.value != null && !ids.includes(formLeaderId.value)) {
+        formLeaderId.value = null;
+      }
+    });
+    // Option B: as soon as ANY eligible operator is checked into the shift and
+    // no leader is set yet, auto-pick the first one. The "-" clear option was
+    // removed, so the leader is either one of the eligible operators or null
+    // (only when zero eligibles are checked in → field is disabled).
+    watch(leaderOptions, (opts) => {
+      if (opts.length > 0 && formLeaderId.value == null) {
+        formLeaderId.value = opts[0].id;
+      }
+    });
+
+    // Role catalog (mirrors setup-proto's OPERATOR_ROLES). Order matters for
+    // the dropdown. `enterprise: true` rows are gated by the plan tier.
+    const ROLE_CATALOG = [
+      { name: 'Supervisor',  enterprise: false },
+      { name: 'Quality',     enterprise: true  },
+      { name: 'Maintenance', enterprise: true  },
+    ];
+    function isEnterpriseRole(name) {
+      const r = ROLE_CATALOG.find(x => x.name === name);
+      return !!(r && r.enterprise);
+    }
+
+    // The role rows listed in the dropdown for this operator, as objects
+    // { name, disabled }. Tier-gated:
+    //  • multi  → the operator's allowedRoles ("possible roles")
+    //  • single → all roles (the Settings default is just a starting point)
+    // On Pro, Enterprise-locked roles are dropped entirely; on Enterprise they
+    // are plain, pickable rows (no badge, no disabled state). So `disabled` is
+    // always false here — the gate is purely "show or hide".
+    function roleOptionsFor(op) {
+      let names;
+      if (rolesMode.value === 'multi') {
+        names = Array.isArray(op.allowedRoles) ? op.allowedRoles : [];
+      } else {
+        names = ROLE_CATALOG.map(r => r.name);
+      }
+      const rows = [];
+      names.forEach(name => {
+        if (isEnterpriseRole(name) && tier.value !== 'enterprise') return; // Pro: hide locked roles
+        rows.push({ name, disabled: false });
+      });
+      return rows;
     }
 
     // ── Filtered teams for search ──
@@ -522,6 +753,19 @@ const OperatorsPanel = {
       return ops;
     });
 
+    // Flat list of ALL operators (proto: "Flat" opList mode) — search-filtered,
+    // no group separation. Mirrors the live Evocon experience today.
+    const flatOperators = computed(() => {
+      const q = searchQuery.value.toLowerCase().trim();
+      let ops = [...allOperators];
+      if (q) {
+        ops = ops.filter(o =>
+          o.firstName.toLowerCase().includes(q) || o.lastName.toLowerCase().includes(q)
+        );
+      }
+      return ops;
+    });
+
     function isTeamFullySelected(teamId) {
       const ops = allOperators.filter(o => o.teamId === teamId);
       return ops.length > 0 && ops.every(o => formSelectedOps.value.includes(o.id));
@@ -557,15 +801,17 @@ const OperatorsPanel = {
       }
     }
 
-    // Initialize this operator's role-in-this-form to their setup defaultTag.
+    // Initialize this operator's role-in-this-form to their Settings role.
     // Only runs if the user hasn't already picked a role for this operator —
     // we don't want to overwrite a manual choice when they later check the box.
     function seedRoleForOp(opId) {
       if (opId in formOperatorRoles) return;
       const op = allOperators.find(o => o.id === opId);
       if (!op) return;
-      const def = op.defaultTag || null;
-      if (def && (op.tags || []).includes(def)) {
+      // New model uses op.role (single string). Fall back to op.defaultTag for
+      // legacy data that hasn't migrated.
+      const def = op.role || op.defaultTag || null;
+      if (def) {
         formOperatorRoles[opId] = [def];
       } else {
         formOperatorRoles[opId] = [];
@@ -683,6 +929,52 @@ const OperatorsPanel = {
         .join(', ');
     }
 
+    // Same as getEntryFlatNames but returns parts so the template can render
+    // a star icon inline after each supervisor name (Figma 32084:89233).
+    function getEntryNameParts(entry) {
+      const ops = entry.operatorIds
+        .map(id => allOperators.find(o => o.id === id))
+        .filter(Boolean);
+      // The star marks the ACTIVE shift leader for this entry only.
+      const isLeader = (op) => entry.leaderId === op.id;
+      const leader = ops.filter(isLeader);
+      const rest   = ops.filter(op => !isLeader(op));
+      return [
+        ...leader.map(op => ({ name: `${op.firstName} ${op.lastName}`.trim(), supervisor: true  })),
+        ...rest.map(  op => ({ name: `${op.firstName} ${op.lastName}`.trim(), supervisor: false })),
+      ];
+    }
+
+    // Saved-card people-chip hover tooltip. Shows the operator + additional-
+    // workforce split when both are present; one line otherwise.
+    function getEntryPeopleTooltip(entry) {
+      const ops = entry.operatorIds.length;
+      const aw  = entry.helperCount || 0;
+      const lines = [];
+      if (ops > 0) lines.push(`Operators: ${ops}`);
+      if (aw  > 0) lines.push(`Additional workforce: ${aw}`);
+      return lines.join(' · ');
+    }
+
+    // Saved-card name list: everyone who has ANY role comes first (entry order
+    // preserved), then the people without a role. Full names, comma-joined.
+    // No star — a set role is not treated as visually special here.
+    function getEntryRoleFirstNames(entry) {
+      const ops = entry.operatorIds
+        .map(id => allOperators.find(o => o.id === id))
+        .filter(Boolean);
+      const hasRole = (op) => {
+        const r = entry && entry.roles ? entry.roles[op.id] : null;
+        const list = Array.isArray(r) ? r : (r ? [r] : []);
+        return list.length > 0;
+      };
+      const withRole = ops.filter(hasRole);
+      const without  = ops.filter(op => !hasRole(op));
+      return [...withRole, ...without]
+        .map(op => `${op.firstName} ${op.lastName}`.trim())
+        .join(', ');
+    }
+
     function getOperatorFirstNames(entry) {
       return entry.operatorIds
         .map(id => allOperators.find(o => o.id === id))
@@ -721,6 +1013,10 @@ const OperatorsPanel = {
       formStartTime.value = '06:00';
       formEndTime.value = '14:00';
       formHelperCount.value = null;
+      helpersOn.value = false;
+      adjustRolesOn.value = false;
+      formLeaderId.value = null;
+      leaderDropdownOpen.value = false;
       searchQuery.value = '';
       editingEntryId.value = null;
       currentView.value = 'add-operators';
@@ -761,7 +1057,9 @@ const OperatorsPanel = {
 
     function saveOperators() {
       const hasOps = formSelectedOps.value.length > 0;
-      const hasHelpers = formHelperCount.value && formHelperCount.value > 0;
+      // Only honour helperCount when the helpers checkbox is on. This makes
+      // the chip's "people" number a no-op until the user opts in.
+      const hasHelpers = helpersOn.value && formHelperCount.value && formHelperCount.value > 0;
       if (!hasOps && !hasHelpers) return;
 
       // Snapshot the form-level role map for the operators being saved.
@@ -778,6 +1076,7 @@ const OperatorsPanel = {
         if (entry) {
           entry.operatorIds = [...formSelectedOps.value];
           entry.roles = newRoles;
+          entry.leaderId = formLeaderId.value;
           entry.startTime = formStartTime.value;
           entry.endTime = formEndTime.value;
           entry.helperCount = hasHelpers ? formHelperCount.value : 0;
@@ -833,6 +1132,8 @@ const OperatorsPanel = {
         end   = maxTime(end,   formEndTime.value);
         base.operatorIds = [...allOpIds];
         base.roles = mergedRoles;
+        // New pick wins; otherwise keep whatever the base entry had.
+        if (formLeaderId.value != null) base.leaderId = formLeaderId.value;
         base.helperCount = mergedHelpers;
         base.startTime = start;
         base.endTime = end;
@@ -845,6 +1146,7 @@ const OperatorsPanel = {
           id: _nextId++,
           operatorIds: [...formSelectedOps.value],
           roles: newRoles,
+          leaderId: formLeaderId.value,
           helperCount: hasHelpers ? formHelperCount.value : 0,
           startTime: formStartTime.value,
           endTime: formEndTime.value,
@@ -874,6 +1176,14 @@ const OperatorsPanel = {
       formStartTime.value = entry.startTime;
       formEndTime.value = entry.endTime;
       formHelperCount.value = entry.helperCount || null;
+      // Helper toggle reflects whether the entry actually had helpers attached.
+      helpersOn.value = !!entry.helperCount;
+      // Role-adjust toggle defaults to OFF when editing; user can flip it.
+      adjustRolesOn.value = false;
+      // Leader mode: restore the picked shift leader. If the entry has no
+      // saved leader, the auto-pick watcher will fill in the first eligible.
+      formLeaderId.value = entry.leaderId != null ? entry.leaderId : null;
+      leaderDropdownOpen.value = false;
       // Wipe + restore per-operator roles as string[] (multi-tag model).
       Object.keys(formOperatorRoles).forEach(k => delete formOperatorRoles[k]);
       Object.entries(entry.roles || {}).forEach(([id, r]) => {
@@ -1039,7 +1349,7 @@ const OperatorsPanel = {
           if (g.teamName) lines.push(`${g.teamName}: ${g.names.join(', ')}`);
           else if (g.names.length) lines.push(g.names.join(', '));
         });
-        if (totalHelpers > 0) lines.push(`Helpers: ${totalHelpers}`);
+        if (totalHelpers > 0) lines.push(`Additional workforce: ${totalHelpers}`);
         return lines.join(', ');
       })();
 
@@ -1061,23 +1371,42 @@ const OperatorsPanel = {
       emitSummary();
       document.addEventListener('click', closeTagDropdown);
       document.addEventListener('click', closeKebab);
+      document.addEventListener('click', closeLeaderDropdown);
       // Scroll capture catches the inner scroll containers (.op-body-scroll)
       // so the dropdown follows the anchor on scroll.
       window.addEventListener('scroll', repositionTagDropdown, true);
+      window.addEventListener('scroll', closeLeaderDropdown, true);
       window.addEventListener('resize', closeTagDropdown);
+      window.addEventListener('resize', closeLeaderDropdown);
     });
 
     const { onUnmounted } = Vue;
     onUnmounted(() => {
       document.removeEventListener('click', closeTagDropdown);
+      document.removeEventListener('click', closeLeaderDropdown);
       window.removeEventListener('scroll', repositionTagDropdown, true);
+      window.removeEventListener('scroll', closeLeaderDropdown, true);
       window.removeEventListener('resize', closeTagDropdown);
+      window.removeEventListener('resize', closeLeaderDropdown);
     });
 
     return {
       currentView,
       editingEntryId,
       cardLayout,
+      rolesMode,
+      tier,
+      showRoleChip,
+      roleOptionsFor,
+      formLeaderId,
+      leaderDropdownOpen,
+      leaderDropdownPos,
+      leaderOptions,
+      leaderEnabled,
+      anyCanLead,
+      leaderName,
+      toggleLeaderDropdown,
+      pickLeader,
       getEntryTagRows,
       getEntryAllNames,
       getEntryUntaggedNames,
@@ -1093,9 +1422,14 @@ const OperatorsPanel = {
       formStartTime,
       formEndTime,
       formHelperCount,
+      adjustRolesOn,
+      helpersOn,
+      toggleHelpersOn,
       filteredTeams,
       getFilteredTeamOperators,
       noTeamOperators,
+      opList,
+      flatOperators,
       isTeamFullySelected,
       isTeamPartiallySelected,
       toggleTeam,
@@ -1104,6 +1438,9 @@ const OperatorsPanel = {
       getOperatorNames,
       getOperatorFirstNames,
       getEntryFlatNames,
+      getEntryNameParts,
+      getEntryRoleFirstNames,
+      getEntryPeopleTooltip,
       openAddOperators,
       openAddHelpers,
       cancelForm,
@@ -1124,6 +1461,7 @@ const OperatorsPanel = {
       handleRowMouseleave,
       openTagDropdown,
       pickOperatorRole,
+      clearOperatorRole,
       effectiveRole,
       effectiveRoles,
       formOperatorRoles,

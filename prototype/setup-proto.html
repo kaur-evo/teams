@@ -11,21 +11,22 @@
   <style>
     /* Page-local: precise column widths per Figma frame 32002:10454 */
     .table.list { table-layout: fixed; }
-    .table.list col.c-first   { width: 267px; }
-    .table.list col.c-last    { width: 267px; }
-    .table.list col.c-fact    { width: 179px; }
-    .table.list col.c-team    { width: 137px; }
-    .table.list col.c-tags    { width: 130px; }
-    .table.list col.c-stat    { width: 267px; }
-    .table.list col.c-pass    { width: 120px; }
+    .table.list col.c-first   { width: 220px; }
+    .table.list col.c-last    { width: 220px; }
+    .table.list col.c-fact    { width: 160px; }
+    .table.list col.c-team    { width: 140px; }
+    .table.list col.c-role    { width: 130px; }
+    .table.list col.c-tags    { width: 150px; }
+    .table.list col.c-stat    { width: 230px; }
+    .table.list col.c-pass    { width: 110px; }
     .table.list col.c-actions { width: 50px;  }
 
-    /* Teams view inner table (Figma 32019:8355 et al) — different widths */
-    .table.teams col.tg-first { width: 228px; }
-    .table.teams col.tg-last  { width: 228px; }
-    .table.teams col.tg-stat1 { width: 245px; }
-    .table.teams col.tg-stat2 { width: 245px; }
-    .table.teams col.tg-tags  { width: 197px; }
+    /* Teams view inner table */
+    .table.teams col.tg-first { width: 180px; }
+    .table.teams col.tg-last  { width: 180px; }
+    .table.teams col.tg-stat  { width: 280px; }
+    .table.teams col.tg-role  { width: 140px; }
+    .table.teams col.tg-tags  { width: 200px; }
     .table.teams col.tg-pass  { width: auto;  }
 
     /* Custom widths inside the modal (Figma frame is 900px wide) */
@@ -98,7 +99,7 @@
       <table class="table list">
         <colgroup>
           <col class="c-first"><col class="c-last"><col class="c-fact"><col class="c-team">
-          <col class="c-tags"><col class="c-stat"><col class="c-pass"><col class="c-actions">
+          <col class="c-role"><col class="c-tags"><col class="c-stat"><col class="c-pass"><col class="c-actions">
         </colgroup>
         <thead>
           <tr>
@@ -106,6 +107,7 @@
             <th><span class="th-inner">Last name</span></th>
             <th><span class="th-inner">Factories</span></th>
             <th><span class="th-inner">Operator group</span></th>
+            <th><span class="th-inner">Shift leader</span></th>
             <th>
               <span class="th-inner">
                 <span data-icn="tags" data-size="16"></span>
@@ -165,7 +167,18 @@
           </div>
         </div>
       </div>
+      <!-- Row 2: Operator group | Stations -->
       <div class="field-row">
+        <div class="field" style="position:relative;">
+          <button type="button" class="field__select is-empty" id="opTeamTrigger">
+            <span class="field__select-text">Operator group</span>
+            <span class="field__select-caret" data-icn="menu-down"></span>
+          </button>
+          <div class="field__bottom">
+            <span class="field__hint">Operator group</span>
+          </div>
+          <div class="dropdown" id="opTeamMenu" data-anchor="#opTeamTrigger"></div>
+        </div>
         <div class="field" style="position:relative;">
           <button type="button" class="field__select is-empty" id="opStationsTrigger">
             <span class="field__select-text">Stations</span>
@@ -176,28 +189,39 @@
           </div>
           <div class="dropdown" id="opStationsMenu" data-anchor="#opStationsTrigger"></div>
         </div>
-        <div class="field" style="position:relative;">
-          <button type="button" class="field__select is-empty" id="opTeamTrigger">
-            <span class="field__select-text">Operator group</span>
-            <span class="field__select-caret" data-icn="menu-down"></span>
-          </button>
-          <div class="field__bottom">
-            <span class="field__hint">Operator group (Optional)</span>
-          </div>
-          <div class="dropdown" id="opTeamMenu" data-anchor="#opTeamTrigger"></div>
-        </div>
       </div>
+      <!-- Row 3: Tags | Role (Role hidden in leader mode → Tags sits alone) -->
       <div class="field-row">
         <div class="field fld-tags" style="position:relative;">
           <button type="button" class="field__select is-empty" id="opTagsTrigger">
-            <span class="field__select-icon" data-icn="tags"></span>
             <span class="field__select-text">Tags</span>
             <span class="field__select-caret" data-icn="menu-down"></span>
           </button>
           <div class="field__bottom">
-            <span class="field__hint">Tags (Optional)</span>
+            <span class="field__hint">Tags</span>
           </div>
           <div class="dropdown" id="opTagsMenu" data-anchor="#opTagsTrigger"></div>
+        </div>
+        <div class="field" style="position:relative;" id="opRoleField">
+          <button type="button" class="field__select is-empty" id="opRoleTrigger">
+            <span class="field__select-text">Default role</span>
+            <span class="field__select-caret" data-icn="menu-down"></span>
+          </button>
+          <div class="field__bottom">
+            <span class="field__hint">Default role</span>
+          </div>
+          <div class="dropdown" id="opRoleMenu" data-anchor="#opRoleTrigger"></div>
+        </div>
+      </div>
+
+      <!-- Leader mode only: "Allow as shift leader" toggle (Figma 32106:13385). -->
+      <div class="op-leader-toggle-row" id="opLeaderToggleRow" style="display:none;">
+        <button type="button" class="op-switch" id="opCanLeadSwitch" role="switch" aria-checked="false" aria-label="Allow as shift leader">
+          <span class="op-switch-knob"></span>
+        </button>
+        <div class="op-leader-toggle-text">
+          <div class="op-leader-toggle-label">Allow as shift leader</div>
+          <div class="op-leader-toggle-hint">Operator can be set as shift leader in shift view</div>
         </div>
       </div>
 
@@ -252,7 +276,32 @@
           <div class="dropdown" id="teamColorMenu" data-anchor="#teamColorTrigger"></div>
         </div>
       </div>
+      <!-- Tags (multi-select) on its own row. -->
       <div class="field-row">
+        <div class="field" style="flex: 0 0 calc(50% - 4px); position:relative;">
+          <button type="button" class="field__select is-empty" id="teamTagsTrigger">
+            <span class="field__select-text">Tags</span>
+            <span class="field__select-caret" data-icn="menu-down"></span>
+          </button>
+          <div class="field__bottom">
+            <span class="field__hint">Tags (Optional)</span>
+          </div>
+          <div class="dropdown" id="teamTagsMenu" data-anchor="#teamTagsTrigger"></div>
+        </div>
+      </div>
+      <!-- Global group toggle. ON → factory choice hidden (group visible
+           everywhere). OFF → factory choice appears below as a multi-select. -->
+      <div class="op-leader-toggle-row" style="padding: 16px 0 8px;">
+        <button type="button" class="op-switch" id="teamGlobalSwitch" role="switch" aria-checked="false" aria-label="Global group">
+          <span class="op-switch-knob"></span>
+        </button>
+        <div class="op-leader-toggle-text">
+          <div class="op-leader-toggle-label">Global group</div>
+          <div class="op-leader-toggle-hint">Turn on if this group should be visible across all factories.</div>
+        </div>
+      </div>
+      <!-- Factories (multi-select), shown only when Global group is OFF. -->
+      <div class="field-row" id="teamFactoryRow" style="display:none;">
         <div class="field" style="flex: 0 0 calc(50% - 4px); position:relative;">
           <button type="button" class="field__select is-empty" id="teamFactoryTrigger">
             <span class="field__select-text">Factories</span>
@@ -276,6 +325,7 @@
 </div>
 
 <script src="mock-data.js"></script>
+<script src="proto-panel.js"></script>
 <script src="chrome.js"></script>
 <script>
 // ─── Bootstrap chrome ───
@@ -317,6 +367,34 @@ let editingOp   = null;
 let editingTeam = null;
 const FACTORIES = MOCK_FACTORIES;
 const TAGS      = MOCK_TAGS;
+// Roles available in the operator setup modal. Supervisor is Pro-tier.
+// Quality, Maintenance, External are Enterprise-only — shown greyed with an
+// ENTERPRISE pill so users discover the upgrade without being able to pick.
+// Each role carries its own icon (rendered next to the name in the role
+// dropdown picker per Figma 32059:7483). icn id resolves via Chrome.icon().
+// "Operator" is the baseline role — available to everyone and the default in
+// single mode. The multi "Roles" card excludes it (there you pick which
+// elevated roles an operator CAN take). Supervisor is Pro; Quality/Maintenance
+// are Enterprise-gated.
+const OPERATOR_ROLES = [
+  { name: 'Operator',    enterprise: false, icn: 'operators' },
+  { name: 'Supervisor',  enterprise: false, icn: 'star'      },
+  { name: 'Quality',     enterprise: true,  icn: 'operators' },
+  { name: 'Maintenance', enterprise: true,  icn: 'operators' },
+];
+// Prototype roles mode — shared with the Shift View (set via its H-key panel,
+// persisted under the same localStorage key). Drives whether the operator
+// Leader mode is the committed design — the "Allow as shift leader" toggle is
+// the only responsibility-shaped control on the operator. The helpers below
+// stay as constants so the rest of the file doesn't need to be rewritten.
+function protoRolesMode()    { return 'leader'; }
+function isMultiRolesMode()  { return false; }
+function isLeaderRolesMode() { return true;  }
+// Plan tier — shared with the Shift View H-key panel (localStorage 'protoTier').
+// 'pro' hides Enterprise-locked roles entirely; 'enterprise' shows them as
+// disabled rows with an upgrade tooltip.
+function protoTier() { return localStorage.getItem('protoTier') || 'pro'; }
+function isEnterpriseTier() { return protoTier() === 'enterprise'; }
 const STATIONS  = MOCK_STATIONS;
 // Team color picker — uses the "Chart colors" palette from the Evocon
 // Design System (Figma node 178:218). Values match the --chart-* CSS tokens
@@ -350,24 +428,41 @@ function persist() {
   SharedData.saveOperators(operators);
 }
 
+// Human-readable factory scope for an operator group:
+//   global   → "All"
+//   1 fact   → "Athens Plant"
+//   2+ facts → "Athens Plant + 2 more"
+//   empty    → "—"
 function teamFactoryName(teamObj) {
   if (!teamObj) return '';
-  const f = factoryById(teamObj.factoryId);
-  return f ? f.name : '';
+  if (teamObj.isGlobal) return 'All';
+  const ids = teamObj.factoryIds || [];
+  const names = ids.map(id => factoryById(id)?.name).filter(Boolean);
+  if (names.length === 0) return '';
+  if (names.length === 1) return names[0];
+  return `${names[0]} + ${names.length - 1} more`;
 }
 
 // ─── List view rendering ───
-// Renders each tag; the operator's defaultTag gets a small filled star
-// BEFORE its name (4px gap) to signal it's the pre-selected role in shift view.
+// Tags are plain comma-separated text. Role is its own column.
 function renderTagsCell(op) {
   const tags = op.tags || [];
   if (tags.length === 0) return '-';
-  return tags.map(t => {
-    const star = (op.defaultTag === t)
-      ? `<img src="icn/save-report.svg" alt="default tag" width="14" height="14" style="vertical-align:-2px;margin-right:4px;">`
-      : '';
-    return `${star}${escapeHtml(t)}`;
-  }).join(', ');
+  return tags.map(t => escapeHtml(t)).join(', ');
+}
+// Shift leader cell — "Yes" when canLead, "-" otherwise.
+function renderRoleCell(op) {
+  return op.canLead ? 'Yes' : '-';
+}
+// Group cell shows the color swatch + group name (no swatch for Default to
+// avoid drawing attention to the fallback bucket).
+function renderGroupCell(op) {
+  const team = teamById(op.teamId);
+  if (!team) return '-';
+  const isDefault = team.name === 'Default';
+  const swatch = isDefault ? '' :
+    `<span class="swatch" style="background:${team.color};width:10px;height:10px;margin-right:6px;vertical-align:middle;"></span>`;
+  return `${swatch}${escapeHtml(team.name)}`;
 }
 
 function renderList() {
@@ -380,7 +475,8 @@ function renderList() {
         <td class="td-bold">${escapeHtml(op.firstName)}</td>
         <td class="td-bold">${escapeHtml(op.lastName)}</td>
         <td>${escapeHtml(factoryName || 'All')}</td>
-        <td>${team ? escapeHtml(team.name) : '-'}</td>
+        <td>${renderGroupCell(op)}</td>
+        <td>${renderRoleCell(op)}</td>
         <td>${renderTagsCell(op)}</td>
         <td>${escapeHtml((op.stations || []).join(', '))}</td>
         <td>No</td>
@@ -420,21 +516,16 @@ function renderTeams(expandTeamId) {
         <div class="team-group__body">
           <table class="table teams">
             <colgroup>
-              <col class="tg-first"><col class="tg-last"><col class="tg-stat1">
-              <col class="tg-stat2"><col class="tg-tags"><col class="tg-pass">
+              <col class="tg-first"><col class="tg-last"><col class="tg-stat">
+              <col class="tg-role"><col class="tg-tags"><col class="tg-pass">
             </colgroup>
             <thead>
               <tr>
                 <th><span class="th-inner">First name</span></th>
                 <th><span class="th-inner">Last name</span></th>
                 <th><span class="th-inner">Stations</span></th>
-                <th><span class="th-inner">Stations</span></th>
-                <th>
-                  <span class="th-inner">
-                    <span data-icn="tags" data-size="16"></span>
-                    Tags
-                  </span>
-                </th>
+                <th><span class="th-inner">Shift leader</span></th>
+                <th><span class="th-inner">Tags</span></th>
                 <th><span class="th-inner">Passcode</span></th>
               </tr>
             </thead>
@@ -443,8 +534,8 @@ function renderTeams(expandTeamId) {
                 <tr data-op-id="${op.id}">
                   <td>${escapeHtml(op.firstName)}</td>
                   <td>${escapeHtml(op.lastName)}</td>
-                  <td>${escapeHtml((op.stations || []).slice(0, 2).join(', '))}</td>
-                  <td>${escapeHtml((op.stations || []).slice(2).join(', ') || (op.stations || [])[0] || '-')}</td>
+                  <td>${escapeHtml((op.stations || []).join(', '))}</td>
+                  <td>${renderRoleCell(op)}</td>
                   <td>${renderTagsCell(op)}</td>
                   <td>No</td>
                 </tr>
@@ -547,9 +638,28 @@ window.addEventListener('scroll', () => {
 window.addEventListener('resize', () => closeAllDropdowns());
 
 function wireDropdownMenu(menu) {
+  // Rows that carry data-tip (e.g. Enterprise-locked roles) get a hover
+  // tooltip explaining why they can't be picked.
+  $$('.dropdown__row[data-tip]', menu).forEach(row => {
+    row.addEventListener('mouseenter', e => evoShowTooltip(e, row.dataset.tip));
+    row.addEventListener('mouseleave', evoHideTooltip);
+  });
+  // Star buttons in the multi roles card: pick the operator's default role.
+  // stopPropagation so the click doesn't also toggle the row checkbox. Only
+  // rendered on available (checked) rows.
+  $$('.dropdown__row-star[data-role-default]', menu).forEach(star => {
+    star.addEventListener('click', e => {
+      e.stopPropagation();
+      const handler = window.__currentRoleDefault;
+      if (handler) handler(star.dataset.roleDefault);
+    });
+  });
   $$('.dropdown__row', menu).forEach(row => {
     row.addEventListener('click', e => {
       e.stopPropagation();
+      // Enterprise-locked / otherwise disabled rows ignore clicks but keep
+      // the dropdown open so the user can read the ENTERPRISE pill.
+      if (row.classList.contains('is-disabled')) return;
       const cbicon = row.querySelector('.dropdown__row-cbicon');
       // Multi-select rows carry a .dropdown__row-cbicon checkbox marker;
       // single-select rows (radio-style) do not.
@@ -577,11 +687,13 @@ function getOperatorFormState() {
     firstName: $('#opFirst').value.trim(),
     lastName:  $('#opLast').value.trim(),
     stations: window.__opStations || [],
+    // Mandatory: operators always belong to a group. Null falls back to the
+    // Default group at save time (see #opSave handler).
     teamId:   window.__opTeam ?? null,
+    role:     window.__opRole || null,
+    allowedRoles: window.__opAllowedRoles || [],
+    canLead:  !!window.__opCanLead,
     tags:     window.__opTags || [],
-    // Default tag: must be one of the available tags. Pre-selects this tag
-    // in the Shift View tag picker. May be null (no default).
-    defaultTag: window.__opDefaultTag || null,
   };
 }
 function setOperatorFormState(op) {
@@ -591,8 +703,11 @@ function setOperatorFormState(op) {
   $('#opLastCount').textContent  = $('#opLast').value.length;
   window.__opStations = [...(op?.stations || [])];
   window.__opTeam = op?.teamId ?? null;
+  // Single mode: "Operator" is the baseline default for anyone without a role.
+  window.__opRole = op?.role || (isMultiRolesMode() ? null : 'Operator');
+  window.__opAllowedRoles = [...(op?.allowedRoles || [])];
+  window.__opCanLead = !!op?.canLead;
   window.__opTags = [...(op?.tags || [])];
-  window.__opDefaultTag = op?.defaultTag || null;
   refreshOperatorSummaries();
 }
 function refreshOperatorSummaries() {
@@ -602,13 +717,38 @@ function refreshOperatorSummaries() {
   sTrig.classList.toggle('is-empty', s.length === 0);
   $('.field__select-text', sTrig).textContent = s.length ? (s.length === 1 ? s[0] : `${s[0]} + ${s.length - 1} more`) : 'Stations';
 
-  // Team — show a small color swatch before the name when one is picked.
+  // Operator group — show color swatch before name when picked.
   const tTrig = $('#opTeamTrigger');
   const team = teamById(window.__opTeam);
   tTrig.classList.toggle('is-empty', !team);
   $('.field__select-text', tTrig).innerHTML = team
     ? `<span class="swatch" style="background:${team.color};margin-right:8px;vertical-align:middle;"></span>${escapeHtml(team.name)}`
-    : 'Team';
+    : 'Operator group';
+
+  // Role field vs. leader toggle. Leader mode: hide the role field entirely
+  // and show the "Allow as shift leader" toggle row. Single/multi: show the
+  // role field, hide the toggle row.
+  const rTrig = $('#opRoleTrigger');
+  const rField = $('#opRoleField');
+  const leaderRow = $('#opLeaderToggleRow');
+  const leaderMode = isLeaderRolesMode();
+  if (rField) rField.style.display = leaderMode ? 'none' : '';
+  if (leaderRow) leaderRow.style.display = leaderMode ? '' : 'none';
+  if (leaderMode) {
+    const sw = $('#opCanLeadSwitch');
+    if (sw) { sw.classList.toggle('is-on', !!window.__opCanLead); sw.setAttribute('aria-checked', String(!!window.__opCanLead)); }
+  } else if (isMultiRolesMode()) {
+    const allowed = window.__opAllowedRoles || [];
+    rTrig.classList.toggle('is-empty', allowed.length === 0);
+    $('.field__select-text', rTrig).textContent =
+      allowed.length ? (allowed.length === 1 ? allowed[0] : `${allowed[0]} + ${allowed.length - 1} more`) : 'Responsibilities';
+    if (rField) $('.field__hint', rField).textContent = 'Responsibilities';
+  } else {
+    const role = window.__opRole;
+    rTrig.classList.toggle('is-empty', !role);
+    $('.field__select-text', rTrig).textContent = role || 'Default role';
+    if (rField) $('.field__hint', rField).textContent = 'Default role';
+  }
 
   // Tags
   const gTrig = $('#opTagsTrigger');
@@ -626,12 +766,28 @@ function openOperatorModal(opId) {
 }
 
 $('#btnNewOperator').addEventListener('click', () => openOperatorModal(null));
+// "Allow as shift leader" toggle (leader mode).
+$('#opCanLeadSwitch').addEventListener('click', () => {
+  window.__opCanLead = !window.__opCanLead;
+  refreshOperatorSummaries();
+});
 $('#opFirst').addEventListener('input', e => $('#opFirstCount').textContent = e.target.value.length);
 $('#opLast').addEventListener('input',  e => $('#opLastCount').textContent  = e.target.value.length);
 
 $('#opSave').addEventListener('click', () => {
   const data = getOperatorFormState();
   if (!data.firstName) { $('#opFirst').focus(); return; }
+  // Mandatory group: if no group picked, lump into Default. Auto-creates the
+  // Default group on first use so it always exists when operators need it.
+  if (data.teamId == null) {
+    let def = teams.find(t => t.name === 'Default');
+    if (!def) {
+      const id = (Math.max(0, ...teams.map(t => t.id)) || 0) + 1;
+      def = { id, name: 'Default', color: '#9e9e9e', factoryId: null };
+      teams.push(def);
+    }
+    data.teamId = def.id;
+  }
   if (editingOp) {
     Object.assign(editingOp, data);
   } else {
@@ -699,31 +855,16 @@ $('#opTeamTrigger').addEventListener('click', () => {
   };
 });
 
-// Tags dropdown (multi-select with SET UP TAGS button — Figma 32022:19287)
-// Each checked tag has a star to its right. Clicking the star promotes that
-// tag to the operator's *default* (pre-selected in Shift View). Only one
-// tag at a time may be the default.
-function renderOpTagsMenu() {
+// Tags dropdown — plain multi-select. Tags are setup-only labels; they are
+// not used in Shift View role selection (Role lives on its own field now).
+bindDropdown('#opTagsTrigger', '#opTagsMenu', () => {
   const sel = window.__opTags || [];
-  const def = window.__opDefaultTag;
-  const rows = TAGS.map(t => {
-    const checked = sel.includes(t);
-    const isDefault = def === t;
-    // Star behaviour:
-    //  - default tag  → filled star always visible (icn/save-report.svg)
-    //  - other tags   → outline star visible only on row hover (CSS-driven)
-    // Both stay the standard #707070 icon grey (no green tint).
-    return `
-      <div class="dropdown__row ${checked ? 'is-checked' : ''}" data-value="${escapeHtml(t)}">
-        ${checkboxMarker(checked)}
-        <span style="flex:1;">${escapeHtml(t)}</span>
-        <button type="button" class="dropdown__row-star ${isDefault ? 'is-default' : ''}" data-default="${escapeHtml(t)}" data-tip="Set as default tag selected in shift view" aria-label="Set as default tag selected in shift view">
-          <img src="icn/save-report.svg" alt="" width="24" height="24" class="dropdown__row-star-img dropdown__row-star-img--filled">
-          <img src="icn/star-outline.svg" alt="" width="24" height="24" class="dropdown__row-star-img dropdown__row-star-img--outline">
-        </button>
-      </div>
-    `;
-  }).join('');
+  const rows = TAGS.map(t => `
+    <div class="dropdown__row ${sel.includes(t) ? 'is-checked' : ''}" data-value="${escapeHtml(t)}">
+      ${checkboxMarker(sel.includes(t))}
+      <span style="flex:1;">${escapeHtml(t)}</span>
+    </div>
+  `).join('');
   return `
     <div class="dropdown__rows">${rows}</div>
     <div class="dropdown__footer">
@@ -733,53 +874,116 @@ function renderOpTagsMenu() {
       </button>
     </div>
   `;
-}
-bindDropdown('#opTagsTrigger', '#opTagsMenu', renderOpTagsMenu);
-function rebuildOpTagsMenu() {
-  const menu = $('#opTagsMenu');
-  menu.innerHTML = renderOpTagsMenu();
-  // Reposition relative to the trigger (in case the menu height changed).
-  positionDropdown(menu, $('#opTagsTrigger'));
-  hydrateIcons(menu);
-  wireDropdownMenu(menu);
-  wireOpTagsStars(menu);
-}
+});
 $('#opTagsTrigger').addEventListener('click', () => {
   window.__currentMultiSelect = () => {
-    const checkedTags = $$('#opTagsMenu .dropdown__row.is-checked').map(r => r.dataset.value);
-    window.__opTags = checkedTags;
-    if (window.__opDefaultTag && !checkedTags.includes(window.__opDefaultTag)) {
-      window.__opDefaultTag = null;
-    }
+    window.__opTags = $$('#opTagsMenu .dropdown__row.is-checked').map(r => r.dataset.value);
     refreshOperatorSummaries();
-    rebuildOpTagsMenu();
   };
-  setTimeout(() => wireOpTagsStars($('#opTagsMenu')), 0);
 });
-// Wire star clicks so they don't toggle the parent row's checkbox.
-// Clicking a star auto-checks the tag if it wasn't, and sets it as default.
-// Clicking the filled star clears the default (the tag stays checked).
-function wireOpTagsStars(menu) {
-  $$('.dropdown__row-star', menu).forEach(btn => {
-    btn.addEventListener('click', e => {
-      e.stopPropagation();
-      const tag = btn.dataset.default;
-      if (window.__opDefaultTag === tag) {
-        window.__opDefaultTag = null;
-      } else {
-        // Setting a new default auto-checks the tag if it wasn't.
-        if (!(window.__opTags || []).includes(tag)) {
-          window.__opTags = [...(window.__opTags || []), tag];
-        }
-        window.__opDefaultTag = tag;
-      }
-      rebuildOpTagsMenu();
-      refreshOperatorSummaries();
-    });
-    btn.addEventListener('mouseenter', e => evoShowTooltip(e, btn.dataset.tip));
-    btn.addEventListener('mouseleave', evoHideTooltip);
-  });
+
+// Role dropdown. Two modes (prototype-gated, shared with Shift View):
+//   single → single-select "Default role" (Figma 32059:7483): radio + role
+//            icon + label.
+//   multi  → multi-select "Available roles" card (Figma 32091:12366):
+//            checkbox + label (+ star on Supervisor) + a static "Default" chip.
+// Plan tier gates Quality/Maintenance: hidden on Pro, plain pickable rows on
+// Enterprise.
+// Re-render the open role menu in place (used after a star/default change or
+// a check toggle so the star buttons reflect new availability + default).
+function refreshRoleMenu() {
+  const menu = $('#opRoleMenu');
+  if (!menu || !menu.classList.contains('is-open')) return;
+  menu.innerHTML = renderRoleMenu();
+  hydrateIcons(menu);
+  wireDropdownMenu(menu);
 }
+function renderRoleMenu() {
+  // Tier gate: on Pro, drop Enterprise-locked roles entirely; on Enterprise,
+  // they're plain pickable rows (no badge, no disabled state). The multi card
+  // also excludes the baseline "Operator" role (only elevated roles are picked
+  // as "available" there).
+  const multi = isMultiRolesMode();
+  const tierRoles = OPERATOR_ROLES.filter(r =>
+    (!r.enterprise || isEnterpriseTier()) && !(multi && r.name === 'Operator'));
+  if (multi) {
+    const allowed = window.__opAllowedRoles || [];
+    const defaultRole = window.__opRole || null;
+    const rows = tierRoles.map(r => {
+      const isChecked = allowed.includes(r.name);
+      const isDefault = isChecked && defaultRole === r.name;
+      // Checkbox = role is available. The default role is picked via a star
+      // button on the right: the default row shows a filled star always; other
+      // (available) rows show an outline star on hover. Click to set/clear.
+      // Star only acts on available (checked) rows.
+      const starBtn = isChecked ? `
+        <button type="button" class="dropdown__row-star ${isDefault ? 'is-default' : ''}"
+                data-role-default="${escapeHtml(r.name)}" title="Set as default responsibility">
+          <span class="dropdown__row-star-img dropdown__row-star-img--filled" data-icn="star"></span>
+          <span class="dropdown__row-star-img dropdown__row-star-img--outline" data-icn="star-outline"></span>
+        </button>` : '';
+      return `
+        <div class="dropdown__row role-card__row ${isChecked ? 'is-checked' : ''}" data-value="${escapeHtml(r.name)}">
+          ${checkboxMarker(isChecked)}
+          <span class="role-card__main">
+            <span class="role-card__label">${escapeHtml(r.name)}</span>
+          </span>
+          ${starBtn}
+        </div>
+      `;
+      /* Previous "Default" chip variant — kept for reference, bring back later:
+        <button type="button" class="role-card__chip ${isDefault ? 'is-selected' : ''} ${isChecked ? '' : 'is-muted'}"
+                data-role-default="${escapeHtml(r.name)}">Default</button>
+      */
+    }).join('');
+    return `<div class="dropdown__rows role-card">${rows}</div>`;
+  }
+  const sel = window.__opRole;
+  const rows = tierRoles.map(r => {
+    const isSelected = sel === r.name;
+    // Layout per Figma 32059:7483: [radio] [role icon] [label]
+    // Role icon hidden for now — bring back later (restore the roleicn span).
+    return `
+      <div class="dropdown__row ${isSelected ? 'is-selected' : ''}" data-value="${escapeHtml(r.name)}">
+        ${radioCheckMarker(isSelected)}
+        <!-- <span class="dropdown__row-roleicn" data-icn="${r.icn}"></span> -->
+        <span class="dropdown__row-rolelabel">${escapeHtml(r.name)}</span>
+      </div>
+    `;
+  }).join('');
+  return `<div class="dropdown__rows">${rows}</div>`;
+}
+bindDropdown('#opRoleTrigger', '#opRoleMenu', renderRoleMenu);
+$('#opRoleTrigger').addEventListener('click', () => {
+  if (isMultiRolesMode()) {
+    // Multi-select: checkbox toggles role availability. If the role being
+    // unchecked was the default, clear the default too. Re-render so the star
+    // buttons appear/disappear with availability.
+    window.__currentMultiSelect = () => {
+      window.__opAllowedRoles = $$('#opRoleMenu .role-card__row.is-checked').map(r => r.dataset.value);
+      if (window.__opRole && !window.__opAllowedRoles.includes(window.__opRole)) {
+        window.__opRole = null;
+      }
+      refreshRoleMenu();
+      refreshOperatorSummaries();
+    };
+    // Star button: radio-like pick of the default role. Ignored on unavailable
+    // (unchecked) rows. Clicking the active default clears it.
+    window.__currentRoleDefault = (name) => {
+      if (!(window.__opAllowedRoles || []).includes(name)) return;
+      window.__opRole = window.__opRole === name ? null : name;
+      refreshRoleMenu();
+      refreshOperatorSummaries();
+    };
+    return;
+  }
+  window.__currentSingleSelect = (v) => {
+    // Single-select "Default role". Re-clicking the active role clears it
+    // (the default is optional). Only tier-permitted rows are rendered.
+    window.__opRole = window.__opRole === v ? null : v;
+    refreshOperatorSummaries();
+  };
+});
 
 // ─── Evocon-style tooltip (shared by anything with [data-tip]) ───
 let _evoTooltipEl = null;
@@ -803,8 +1007,11 @@ function evoHideTooltip() {
 function setTeamForm(team) {
   $('#teamName').value = team?.name || '';
   $('#teamNameCount').textContent = $('#teamName').value.length;
-  window.__teamColor   = team?.color || null;
-  window.__teamFactory = team?.factoryId || null;
+  window.__teamColor      = team?.color || null;
+  window.__teamFactoryIds = [...(team?.factoryIds || [])];
+  // Default new teams to Global (the common case). Existing teams use their flag.
+  window.__teamIsGlobal   = team ? !!team.isGlobal : true;
+  window.__teamTags       = [...(team?.tags || [])];
   refreshTeamSummaries();
 }
 function refreshTeamSummaries() {
@@ -816,10 +1023,29 @@ function refreshTeamSummaries() {
     ? `<span class="swatch" style="background:${color};margin-right:8px;vertical-align:middle;"></span>${escapeHtml(colorEntry?.label || color)}`
     : 'Color';
 
+  // Tags
+  const tTrig = $('#teamTagsTrigger');
+  const tags = window.__teamTags || [];
+  tTrig.classList.toggle('is-empty', tags.length === 0);
+  $('.field__select-text', tTrig).textContent = tags.length
+    ? (tags.length === 1 ? tags[0] : `${tags[0]} + ${tags.length - 1} more`)
+    : 'Tags';
+
+  // Global toggle + conditional Factories row
+  const sw = $('#teamGlobalSwitch');
+  const isGlobal = !!window.__teamIsGlobal;
+  sw.classList.toggle('is-on', isGlobal);
+  sw.setAttribute('aria-checked', String(isGlobal));
+  $('#teamFactoryRow').style.display = isGlobal ? 'none' : '';
+
+  // Factories (multi-select) — only meaningful when not global
   const fTrig = $('#teamFactoryTrigger');
-  const f = factoryById(window.__teamFactory);
-  fTrig.classList.toggle('is-empty', !f);
-  $('.field__select-text', fTrig).textContent = f ? f.name : 'Factories';
+  const fids = window.__teamFactoryIds || [];
+  const fnames = fids.map(id => factoryById(id)?.name).filter(Boolean);
+  fTrig.classList.toggle('is-empty', fnames.length === 0);
+  $('.field__select-text', fTrig).textContent = fnames.length
+    ? (fnames.length === 1 ? fnames[0] : `${fnames[0]} + ${fnames.length - 1} more`)
+    : 'Factories';
 }
 function openTeamModal(teamId) {
   editingTeam = teamId ? teams.find(t => t.id === teamId) : null;
@@ -829,10 +1055,20 @@ function openTeamModal(teamId) {
 }
 $('#btnNewTeam').addEventListener('click', () => openTeamModal(null));
 $('#teamName').addEventListener('input', e => $('#teamNameCount').textContent = e.target.value.length);
+$('#teamGlobalSwitch').addEventListener('click', () => {
+  window.__teamIsGlobal = !window.__teamIsGlobal;
+  refreshTeamSummaries();
+});
 $('#teamSave').addEventListener('click', () => {
   const name = $('#teamName').value.trim();
   if (!name) { $('#teamName').focus(); return; }
-  const data = { name, color: window.__teamColor || '#06c', factoryId: window.__teamFactory || null };
+  const data = {
+    name,
+    color: window.__teamColor || '#06c',
+    isGlobal: !!window.__teamIsGlobal,
+    factoryIds: window.__teamIsGlobal ? [] : [...(window.__teamFactoryIds || [])],
+    tags: [...(window.__teamTags || [])],
+  };
   const isNew = !editingTeam;
   if (editingTeam) {
     Object.assign(editingTeam, data);
@@ -864,19 +1100,40 @@ $('#teamColorTrigger').addEventListener('click', () => {
   window.__currentSingleSelect = (v) => { window.__teamColor = v; refreshTeamSummaries(); };
 });
 
-// Factory dropdown (single-select)
+// Tags dropdown (multi-select) — same MOCK_TAGS source as the operator modal.
+bindDropdown('#teamTagsTrigger', '#teamTagsMenu', () => {
+  const sel = window.__teamTags || [];
+  const rows = TAGS.map(t => `
+    <div class="dropdown__row ${sel.includes(t) ? 'is-checked' : ''}" data-value="${escapeHtml(t)}">
+      ${checkboxMarker(sel.includes(t))}
+      <span style="flex:1;">${escapeHtml(t)}</span>
+    </div>
+  `).join('');
+  return `<div class="dropdown__rows">${rows}</div>`;
+});
+$('#teamTagsTrigger').addEventListener('click', () => {
+  window.__currentMultiSelect = () => {
+    window.__teamTags = $$('#teamTagsMenu .dropdown__row.is-checked').map(r => r.dataset.value);
+    refreshTeamSummaries();
+  };
+});
+
+// Factory dropdown (multi-select)
 bindDropdown('#teamFactoryTrigger', '#teamFactoryMenu', () => {
-  const sel = window.__teamFactory;
+  const sel = window.__teamFactoryIds || [];
   const rows = FACTORIES.map(f => `
-    <div class="dropdown__row ${sel === f.id ? 'is-selected' : ''}" data-value="${f.id}">
-      ${radioCheckMarker(sel === f.id)}
+    <div class="dropdown__row ${sel.includes(f.id) ? 'is-checked' : ''}" data-value="${f.id}">
+      ${checkboxMarker(sel.includes(f.id))}
       <span style="flex:1;">${escapeHtml(f.name)}</span>
     </div>
   `).join('');
   return `<div class="dropdown__rows">${rows}</div>`;
 });
 $('#teamFactoryTrigger').addEventListener('click', () => {
-  window.__currentSingleSelect = (v) => { window.__teamFactory = Number(v); refreshTeamSummaries(); };
+  window.__currentMultiSelect = () => {
+    window.__teamFactoryIds = $$('#teamFactoryMenu .dropdown__row.is-checked').map(r => Number(r.dataset.value));
+    refreshTeamSummaries();
+  };
 });
 
 // ─── Toggle wiring ───
@@ -887,6 +1144,18 @@ $('#toggleTeams').addEventListener('click', () => setView('teams'));
 renderList();
 renderTeams();
 setView('list');
+
+// Prototype settings (proto-panel.js, H-key) can change while this page is
+// open. Re-render the affected views + any open operator modal so the Role
+// field, list cells, and dropdowns reflect the new tier / roles mode live.
+['proto:tier', 'proto:rolesMode'].forEach(evt => {
+  window.addEventListener(evt, () => {
+    renderList();
+    renderTeams();
+    closeAllDropdowns();
+    if ($('#modalOperator').classList.contains('is-open')) refreshOperatorSummaries();
+  });
+});
 </script>
 </body>
 </html>
