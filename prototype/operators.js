@@ -443,7 +443,7 @@ const OperatorsPanel = {
 
     // SV operator list mode: 'grouped' (by operator group, current proto) or
     // 'flat' (all ops in one flat list — like Evocon today). Set via H-key.
-    const opList = ref(window.__protoOpList || 'grouped');
+    const opList = ref(window.__protoOpList || 'flat');
     window.addEventListener('proto:opList', (e) => { opList.value = e.detail; });
 
     // ── Kebab menu (alternative card): one open at a time. ──
