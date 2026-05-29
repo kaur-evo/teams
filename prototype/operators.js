@@ -73,7 +73,7 @@ const OperatorsPanel = {
                      each with an inline star after the name, then the rest. -->
                 <div v-if="entry.operatorIds.length > 0" class="op-card-alt-row">
                   <span class="op-card-alt-names"
-                        @mouseenter="showTooltip($event, getOperatorNames(entry))"
+                        @mouseenter="showTooltip($event, getEntryNamesTooltip(entry))"
                         @mouseleave="hideTooltip">
                     <template v-for="(part, i) in getEntryNameParts(entry)" :key="i">
                       <template v-if="i > 0">, </template><!--
@@ -945,15 +945,23 @@ const OperatorsPanel = {
       ];
     }
 
-    // Saved-card people-chip hover tooltip. Shows the operator + additional-
-    // workforce split when both are present; one line otherwise.
+    // Saved-card people-chip hover tooltip — "Operators: 8, Additional workforce: 23".
     function getEntryPeopleTooltip(entry) {
       const ops = entry.operatorIds.length;
       const aw  = entry.helperCount || 0;
-      const lines = [];
-      if (ops > 0) lines.push(`Operators: ${ops}`);
-      if (aw  > 0) lines.push(`Additional workforce: ${aw}`);
-      return lines.join(' · ');
+      const parts = [];
+      if (ops > 0) parts.push(`Operators: ${ops}`);
+      if (aw  > 0) parts.push(`Additional workforce: ${aw}`);
+      return parts.join(', ');
+    }
+
+    // Saved-card names-row hover tooltip — plain comma list of operator names.
+    // The assigned shift leader(s) for THIS entry get "(Shift leader)" appended.
+    // No group references, no "Operators:" prefix.
+    function getEntryNamesTooltip(entry) {
+      return getEntryNameParts(entry)
+        .map(p => p.supervisor ? `${p.name} (Shift leader)` : p.name)
+        .join(', ');
     }
 
     // Saved-card name list: everyone who has ANY role comes first (entry order
@@ -1441,6 +1449,7 @@ const OperatorsPanel = {
       getEntryNameParts,
       getEntryRoleFirstNames,
       getEntryPeopleTooltip,
+      getEntryNamesTooltip,
       openAddOperators,
       openAddHelpers,
       cancelForm,
