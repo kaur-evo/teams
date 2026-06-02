@@ -330,13 +330,11 @@ const OperatorsPanel = {
               </button>
             </div>
 
-            <!-- Leader mode: "Shift leader" select (Figma 32105:12291). Options
-                 are operators who can lead AND are checked into the shift.
-                 Disabled (0.5 opacity whole field) until ≥1 eligible is picked. -->
-            <div v-if="rolesMode === 'leader' && anyCanLead" class="op-leader-field" :class="{ 'is-disabled': !leaderEnabled }"
-                 @mouseenter="!leaderEnabled && showTooltip($event, 'No leading operators selected')"
-                 @mouseleave="hideTooltip">
-              <button type="button" class="op-leader-select" :disabled="!leaderEnabled" @click.stop="toggleLeaderDropdown">
+            <!-- Leader mode: "Shift leader" select sits below the operators list
+                 (before the time inputs). The dropdown lists eligible (canLead)
+                 operators; picking one also checks them into the shift. -->
+            <div v-if="rolesMode === 'leader' && anyCanLead" class="op-leader-field">
+              <button type="button" class="op-leader-select" @click.stop="toggleLeaderDropdown">
                 <v-icon class="op-leader-icn" size="24" color="#707070">mdi-flag</v-icon>
                 <span class="op-leader-value" :class="{ 'is-placeholder': !leaderName }">{{ leaderName || 'Shift leader' }}</span>
                 <v-icon size="24" color="#757575">mdi-menu-down</v-icon>
@@ -624,22 +622,24 @@ const OperatorsPanel = {
       return adjustRolesOn.value;
     }
 
-    // ── Leader mode (single "Shift leader" select) ──
-    // The leader is chosen from operators who (a) have canLead enabled AND
-    // (b) are checked into this shift. Field is disabled until ≥1 eligible
-    // operator is selected.
+    // ── Leader mode ("Shift leader" select, top of the picker) ──
+    // Inverted flow: the dropdown lists every operator who CAN lead (canLead),
+    // whether or not they're checked into the shift yet. Picking a leader also
+    // CHECKS THEM INTO the shift — so the leader drives the operator selection,
+    // not the other way around.
     const formLeaderId = ref(null);
     const leaderDropdownOpen = ref(false);
     const leaderDropdownPos = ref({ top: 0, left: 0 });
     let _leaderAnchorEl = null;
-    const leaderOptions = computed(() =>
-      allOperators.filter(o => o.canLead && formSelectedOps.value.includes(o.id))
-    );
-    // No operator in the org can lead → hide the whole field (nothing to pick,
-    // ever). Different from leaderEnabled, which gates the disabled state when
-    // operators *could* lead but none are checked into this shift yet.
+    const leaderOptions = computed(() => {
+      const q = searchQuery.value.toLowerCase().trim();
+      let ops = allOperators.filter(o => o.canLead);
+      if (q) ops = ops.filter(o =>
+        o.firstName.toLowerCase().includes(q) || o.lastName.toLowerCase().includes(q));
+      return ops;
+    });
+    // No operator in the org can lead → hide the field entirely.
     const anyCanLead = computed(() => allOperators.some(o => o.canLead));
-    const leaderEnabled = computed(() => leaderOptions.value.length > 0);
     const leaderName = computed(() => {
       const op = allOperators.find(o => o.id === formLeaderId.value);
       return op ? `${op.firstName} ${op.lastName}`.trim() : '';
@@ -653,7 +653,6 @@ const OperatorsPanel = {
       leaderDropdownPos.value = { top, left: r.left, width: r.width };
     }
     function toggleLeaderDropdown(event) {
-      if (!leaderEnabled.value) return;
       if (leaderDropdownOpen.value) { leaderDropdownOpen.value = false; return; }
       leaderDropdownOpen.value = true;
       _leaderAnchorEl = event && event.currentTarget;
@@ -661,7 +660,17 @@ const OperatorsPanel = {
     }
     function closeLeaderDropdown() { leaderDropdownOpen.value = false; }
     function pickLeader(op) {
-      formLeaderId.value = formLeaderId.value === op.id ? null : op.id;
+      if (formLeaderId.value === op.id) {
+        // Re-pick the active leader → clear the leader (operator stays checked in).
+        formLeaderId.value = null;
+      } else {
+        formLeaderId.value = op.id;
+        // Selecting a leader checks them into the shift if not already.
+        if (!formSelectedOps.value.includes(op.id)) {
+          formSelectedOps.value = [...formSelectedOps.value, op.id];
+          seedRoleForOp(op.id);
+        }
+      }
       leaderDropdownOpen.value = false;
     }
     // If the chosen leader gets unchecked from the shift, drop the selection.
@@ -670,13 +679,13 @@ const OperatorsPanel = {
         formLeaderId.value = null;
       }
     });
-    // Option B (auto-assign ON only): as soon as ANY eligible operator is
-    // checked in and no leader is set, auto-pick the first one. With auto-assign
-    // OFF (default), the user always picks the leader manually.
-    watch(leaderOptions, (opts) => {
+    // Auto-assign (ON only): as soon as ANY operator is checked into the shift
+    // and no leader is set, make the first checked-in operator the leader. With
+    // auto-assign OFF (default), the user always picks the leader manually.
+    watch(formSelectedOps, (ids) => {
       if (leaderAutopick.value !== 'on') return;
-      if (opts.length > 0 && formLeaderId.value == null) {
-        formLeaderId.value = opts[0].id;
+      if (ids.length > 0 && formLeaderId.value == null) {
+        formLeaderId.value = ids[0];
       }
     });
 
@@ -1369,7 +1378,6 @@ const OperatorsPanel = {
       leaderDropdownOpen,
       leaderDropdownPos,
       leaderOptions,
-      leaderEnabled,
       anyCanLead,
       leaderName,
       toggleLeaderDropdown,

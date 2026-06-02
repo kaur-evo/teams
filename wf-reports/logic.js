@@ -12,6 +12,11 @@ let _dtColLabel    = 'Stop reasons';
 let currentY2      = null;         // null = off, or one of the Y2_METRICS keys
 let _dtFixedWidth  = 200;          // first column width, px — resizable via drag
 let currentReport  = 'downtime';   // 'downtime' | 'oee'
+let oeeSplitBy     = null;         // null = off, or a split label ('Shift leaders' | 'Operators' | 'Operator group')
+let oeeXAxis       = 'Day';        // OEE chart X-axis: 'Day' | 'Operators' | 'Operator group'
+let _oeeHiddenLeaders = new Set(); // leaders toggled off via the legend
+let _oeePage       = 0;            // current page of category clusters (split mode)
+const OEE_CATS_PER_PAGE = 3;       // categories per page (matches real Evocon density)
 
 const Y2_METRICS = {
   'Duration':     { main: d => d.mainDur,   cmp: d => d.cmpDur,   unit: ' min' },
@@ -1431,7 +1436,9 @@ document.addEventListener('click', () => {
   document.getElementById('xaxis-dropdown').classList.remove('open');
   document.getElementById('y2axis-dropdown').classList.remove('open');
   document.getElementById('compare-dropdown').classList.remove('open');
-  ['opfilter-dropdown', 'grpfilter-dropdown', 'rolefilter-dropdown']
+  document.getElementById('oee-splitby-dropdown')?.classList.remove('open');
+  document.getElementById('oee-xaxis-dropdown')?.classList.remove('open');
+  ['opfilter-dropdown', 'leaderfilter-dropdown']
     .forEach(id => document.getElementById(id)?.classList.remove('open'));
 });
 
@@ -1443,7 +1450,7 @@ document.addEventListener('click', () => {
 
 const filterState = {
   operators: new Set(),
-  roles:     new Set(),
+  leaders:   new Set(),   // selected shift-leader names (canLead operators)
   // Tracks which group sections are visually collapsed in the dropdown.
   // Persisted across re-renders so checking a member doesn't re-expand all.
   _opCollapsed: new Set(),
@@ -1476,7 +1483,7 @@ function getGroupCheckState(members) {
 }
 
 // Map our logical kind names to the DOM-id prefixes used in index.html.
-const FILTER_DD_ID = { operators: 'opfilter-dropdown', roles: 'rolefilter-dropdown' };
+const FILTER_DD_ID = { operators: 'opfilter-dropdown', leaders: 'leaderfilter-dropdown' };
 
 function toggleFilterDropdown(event, kind) {
   event.stopPropagation();
@@ -1537,16 +1544,14 @@ function buildFilterDropdown(kind) {
         });
       }
     });
-  } else if (kind === 'roles') {
-    getAllRoles().forEach(r => {
-      const isDisabled = r.enterprise === true; // Enterprise-only roles greyed in Pro
-      const isSelected = filterState.roles.has(r.name);
+  } else if (kind === 'leaders') {
+    // Flat multi-select of every operator allowed to lead a shift (canLead).
+    CAN_LEAD_OPERATORS.forEach(name => {
+      const isSelected = filterState.leaders.has(name);
       const el = document.createElement('div');
-      el.className = 'filter-opt' + (isSelected ? ' selected' : '') + (isDisabled ? ' disabled' : '');
-      el.innerHTML = `<span class="filter-opt-check"></span>` +
-                     `<span class="filter-opt-label">${r.name}</span>` +
-                     (isDisabled ? `<span class="filter-opt-pill">ENTERPRISE</span>` : '');
-      if (!isDisabled) el.addEventListener('click', () => toggleFilterValue('roles', r.name));
+      el.className = 'filter-opt' + (isSelected ? ' selected' : '');
+      el.innerHTML = `<span class="filter-opt-check"></span><span class="filter-opt-label">${name}</span>`;
+      el.addEventListener('click', () => toggleFilterValue('leaders', name));
       dd.appendChild(el);
     });
   }
@@ -1582,8 +1587,8 @@ function toggleGroupCollapse(groupName) {
 }
 
 function updateFilterChipLabels() {
-  const opCount   = filterState.operators.size;
-  const roleCount = filterState.roles.size;
+  const opCount     = filterState.operators.size;
+  const leaderCount = filterState.leaders.size;
 
   // Operators chip — also summarises by group when the whole group is selected:
   //   "Operators: Group A"        when only group A's members are selected
@@ -1609,10 +1614,10 @@ function updateFilterChipLabels() {
   }
   document.getElementById('opfilter-label').textContent = opLabel;
 
-  document.getElementById('rolefilter-label').textContent =
-    roleCount === 0 ? 'Role: All' :
-    roleCount === 1 ? 'Role: ' + [...filterState.roles][0] :
-    `Role: ${roleCount} selected`;
+  document.getElementById('leaderfilter-label').textContent =
+    leaderCount === 0 ? 'Shift leaders: All' :
+    leaderCount === 1 ? 'Shift leaders: ' + [...filterState.leaders][0] :
+    `Shift leaders: ${leaderCount} selected`;
 }
 
 // Filter STOP_REASONS_DATA by the current operator + role selections, then
@@ -1620,9 +1625,9 @@ function updateFilterChipLabels() {
 // Operators picker resolves into a flat Set of operator names — selecting a
 // group is just a shortcut for selecting all its members.
 function applyOperatorFilters() {
-  const opSel   = filterState.operators;
-  const roleSel = filterState.roles;
-  if (opSel.size === 0 && roleSel.size === 0) {
+  const opSel     = filterState.operators;
+  const leaderSel = filterState.leaders;
+  if (opSel.size === 0 && leaderSel.size === 0) {
     _chartBaseData = STOP_REASONS_DATA.map(d => ({ ...d }));
   } else {
     _chartBaseData = STOP_REASONS_DATA.filter(d => {
@@ -1630,9 +1635,9 @@ function applyOperatorFilters() {
         const names = (d.operator || '').split(',').map(s => s.trim());
         if (![...opSel].some(n => names.includes(n))) return false;
       }
-      if (roleSel.size) {
-        const roles = (d.operatorRole || '').split(',').map(s => s.trim());
-        if (![...roleSel].some(r => roles.includes(r))) return false;
+      // Shift-leaders filter: keep rows whose leading supervisor is selected.
+      if (leaderSel.size) {
+        if (!leaderSel.has(d.leader)) return false;
       }
       return true;
     }).map(d => ({ ...d }));
@@ -1640,6 +1645,9 @@ function applyOperatorFilters() {
   const items = getAxisData(currentXAxis, _chartBaseData);
   drawChartWith(items);
   initTable(items);
+  // OEE report derives from shift blocks — redraw it so it reconciles with the
+  // filter chips too.
+  if (currentReport === 'oee') drawOeeChart();
 }
 
 // Init: ensure Role chip is hidden by default (no operators picked).
@@ -1662,17 +1670,365 @@ function switchReport(type) {
   if (type === 'oee') drawOeeChart();
 }
 
+// Shift blocks that pass the current filter chips — the OEE-by-people views
+// derive from these so chart + filters always reconcile.
+//   Shift-leaders filter → keep blocks led by a selected leader.
+//   Operators filter     → keep blocks where ≥1 selected operator was present.
+function selectedBlocks() {
+  const leaderSel = filterState.leaders;
+  const opSel     = filterState.operators;
+  return SHIFT_BLOCKS.filter(b => {
+    if (leaderSel.size && !leaderSel.has(b.leaderId)) return false;
+    if (opSel.size && !b.operatorIds.some(o => opSel.has(o))) return false;
+    return true;
+  });
+}
+
+// ── OEE "X-axis" dropdown (Day / Operators / Operator group) ────────────────
+function toggleOeeXAxisDropdown(event) {
+  event.stopPropagation();
+  const dd = document.getElementById('oee-xaxis-dropdown');
+  const wasOpen = dd.classList.contains('open');
+  document.querySelectorAll('.xaxis-dropdown, .filter-dropdown').forEach(el => el.classList.remove('open'));
+  if (wasOpen) return;
+  dd.innerHTML = '';
+  ['Day', 'Operators', 'Operator group', 'Shift leaders'].forEach(opt => {
+    const el = document.createElement('div');
+    el.className = 'xaxis-opt' + (oeeXAxis === opt ? ' selected' : '');
+    el.textContent = opt;
+    el.addEventListener('click', e => { e.stopPropagation(); selectOeeXAxis(opt); });
+    dd.appendChild(el);
+  });
+  dd.classList.add('open');
+}
+
+function selectOeeXAxis(opt) {
+  oeeXAxis = opt;
+  _oeePage = 0;
+  document.getElementById('oee-xaxis-dropdown').classList.remove('open');
+  document.getElementById('oee-xaxis-btn').textContent = 'X-axis: ' + opt + ' ▾';
+  drawOeeChart();
+}
+
+// ── OEE "Split by" dropdown (Shift leader) ──────────────────────────────────
+function toggleOeeSplitDropdown(event) {
+  event.stopPropagation();
+  const dd = document.getElementById('oee-splitby-dropdown');
+  const wasOpen = dd.classList.contains('open');
+  document.querySelectorAll('.xaxis-dropdown, .filter-dropdown').forEach(el => el.classList.remove('open'));
+  if (wasOpen) return;
+  dd.innerHTML = '';
+  [{ val: null, label: '–' },
+   { val: 'Shift leaders', label: 'Shift leaders' },
+   { val: 'Operators', label: 'Operators' },
+   { val: 'Operator group', label: 'Operator group' }].forEach(opt => {
+    const el = document.createElement('div');
+    el.className = 'xaxis-opt' + (oeeSplitBy === opt.val ? ' selected' : '');
+    el.textContent = opt.label;
+    el.addEventListener('click', e => { e.stopPropagation(); selectOeeSplit(opt.val); });
+    dd.appendChild(el);
+  });
+  dd.classList.add('open');
+}
+
+function selectOeeSplit(val) {
+  oeeSplitBy = val;
+  _oeeHiddenLeaders = new Set();
+  _oeePage = 0;
+  document.getElementById('oee-splitby-dropdown').classList.remove('open');
+  document.getElementById('oee-splitby-btn').textContent = 'Split by: ' + (val || '–') + ' ▾';
+  drawOeeChart();
+}
+
+// Map an OEE axis/split label → a dimension key for the matrix builder.
+function oeeDimKey(label) {
+  if (label === 'Operator group') return 'group';
+  if (label === 'Shift leaders')  return 'leader';
+  return 'operator'; // 'Operators' (and anything else categorical)
+}
+
+// OEE split by shift leader — Evocon two-level bar layout (see ref screenshot):
+//   X-axis category (operator / group)  ← top-level cluster
+//     └ shift leader                    ← sub-cluster (the "split by")
+//         └ Quality / Performance / Availability / OEE  ← component bars
+// Components are separate bars (OEE = A×P×Q is multiplicative, never stacked).
+// Bottom axis is two rows: leader under each sub-cluster, category centred below.
+// _oeeHiddenLeaders here hides COMPONENT metrics (legend = metrics, like Evocon).
+function drawOeeLeaderBars(chart, width, height) {
+  // Outer dim = the OEE X-axis; inner dim = the split-by. Either can be
+  // operator / group / leader. Derived from the FILTERED blocks so the chart
+  // reconciles with the filter chips.
+  const outerDim = oeeDimKey(oeeXAxis === 'Day' ? 'Operators' : oeeXAxis);
+  const innerDim = oeeDimKey(oeeSplitBy);
+  const { data, innerLabels, outerHeader, innerHeader } =
+    oeeMatrixFromBlocks(selectedBlocks(), outerDim, innerDim);
+  const labels = OEE_DIMS[outerDim].labels();
+  const inners = innerLabels;
+
+  // Bars per sub-cluster: the 4 OEE % components. Manhours is NOT a bar — it's
+  // drawn as a LINE on the secondary right (hours) axis, overlaid on the bars
+  // (Evocon's 2nd-Y-axis convention).
+  const METRICS = [
+    { key:'quality',      label:'Quality',      color:'#ff9800' },
+    { key:'performance',  label:'Performance',  color:'#fdd835' },
+    { key:'availability', label:'Availability', color:'#2ecc71' },
+    { key:'oee',          label:'OEE',          color:'#212121' },
+  ];
+  const MANHOURS = { key:'manhours', label:'Manhours', color:'#9e9e9e' };
+  const metrics = METRICS.filter(m => !_oeeHiddenLeaders.has(m.key));
+  const showManhours = !_oeeHiddenLeaders.has('manhours');
+
+  // Only outer categories that actually have ≥1 inner sub-cluster.
+  const allCats = labels.filter(c => inners.some(l => data[c] && data[c][l]));
+  // Paginate — too many category clusters become unreadably thin (real Evocon
+  // paginates the OEE bar view too).
+  const pageCount = Math.max(1, Math.ceil(allCats.length / OEE_CATS_PER_PAGE));
+  if (_oeePage >= pageCount) _oeePage = pageCount - 1;
+  const cats = allCats.slice(_oeePage * OEE_CATS_PER_PAGE, (_oeePage + 1) * OEE_CATS_PER_PAGE);
+
+  const y  = d3.scaleLinear().domain([0, 110]).range([height, 0]);
+  // Secondary right axis for manhours (hours). Domain from the data max + headroom.
+  let maxMh = 0;
+  cats.forEach(c => inners.forEach(l => { const d = data[c]?.[l]; if (d) maxMh = Math.max(maxMh, d.manhours || 0); }));
+  const yR = d3.scaleLinear().domain([0, Math.max(10, Math.ceil(maxMh * 1.15 / 10) * 10)]).range([height, 0]);
+  // Top-level: categories. Second-level: leaders (only those present per cat).
+  const x0 = d3.scaleBand().domain(cats).range([0, width]).paddingInner(0.25).paddingOuter(0.1);
+  const tooltipEl = document.getElementById('chart-tooltip');
+
+  // Gridlines
+  chart.append('g')
+    .call(d3.axisLeft(y).ticks(11).tickSize(-width).tickFormat(''))
+    .call(ax => ax.select('.domain').remove())
+    .call(ax => ax.selectAll('line').style('stroke', '#eeeeee'));
+
+  const subTicks = []; // {x, label} inner (sub-cluster) labels — row 1
+  const catTicks = []; // {x, label} outer category labels — row 2
+
+  const mhPoints = []; // {cx, mh, cat, l} sub-cluster centers for the manhours line
+
+  cats.forEach(cat => {
+    const present = inners.filter(l => data[cat] && data[cat][l]);
+    const catG = chart.append('g').attr('transform', `translate(${x0(cat)},0)`);
+    // Sub-cluster band: one slot per present inner value within this category.
+    const x1 = d3.scaleBand().domain(present).range([0, x0.bandwidth()]).paddingInner(0.18).paddingOuter(0.05);
+    // Component band inside each sub-cluster.
+    const x2 = d3.scaleBand().domain(metrics.map(m => m.key)).range([0, x1.bandwidth()]).padding(0.12);
+
+    present.forEach(l => {
+      const sub = catG.append('g').attr('transform', `translate(${x1(l)},0)`);
+      const vals = data[cat][l];
+      metrics.forEach(m => {
+        const v = vals[m.key] || 0;
+        sub.append('rect')
+          .attr('x', x2(m.key)).attr('width', x2.bandwidth())
+          .attr('y', y(v)).attr('height', height - y(v))
+          .attr('fill', m.color).attr('rx', 1)
+          .on('mousemove', (event) => {
+            if (!tooltipEl) return;
+            tooltipEl.innerHTML =
+              `<div style="font-family:'Open Sans',sans-serif;font-size:12px;">` +
+              `<div style="font-weight:600;margin-bottom:2px;">${cat} — ${l}</div>` +
+              `<div>${m.label}: <b>${v.toFixed(1)}%</b></div></div>`;
+            tooltipEl.style.display = 'block';
+            tooltipEl.style.left = (event.offsetX + 64) + 'px';
+            tooltipEl.style.top  = (event.offsetY + 24) + 'px';
+          })
+          .on('mouseleave', () => { if (tooltipEl) tooltipEl.style.display = 'none'; });
+      });
+      const cx = x0(cat) + x1(l) + x1.bandwidth() / 2;
+      mhPoints.push({ cx, mh: vals.manhours || 0, cat, l });
+      subTicks.push({ x: cx, label: l });
+    });
+    catTicks.push({ x: x0(cat) + x0.bandwidth() / 2, label: cat });
+  });
+
+  // Baseline
+  chart.append('line').attr('x1', 0).attr('x2', width).attr('y1', height).attr('y2', height).style('stroke', '#e0e0e0');
+
+  // Manhours LINE on the secondary (hours) axis, overlaid on the bars — Evocon's
+  // 2nd-Y-axis convention. One point per sub-cluster, connected left→right.
+  if (showManhours && mhPoints.length) {
+    const lineGen = d3.line().x(p => p.cx).y(p => yR(p.mh)).curve(d3.curveMonotoneX);
+    chart.append('path').datum(mhPoints)
+      .attr('fill','none').attr('stroke', MANHOURS.color).attr('stroke-width', 2).attr('d', lineGen);
+    chart.selectAll('circle.mh').data(mhPoints).join('circle')
+      .attr('cx', p => p.cx).attr('cy', p => yR(p.mh)).attr('r', 3.5)
+      .attr('fill', MANHOURS.color).attr('stroke', 'white').attr('stroke-width', 1.5)
+      .on('mousemove', (event, p) => {
+        if (!tooltipEl) return;
+        tooltipEl.innerHTML =
+          `<div style="font-family:'Open Sans',sans-serif;font-size:12px;">` +
+          `<div style="font-weight:600;margin-bottom:2px;">${p.cat} — ${p.l}</div>` +
+          `<div>Manhours: <b>${p.mh.toFixed(1)} h</b></div></div>`;
+        tooltipEl.style.display = 'block';
+        tooltipEl.style.left = (event.offsetX + 64) + 'px';
+        tooltipEl.style.top  = (event.offsetY + 24) + 'px';
+      })
+      .on('mouseleave', () => { if (tooltipEl) tooltipEl.style.display = 'none'; });
+  }
+
+  // Row 1 — leader labels under each sub-cluster
+  chart.append('g').selectAll('text.sub').data(subTicks).join('text')
+    .attr('x', d => d.x).attr('y', height + 14).attr('text-anchor', 'middle')
+    .style('font-family','Inter,sans-serif').style('font-size','10px').style('fill','#616161')
+    .text(d => d.label);
+  // Row 2 — category labels centred below
+  chart.append('g').selectAll('text.cat').data(catTicks).join('text')
+    .attr('x', d => d.x).attr('y', height + 30).attr('text-anchor', 'middle')
+    .style('font-family','Inter,sans-serif').style('font-size','11px').style('font-weight','600').style('fill','#424242')
+    .text(d => d.label);
+
+  // Y axis (left, %)
+  const yAxisG = chart.append('g').call(d3.axisLeft(y).ticks(11).tickFormat(d => d + '%').tickSize(0));
+  yAxisG.select('.domain').remove();
+  yAxisG.selectAll('text').style('font-family','Inter,sans-serif').style('font-size','11px').style('fill','#616161');
+
+  // Secondary Y axis (right, manhours) — shown only when Manhours is visible.
+  if (!_oeeHiddenLeaders.has('manhours')) {
+    const yRAxisG = chart.append('g').attr('transform', `translate(${width},0)`)
+      .call(d3.axisRight(yR).ticks(6).tickFormat(d => d + ' h').tickSize(0));
+    yRAxisG.select('.domain').remove();
+    yRAxisG.selectAll('text').style('font-family','Inter,sans-serif').style('font-size','11px').style('fill','#9e9e9e');
+  }
+
+  // Legend — the 4 component metrics (square swatch) + Manhours (line swatch,
+  // it's the 2nd-Y-axis line). Click any to hide/show.
+  const legendEl = document.getElementById('oee-chart-legend');
+  legendEl.innerHTML = '';
+  [...METRICS.map(m => ({...m, line:false})), {...MANHOURS, line:true}].forEach(m => {
+    const hidden = _oeeHiddenLeaders.has(m.key);
+    const item = document.createElement('div');
+    item.style.cssText = 'display:flex;align-items:center;gap:6px;cursor:pointer;opacity:' + (hidden ? '0.4' : '1') + ';';
+    const swatch = m.line
+      ? `<span style="display:inline-block;width:14px;height:2px;background:${m.color};flex-shrink:0;"></span>`
+      : `<span style="display:inline-block;width:12px;height:12px;border-radius:2px;background:${m.color};flex-shrink:0;"></span>`;
+    item.innerHTML = `${swatch}<span style="font-family:Inter,sans-serif;font-size:12px;color:#424242;">${m.label}</span>`;
+    item.addEventListener('click', () => {
+      if (_oeeHiddenLeaders.has(m.key)) _oeeHiddenLeaders.delete(m.key);
+      else _oeeHiddenLeaders.add(m.key);
+      drawOeeChart();
+    });
+    legendEl.appendChild(item);
+  });
+
+  // Pager (only when more than one page of category clusters).
+  renderOeePager(allCats.length, pageCount);
+
+  // Data table — one row per category × leader (current page only, to match bars).
+  renderOeeTable(cats, inners, data, outerHeader, innerHeader);
+}
+
+// Pager for the OEE split chart — N category clusters per page.
+function renderOeePager(totalCats, pageCount) {
+  const el = document.getElementById('oee-pager');
+  if (!el) return;
+  if (pageCount <= 1) { el.style.display = 'none'; return; }
+  el.style.display = 'flex';
+  const from = _oeePage * OEE_CATS_PER_PAGE + 1;
+  const to   = Math.min(totalCats, (_oeePage + 1) * OEE_CATS_PER_PAGE);
+  el.innerHTML =
+    `<span style="font-family:Inter,sans-serif;font-size:12px;color:#616161;">${from}-${to}/${totalCats}</span>` +
+    `<button id="oee-prev" ${_oeePage===0?'disabled':''} style="border:none;background:none;cursor:pointer;font-size:16px;color:${_oeePage===0?'#ccc':'#616161'};padding:0 6px;">‹</button>` +
+    `<button id="oee-next" ${_oeePage>=pageCount-1?'disabled':''} style="border:none;background:none;cursor:pointer;font-size:16px;color:${_oeePage>=pageCount-1?'#ccc':'#616161'};padding:0 6px;">›</button>`;
+  const prev = document.getElementById('oee-prev');
+  const next = document.getElementById('oee-next');
+  if (prev) prev.addEventListener('click', () => { if (_oeePage>0){ _oeePage--; drawOeeChart(); } });
+  if (next) next.addEventListener('click', () => { if (_oeePage<pageCount-1){ _oeePage++; drawOeeChart(); } });
+}
+
+// Minutes → "Xh Ym" (readable time format, like the OEE.csv columns).
+function fmtMin(min) {
+  const m = Math.round(min || 0);
+  const h = Math.floor(m / 60), mm = m % 60;
+  return h > 0 ? `${h}h ${String(mm).padStart(2,'0')}m` : `${mm}m`;
+}
+
+// The proper OEE report data table (mirrors OEE.csv / screenshot): a dynamic
+// first column = the current X-axis dimension, then the fixed OEE columns, then
+// a bold "Total" (Kokku) row. Rows derive from blocks so they reconcile with
+// the chart + filter chips.
+function renderOeeMainTable(rows, firstHeader) {
+  const wrap = document.getElementById('oee-table-wrap');
+  const tbl  = document.getElementById('oee-table');
+  if (!wrap || !tbl) return;
+  wrap.style.display = '';
+  const th = (t, right) => `<th style="text-align:${right?'right':'left'};padding:8px 10px;border-bottom:1px solid #e0e0e0;color:#616161;font-weight:600;white-space:nowrap;">${t}</th>`;
+  const td = (t, right, bold) => `<td style="text-align:${right?'right':'left'};padding:8px 10px;border-bottom:1px solid #f0f0f0;${bold?'font-weight:600;':''}white-space:nowrap;">${t}</td>`;
+  const numeric = c => c.type !== 'descr';
+  let html = `<thead><tr>${th(firstHeader)}` +
+    OEE_TABLE_COLS.map(c => th(c.label, numeric(c))).join('') + `</tr></thead><tbody>`;
+  rows.forEach(r => {
+    const bold = !!r._total;
+    const first = td(r._total ? 'Total' : r.name, false, true);
+    const cells = OEE_TABLE_COLS.map(c => {
+      let v;
+      if (c.type === 'descr')      v = r[c.key] || (r._total ? '' : '—');
+      else if (c.type === 'metric')v = (r[c.key]).toFixed(1) + '%';
+      else if (c.type === 'hours') v = (r[c.key]).toFixed(0) + ' h';
+      else if (c.type === 'time')  v = fmtMin(r[c.key]);
+      else if (c.type === 'qty')   v = Math.round(r[c.key]).toLocaleString();
+      return td(v, numeric(c), bold);
+    }).join('');
+    html += `<tr${bold?' style="background:#fafafa;"':''}>${first}${cells}</tr>`;
+  });
+  html += '</tbody>';
+  tbl.innerHTML = html;
+}
+
+// Table under the OEE split chart: row per outer × inner, columns =
+// Availability / Performance / Quality / OEE / Manhours. Reconciles with bars.
+function renderOeeTable(cats, inners, data, outerHeader, innerHeader) {
+  const wrap = document.getElementById('oee-table-wrap');
+  const tbl  = document.getElementById('oee-table');
+  if (!wrap || !tbl) return;
+  wrap.style.display = '';
+  const th = (t, right) => `<th style="text-align:${right?'right':'left'};padding:8px 10px;border-bottom:1px solid #e0e0e0;color:#616161;font-weight:600;white-space:nowrap;">${t}</th>`;
+  const td = (t, right, bold) => `<td style="text-align:${right?'right':'left'};padding:8px 10px;border-bottom:1px solid #f0f0f0;${bold?'font-weight:600;':''}white-space:nowrap;">${t}</td>`;
+  let html = `<thead><tr>${th(outerHeader)}${th(innerHeader)}${th('Availability',1)}${th('Performance',1)}${th('Quality',1)}${th('OEE',1)}${th('Manhours',1)}</tr></thead><tbody>`;
+  cats.forEach(cat => {
+    inners.forEach(l => {
+      const d = data[cat] && data[cat][l];
+      if (!d) return;
+      html += `<tr>${td(cat)}${td(l)}${td(d.availability.toFixed(1)+'%',1)}${td(d.performance.toFixed(1)+'%',1)}${td(d.quality.toFixed(1)+'%',1)}${td(d.oee.toFixed(1)+'%',1,true)}${td(d.manhours.toFixed(1)+' h',1)}</tr>`;
+    });
+  });
+  html += '</tbody>';
+  tbl.innerHTML = html;
+}
+
 function drawOeeChart() {
   const container = document.getElementById('oee-chart-container');
   const W = container.clientWidth;
   const H = container.clientHeight;
-  const margin = { top: 16, right: 24, bottom: 40, left: 56 };
+  // Split-by mode uses a two-row x-axis (leader + category), so give it more
+  // bottom room; the line chart keeps the tighter margin.
+  const margin = { top: 16, right: oeeSplitBy ? 52 : 24, bottom: oeeSplitBy ? 52 : 40, left: 56 };
   const width  = W - margin.left - margin.right;
   const height = H - margin.top  - margin.bottom;
 
   d3.select('#oee-chart-container').selectAll('svg').remove();
   const svg   = d3.select('#oee-chart-container').append('svg').attr('width', W).attr('height', H);
   const chart = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`);
+
+  // Split by = Shift leader → grouped bars (one cluster per supervisor),
+  // following Evocon's "Split by switches a line chart to grouped bars" pattern.
+  if (oeeSplitBy) {
+    drawOeeLeaderBars(chart, width, height);
+    return;
+  }
+
+  // Split off: no pager. The data table shows the proper per-X-axis OEE table
+  // for categorical axes (Operators / Operator group / Shift leaders); for the
+  // Day line view there's no per-category table, so hide it.
+  const _pg = document.getElementById('oee-pager');
+  if (_pg) _pg.style.display = 'none';
+  if (oeeXAxis === 'Day') {
+    const _tw = document.getElementById('oee-table-wrap');
+    if (_tw) _tw.style.display = 'none';
+  } else {
+    const dimKey = oeeDimKey(oeeXAxis);
+    renderOeeMainTable(oeeTableRows(selectedBlocks(), dimKey), OEE_DIMS[dimKey].header);
+  }
 
   const x = d3.scaleLinear().domain([1, OEE_DATA.length]).range([0, width]);
   const y = d3.scaleLinear().domain([0, 100]).range([height, 0]);

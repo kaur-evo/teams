@@ -1,7 +1,7 @@
 // Shared mock data for operators & teams prototypes
 // Used by: setup-proto.html, index.html
 
-const DATA_VERSION = 18; // bump to wipe stale localStorage
+const DATA_VERSION = 19; // bump to wipe stale localStorage
 
 // Tags are setup-only descriptive labels (not used in Shift View role pick).
 const MOCK_TAGS = ['Night-shift', 'Trainer', 'Newcomer', 'Bilingual'];
@@ -21,16 +21,16 @@ const MOCK_FACTORIES = [
   { id: 3, name: 'Casablanca Production' },
 ];
 
-// Operator groups. "Default" is the mandatory fallback bucket for operators
+// Operator groups. "Operators" is the mandatory fallback bucket for operators
 // who don't fit into any named group. Always present.
 // Teams (operator groups). `isGlobal: true` → visible across all factories
 // (factoryIds ignored). Otherwise `factoryIds: number[]` lists which factories
 // the group is scoped to.
 const MOCK_TEAMS = [
-  { id: 1, name: 'Default', color: '#9e9e9e', isGlobal: true, factoryIds: [], tags: [] },
+  { id: 1, name: 'Operators', color: '#9e9e9e', isGlobal: true, factoryIds: [], tags: [] },
 ];
 
-// Operators all sit in the Default group out of the box — Kaur creates named
+// Operators all sit in the Operators group out of the box — Kaur creates named
 // groups if/when needed. `canLead` (Leader mode) is granted to a couple of
 // operators so the leader-select demo works.
 const MOCK_OPERATORS = [

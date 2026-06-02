@@ -303,7 +303,7 @@
     .filter-opt.disabled { color:#9e9e9e; cursor:not-allowed; }
     .filter-opt.disabled:hover { background:transparent; }
     .filter-opt-check {
-      width:24px; height:24px; border:2px solid #cccccc; border-radius:50%;
+      width:24px; height:24px; border:2px solid #cccccc; border-radius:3px;
       display:flex; align-items:center; justify-content:center; flex-shrink:0;
       background:white;
     }
@@ -588,11 +588,11 @@
       </button>
       <div class="filter-dropdown" id="opfilter-dropdown"></div>
     </div>
-    <div style="position:relative;" id="rolefilter-wrap">
-      <button class="filter-chip" id="rolefilter-btn" onclick="toggleFilterDropdown(event, 'roles')">
-        <span id="rolefilter-label">Role: All</span>&nbsp;▾
+    <div style="position:relative;" id="leaderfilter-wrap">
+      <button class="filter-chip" id="leaderfilter-btn" onclick="toggleFilterDropdown(event, 'leaders')">
+        <span id="leaderfilter-label">Shift leaders: All</span>&nbsp;▾
       </button>
-      <div class="filter-dropdown" id="rolefilter-dropdown"></div>
+      <div class="filter-dropdown" id="leaderfilter-dropdown"></div>
     </div>
   </div>
 
@@ -630,14 +630,27 @@
       <div style="flex:1;"></div>
       <div style="display:flex; gap:8px; align-items:center;">
         <button class="filter-chip active">~ Line chart &nbsp;▾</button>
-        <button class="filter-chip">X-axis: Day &nbsp;▾</button>
-        <button class="filter-chip">Split by: – &nbsp;▾</button>
+        <div style="position:relative;">
+          <button class="filter-chip" id="oee-xaxis-btn" onclick="toggleOeeXAxisDropdown(event)">X-axis: Day &nbsp;▾</button>
+          <div class="xaxis-dropdown" id="oee-xaxis-dropdown"></div>
+        </div>
+        <div style="position:relative;">
+          <button class="filter-chip" id="oee-splitby-btn" onclick="toggleOeeSplitDropdown(event)">Split by: – &nbsp;▾</button>
+          <div class="xaxis-dropdown" id="oee-splitby-dropdown"></div>
+        </div>
       </div>
     </div>
     <!-- Chart area -->
     <div style="height:460px; background:white; display:flex; flex-direction:column; overflow:hidden;">
       <div id="oee-chart-container" style="flex:1; min-height:0; position:relative;"></div>
-      <div id="oee-chart-legend" style="padding:6px 20px 12px 20px; display:flex; flex-wrap:wrap; gap:6px 18px; flex-shrink:0;"></div>
+      <div style="display:flex; align-items:center; padding:6px 20px 12px 20px; flex-shrink:0;">
+        <div id="oee-chart-legend" style="display:flex; flex-wrap:wrap; gap:6px 18px; flex:1;"></div>
+        <div id="oee-pager" style="display:none; align-items:center; gap:4px;"></div>
+      </div>
+    </div>
+    <!-- Data table (split-by mode) — one row per category × shift leader -->
+    <div id="oee-table-wrap" style="display:none; border-top:1px solid #e0e0e0; padding:16px 20px; overflow-x:auto;">
+      <table id="oee-table" style="width:100%; border-collapse:collapse; font-family:Inter,sans-serif; font-size:13px;"></table>
     </div>
   </div>
 

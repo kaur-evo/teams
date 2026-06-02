@@ -459,7 +459,7 @@ function renderRoleCell(op) {
 function renderGroupCell(op) {
   const team = teamById(op.teamId);
   if (!team) return '-';
-  const isDefault = team.name === 'Default';
+  const isDefault = team.name === 'Operators';
   const swatch = isDefault ? '' :
     `<span class="swatch" style="background:${team.color};width:10px;height:10px;margin-right:6px;vertical-align:middle;"></span>`;
   return `${swatch}${escapeHtml(team.name)}`;
@@ -777,13 +777,13 @@ $('#opLast').addEventListener('input',  e => $('#opLastCount').textContent  = e.
 $('#opSave').addEventListener('click', () => {
   const data = getOperatorFormState();
   if (!data.firstName) { $('#opFirst').focus(); return; }
-  // Mandatory group: if no group picked, lump into Default. Auto-creates the
-  // Default group on first use so it always exists when operators need it.
+  // Mandatory group: if no group picked, lump into the "Operators" fallback.
+  // Auto-creates it on first use so it always exists when operators need it.
   if (data.teamId == null) {
-    let def = teams.find(t => t.name === 'Default');
+    let def = teams.find(t => t.name === 'Operators');
     if (!def) {
       const id = (Math.max(0, ...teams.map(t => t.id)) || 0) + 1;
-      def = { id, name: 'Default', color: '#9e9e9e', factoryId: null };
+      def = { id, name: 'Operators', color: '#9e9e9e', isGlobal: true, factoryIds: [], tags: [] };
       teams.push(def);
     }
     data.teamId = def.id;

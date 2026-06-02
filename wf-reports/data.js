@@ -24,7 +24,7 @@ const PRESET_LABELS = {
 
 const XAXIS_OPTIONS = [
   'Stop reasons', 'Stop groups', 'Machine locations', 'Stations',
-  'Station groups', 'Factories', 'Operators', 'Operator role', 'Operator group',
+  'Station groups', 'Factories', 'Operators', 'Operator group', 'Shift leaders',
   'Products', 'Product code', 'Orders', 'LOT/Batch', 'Product groups', 'Shifts',
   '──',
   'Day', 'Day of the week', 'Week', 'Month', 'Quarter', 'Year'
@@ -49,15 +49,35 @@ const OPERATOR_GROUPS = ['Group A', 'Group B', 'Default'];
 
 // Static directory: every operator name appearing in mock data → its role + group.
 // "Default" group is the bucket for operators without a configured group.
+//
+// `canLead`  — operator can be picked as shift leader (Settings "Allow as
+//              shift leader"). Drives the Shift-leaders X-axis / split / filter.
+// `hours`    — total hours this operator actually worked in the (main) period.
+//              Manhours aggregations sum each DISTINCT operator's hours ONCE,
+//              so a person spread across several stations is never double-counted
+//              (operator-level dedup). `cmpHours` is the compare-period figure.
 const OPERATOR_DIRECTORY = {
-  'A. Johnson':  { role: 'Supervisor',  group: 'Group A' },
-  'J. Smith':    { role: 'Operator',    group: 'Group A' },
-  'M. Garcia':   { role: 'Operator',    group: 'Group A' },
-  'K. Williams': { role: 'Quality',     group: 'Group B' },
-  'R. Brown':    { role: 'Supervisor',  group: 'Group B' },
-  'T. Davis':    { role: 'Maintenance', group: 'Group B' },
-  'P. Wilson':   { role: 'Operator',    group: 'Default' },
+  'A. Johnson':  { role: 'Supervisor',  group: 'Group A', canLead: true,  hours: 38, cmpHours: 40 },
+  'J. Smith':    { role: 'Operator',    group: 'Group A', canLead: false, hours: 40, cmpHours: 40 },
+  'M. Garcia':   { role: 'Operator',    group: 'Group A', canLead: false, hours: 36, cmpHours: 38 },
+  'K. Williams': { role: 'Quality',     group: 'Group B', canLead: false, hours: 32, cmpHours: 30 },
+  'R. Brown':    { role: 'Supervisor',  group: 'Group B', canLead: true,  hours: 40, cmpHours: 38 },
+  'T. Davis':    { role: 'Maintenance', group: 'Group B', canLead: false, hours: 28, cmpHours: 26 },
+  'P. Wilson':   { role: 'Operator',    group: 'Default',  canLead: false, hours: 34, cmpHours: 36 },
 };
+
+// Operators allowed to lead a shift (mirrors Settings "Allow as shift leader").
+const CAN_LEAD_OPERATORS = Object.keys(OPERATOR_DIRECTORY).filter(n => OPERATOR_DIRECTORY[n].canLead);
+
+// Per-row shift leader: which can-lead operator was leading the production that
+// this row's stop occurred under, for the main and compare periods. Lets us
+// aggregate / split by the leading supervisor (data attributes to the leader).
+function deriveLeader(operatorStr) {
+  if (!operatorStr) return '';
+  const names = operatorStr.split(',').map(s => s.trim()).filter(Boolean);
+  const leader = names.find(n => OPERATOR_DIRECTORY[n] && OPERATOR_DIRECTORY[n].canLead);
+  return leader || '';
+}
 
 // Helper: derive role + group for an operator string (e.g. "J. Smith, M. Garcia").
 // Returns deduped, comma-joined lists matching the existing data shape.
@@ -187,25 +207,37 @@ STOP_REASONS_DATA.forEach(r => {
   r.operatorGroupName  = deriveOperatorGroups(r.operator);
   r.cmpOperatorRole    = deriveOperatorRoles(r.cmpOperator);
   r.cmpOperatorGroupName = deriveOperatorGroups(r.cmpOperator);
+  r.leader             = deriveLeader(r.operator);
+  r.cmpLeader          = deriveLeader(r.cmpOperator);
 });
 
-// Phase 1: derive manhours per row, mirroring the custom report SQL:
-//   manhours = (productive station time in hours) × headcount
-// In the mock dataset, "productive station time" maps to plannedTime (minutes)
-// and headcount is the number of named operators on the row. Real production
-// SQL also adds helpers — we'll layer that in later when helpers reach data.js.
-function countOperators(operatorStr) {
-  if (!operatorStr) return 0;
-  return operatorStr.split(',').map(s => s.trim()).filter(Boolean).length;
+// Manhours = SUM of each DISTINCT operator's worked hours.
+// Operator-level dedup: even if a person appears on multiple station rows, their
+// hours are counted once. So manhours never derives from a per-row product —
+// it's computed from the distinct set of operators in scope. We store the raw
+// operator string on each row and compute manhours from the distinct union at
+// aggregation time (see manhoursFor). The per-row figures below are only used
+// for the stop-reason (un-aggregated) view, where each row's operators are
+// already its own scope.
+function operatorList(operatorStr) {
+  if (!operatorStr) return [];
+  return operatorStr.split(',').map(s => s.trim()).filter(Boolean);
+}
+function manhoursFor(operatorStr, cmp) {
+  // Σ distinct operators' hours. Unknown operators contribute 0.
+  const seen = new Set();
+  let total = 0;
+  operatorList(operatorStr).forEach(n => {
+    if (seen.has(n)) return;
+    seen.add(n);
+    const e = OPERATOR_DIRECTORY[n];
+    if (e) total += (cmp ? e.cmpHours : e.hours) || 0;
+  });
+  return total;
 }
 STOP_REASONS_DATA.forEach(r => {
-  const headMain = countOperators(r.operator);
-  const headCmp  = countOperators(r.cmpOperator);
-  // plannedTime is in minutes → /60 for hours; round to whole hours since
-  // Reports today renders durations as whole minutes/hours. Decimal precision
-  // can come later via the existing time-format selector.
-  r.mainManhours = Math.round((r.plannedTime    || 0) / 60 * headMain);
-  r.cmpManhours  = Math.round((r.cmpPlannedTime || 0) / 60 * headCmp);
+  r.mainManhours = manhoursFor(r.operator, false);
+  r.cmpManhours  = manhoursFor(r.cmpOperator, true);
 });
 
 // ── OEE mock data ─────────────────────────────────────────────────────────────
@@ -226,6 +258,266 @@ const OEE_LINES = [
   { key:'availability', cmpKey:'cmpAvailability',  label:'Availability', color:'#2ecc71' },
   { key:'oee',          cmpKey:'cmpOee',           label:'OEE',          color:'#212121' },
 ];
+
+const SHIFT_LEADERS = CAN_LEAD_OPERATORS;
+
+// ── Shift blocks — the single source of truth for OEE-by-people ───────────────
+// A block is one stretch of production: a station, a time window, a shift
+// leader, and the operators on it, plus raw production counters. EVERYTHING the
+// OEE report shows about leaders / operators / groups is *derived* from these
+// blocks by selecting a subset (filters) and rolling up — so all the views
+// reconcile with each other and with the filters.
+//
+//   leaderId      — the operator leading this block (one of CAN_LEAD_OPERATORS)
+//   operatorIds   — everyone who worked the block (includes the leader)
+//   plannedMin    — planned production time (denominator of availability)
+//   runMin        — operating time (green+yellow) ≤ plannedMin
+//   idealQty      — qty achievable at ideal cycle time over runMin
+//   totalQty      — qty actually produced
+//   goodQty       — good qty (≤ totalQty); scrap = totalQty − goodQty
+//
+// OEE = Availability(runMin/plannedMin) × Performance(totalQty/idealQty)
+//       × Quality(goodQty/totalQty).
+const SHIFT_BLOCKS = [
+  // day, station, leader, operators, plannedMin, runMin, idealQty, totalQty, goodQty
+  blk(1, 'CNC-01',   'A. Johnson', ['A. Johnson','J. Smith','M. Garcia'],     480, 300, 1000, 560, 540),
+  blk(1, 'Press-01', 'R. Brown',   ['R. Brown','K. Williams','T. Davis'],     480, 250,  900, 470, 440),
+  blk(2, 'CNC-02',   'A. Johnson', ['A. Johnson','J. Smith','P. Wilson'],     480, 310, 1000, 580, 560),
+  blk(2, 'Press-02', 'R. Brown',   ['R. Brown','M. Garcia','T. Davis'],       480, 240,  900, 450, 425),
+  blk(3, 'CNC-01',   'A. Johnson', ['A. Johnson','K. Williams','M. Garcia'],  480, 295, 1000, 545, 525),
+  blk(3, 'Assembly-01','R. Brown', ['R. Brown','J. Smith','P. Wilson'],       480, 260,  850, 470, 445),
+  blk(4, 'Press-01', 'A. Johnson', ['A. Johnson','T. Davis','M. Garcia'],     480, 280,  900, 500, 480),
+  blk(4, 'CNC-03',   'R. Brown',   ['R. Brown','K. Williams','P. Wilson'],    480, 230, 1000, 430, 405),
+  blk(5, 'Assembly-02','A. Johnson',['A. Johnson','J. Smith','T. Davis'],     480, 305,  850, 530, 510),
+  blk(5, 'Press-03', 'R. Brown',   ['R. Brown','M. Garcia','K. Williams'],    480, 245,  900, 455, 430),
+  blk(6, 'CNC-02',   'A. Johnson', ['A. Johnson','M. Garcia','P. Wilson'],    480, 290, 1000, 540, 515),
+  blk(6, 'Press-02', 'R. Brown',   ['R. Brown','J. Smith','T. Davis'],        480, 235,  900, 440, 415),
+  blk(7, 'CNC-01',   'A. Johnson', ['A. Johnson','K. Williams','J. Smith'],   480, 300, 1000, 555, 535),
+  blk(7, 'Assembly-01','R. Brown', ['R. Brown','P. Wilson','M. Garcia'],      480, 255,  850, 465, 440),
+];
+function blk(day, station, leaderId, operatorIds, plannedMin, runMin, idealQty, totalQty, goodQty) {
+  // shiftMin: scheduled shift length (≥ planned). allMin: calendar time the
+  // station could run (here a full day). techStopMin: unplanned technical-stop
+  // minutes inside planned time (drives Technical availability). Defaults keep
+  // the 14-row table terse — an 8h shift inside a 24h day, ~6% tech stops.
+  const shiftMin = 480, allMin = 1440;
+  const techStopMin = Math.round((plannedMin - runMin) * 0.4); // ~40% of downtime is technical
+  // Demo product/order metadata, varied by station family so descr columns
+  // aren't empty (real data would carry these per production run).
+  const fam = station.split('-')[0];
+  const META = {
+    CNC:      { products:['Widget Pro'],  productCodes:['PRD-001'], lots:['LOT-A1'], orders:['ORD-1001'] },
+    Press:    { products:['Gear Kit'],     productCodes:['PRD-002'], lots:['LOT-B1'], orders:['ORD-1002'] },
+    Assembly: { products:['Frame Set'],    productCodes:['PRD-003'], lots:['LOT-C1'], orders:['ORD-1003'] },
+  };
+  const meta = META[fam] || { products:[], productCodes:[], lots:[], orders:[] };
+  const shift = 'Day';
+  return { day, station, leaderId, operatorIds, plannedMin, runMin, idealQty, totalQty, goodQty,
+           shiftMin, allMin, techStopMin, shift, ...meta };
+}
+
+// OEE of a single block (components 0–100).
+function blockOEE(b) {
+  const a = b.plannedMin ? b.runMin   / b.plannedMin : 0;
+  const p = b.idealQty   ? b.totalQty / b.idealQty   : 0;
+  const q = b.totalQty   ? b.goodQty  / b.totalQty   : 0;
+  return { availability: a*100, performance: p*100, quality: q*100, oee: a*p*q*100 };
+}
+
+// Weighted roll-up of many blocks (Evocon method: sum raw counters first, then
+// apply the formulas — weighted by planned time). Returns the full OEE metric
+// set (0–100) plus the raw time totals (minutes) and quantity. This is what the
+// OEE report's data table rows are built from.
+function rollupOEE(blocks) {
+  let planned=0, run=0, ideal=0, total=0, good=0, shift=0, all=0, techStop=0;
+  blocks.forEach(b => {
+    planned+=b.plannedMin; run+=b.runMin; ideal+=b.idealQty; total+=b.totalQty;
+    good+=b.goodQty; shift+=b.shiftMin; all+=b.allMin; techStop+=b.techStopMin;
+  });
+  const a = planned ? run/planned : 0;
+  const p = ideal   ? total/ideal : 0;
+  const q = total   ? good/total  : 0;
+  const oeeR = a*p*q;
+  return {
+    availability: a*100, performance: p*100, quality: q*100, oee: oeeR*100,
+    techAvailability: planned ? (planned - techStop)/planned*100 : 0,
+    ooe:  shift ? (run/shift) * p * q * 100 : 0,
+    teep: all   ? (run/all)   * p * q * 100 : 0,
+    operatingMin: run, plannedMin: planned, shiftMin: shift, allMin: all,
+    qty: total,
+  };
+}
+
+// ── OEE report data-table columns (mirrors the real OEE.csv / screenshot) ─────
+// The first column is dynamic (the current X-axis dimension); these are the
+// fixed columns that follow. `descr` columns are comma-joined value lists for
+// the row's blocks; `metric` columns are %; `time` columns are minute totals
+// rendered as durations; `qty` is a number.
+const OEE_TABLE_COLS = [
+  { key:'stations',        label:'Stations',          et:'Töökeskused',          type:'descr' },
+  { key:'stationGroups',   label:'Station groups',    et:'Töökeskuste grupid',   type:'descr' },
+  { key:'factories',       label:'Factories',         et:'Tehased',              type:'descr' },
+  { key:'products',        label:'Products',          et:'Tooted',               type:'descr' },
+  { key:'productCodes',    label:'Product code',      et:'Tootekood',            type:'descr' },
+  { key:'lots',            label:'LOT/Batch',         et:'LOT/Partii',           type:'descr' },
+  { key:'orders',          label:'Orders',            et:'Tootmistellimused',    type:'descr' },
+  { key:'shifts',          label:'Shifts',            et:'Vahetused',            type:'descr' },
+  { key:'availability',    label:'Availability',      et:'Kasulik tööaeg',       type:'metric' },
+  { key:'techAvailability',label:'Technical availability', et:'Tehniline valmidus', type:'metric' },
+  { key:'performance',     label:'Performance',       et:'Tootmiskiirus',        type:'metric' },
+  { key:'quality',         label:'Quality',           et:'Kvaliteet',            type:'metric' },
+  { key:'oee',             label:'OEE',               et:'OEE',                  type:'metric' },
+  { key:'ooe',             label:'OOE',               et:'OOE',                  type:'metric' },
+  { key:'teep',            label:'TEEP',              et:'TEEP',                 type:'metric' },
+  { key:'manhours',        label:'Manhours',          et:'Inimtunnid',           type:'hours'  },
+  { key:'operatingMin',    label:'Operating time',    et:'Tööaeg',               type:'time'   },
+  { key:'plannedMin',      label:'Planned time',      et:'Planeeritud tööaeg',   type:'time'   },
+  { key:'shiftMin',        label:'Shift time',        et:'Vahetuse aeg',         type:'time'   },
+  { key:'allMin',          label:'All time',          et:'Kogu aeg',             type:'time'   },
+  { key:'qty',             label:'Total quantity',    et:'Kogutoodang',          type:'qty'    },
+];
+
+// Descriptive (comma-joined distinct) values for a block set, per descr column.
+function descrValues(blocks, key) {
+  const set = new Set();
+  blocks.forEach(b => {
+    let vals = [];
+    switch (key) {
+      case 'stations':      vals = [b.station]; break;
+      case 'stationGroups': vals = [STATION_GROUP_OF[b.station] || '—']; break;
+      case 'factories':     vals = [FACTORY_OF[b.station] || '—']; break;
+      case 'products':      vals = b.products || []; break;
+      case 'productCodes':  vals = b.productCodes || []; break;
+      case 'lots':          vals = b.lots || []; break;
+      case 'orders':        vals = b.orders || []; break;
+      case 'shifts':        vals = [b.shift || 'Day']; break;
+    }
+    vals.forEach(v => v && set.add(v));
+  });
+  return [...set].join(', ') || '—';
+}
+
+// Lightweight station → group / factory lookups for the descr columns.
+const STATION_GROUP_OF = { 'CNC-01':'CNC','CNC-02':'CNC','CNC-03':'CNC','Press-01':'Press','Press-02':'Press','Press-03':'Press','Assembly-01':'Assembly','Assembly-02':'Assembly' };
+const FACTORY_OF       = { 'CNC-01':'Factory 1','CNC-02':'Factory 1','CNC-03':'Factory 1','Press-01':'Factory 1','Press-02':'Factory 1','Press-03':'Factory 1','Assembly-01':'Factory 2','Assembly-02':'Factory 2' };
+
+// Build one OEE table row per value of the chosen X-axis dimension, from a
+// (filtered) block set. Each row = the dynamic first cell + the full metric +
+// descriptive + time/qty columns, derived (so it reconciles with the chart).
+function oeeTableRows(blocks, dimKey) {
+  const dim = OEE_DIMS[dimKey] || OEE_DIMS.operator;
+  const bucket = {};
+  blocks.forEach(b => dim.valsOf(b).forEach(v => (bucket[v] = bucket[v] || []).push(b)));
+  const rows = dim.labels()
+    .filter(v => bucket[v] && bucket[v].length)
+    .map(v => {
+      const bs = bucket[v];
+      const r = rollupOEE(bs);
+      r.name = v;
+      r.manhours = dim.isPeople ? manhoursScoped(bs, dimKey, v) : blockManhours(bs);
+      OEE_TABLE_COLS.filter(c => c.type === 'descr').forEach(c => { r[c.key] = descrValues(bs, c.key); });
+      return r;
+    });
+  // "Kokku" (total) row — weighted roll-up over ALL blocks in scope.
+  if (rows.length) {
+    const tot = rollupOEE(blocks);
+    tot.name = 'Total';
+    tot.manhours = blockManhours(blocks);
+    tot._total = true;
+    OEE_TABLE_COLS.filter(c => c.type === 'descr').forEach(c => { tot[c.key] = ''; });
+    rows.push(tot);
+  }
+  return rows;
+}
+
+// Distinct operators across a set of blocks → total worked hours (manhours).
+// Each operator counted once; their hours = Σ block durations they were on.
+function blockManhours(blocks) {
+  const perOp = new Map();
+  blocks.forEach(b => b.operatorIds.forEach(o => {
+    perOp.set(o, (perOp.get(o) || 0) + b.plannedMin / 60);
+  }));
+  let total = 0; perOp.forEach(h => total += h);
+  return total;
+}
+
+// Dimension descriptors. A dim maps a block → the value(s) it belongs to on
+// that dimension, and provides the full label list + a header for the table.
+//   operator → each operator present on the block
+//   group    → each distinct operator-group present
+//   leader   → the single shift leader of the block
+const OEE_DIMS = {
+  operator: {
+    header: 'Operator',
+    labels: () => Object.keys(OPERATOR_DIRECTORY),
+    valsOf: (b) => b.operatorIds.slice(),
+    isPeople: true,
+  },
+  group: {
+    header: 'Operator group',
+    labels: () => OPERATOR_GROUPS.slice(),
+    valsOf: (b) => [...new Set(b.operatorIds.map(o => OPERATOR_DIRECTORY[o]?.group || 'Default'))],
+    isPeople: true,
+  },
+  leader: {
+    header: 'Shift leader',
+    labels: () => SHIFT_LEADERS.slice(),
+    valsOf: (b) => [b.leaderId],
+    isPeople: false,
+  },
+};
+
+// Generic nested OEE matrix: outer dimension × inner dimension. A block lands
+// in cell [outerVal][innerVal] for every combination of values it represents.
+// Each cell = rolled-up OEE components + deduped manhours scoped to whichever
+// side is the "people" dimension (so the number means a real headcount-time).
+function oeeMatrixFromBlocks(blocks, outerDim, innerDim) {
+  const O = OEE_DIMS[outerDim] || OEE_DIMS.operator;
+  const I = OEE_DIMS[innerDim] || OEE_DIMS.leader;
+  const bucket = {}; // [outer][inner] = blocks[]
+  blocks.forEach(b => {
+    O.valsOf(b).forEach(ov => {
+      I.valsOf(b).forEach(iv => {
+        (bucket[ov] = bucket[ov] || {});
+        (bucket[ov][iv] = bucket[ov][iv] || []).push(b);
+      });
+    });
+  });
+  // Manhours scope: prefer the people dimension. If the OUTER is people, scope
+  // to the outer value (e.g. "Operator A's hours"); else if INNER is people,
+  // scope to the inner value; else (leader×leader, unused) all operators.
+  const data = {};
+  O.labels().forEach(ov => {
+    data[ov] = {};
+    I.labels().forEach(iv => {
+      const bs = bucket[ov] && bucket[ov][iv];
+      if (bs && bs.length) {
+        const cell = rollupOEE(bs);
+        if (O.isPeople)      cell.manhours = manhoursScoped(bs, outerDim, ov);
+        else if (I.isPeople) cell.manhours = manhoursScoped(bs, innerDim, iv);
+        else                 cell.manhours = blockManhours(bs);
+        data[ov][iv] = cell;
+      } else {
+        data[ov][iv] = null;
+      }
+    });
+  });
+  return { labels: O.labels(), innerLabels: I.labels(), data, outerHeader: O.header, innerHeader: I.header };
+}
+
+// Manhours attributable to a single dimension value within a block set —
+// distinct operators that belong to that value, hours counted once.
+function manhoursScoped(blocks, dim, val) {
+  const inVal = (o) => dim === 'group'
+    ? ((OPERATOR_DIRECTORY[o]?.group || 'Default') === val)
+    : (o === val); // 'operator'
+  const perOp = new Map();
+  blocks.forEach(b => b.operatorIds.forEach(o => {
+    if (inVal(o)) perOp.set(o, (perOp.get(o) || 0) + b.plannedMin / 60);
+  }));
+  let total = 0; perOp.forEach(h => total += h);
+  return total;
+}
 
 // ── Date utilities ────────────────────────────────────────────────────────────
 
@@ -326,6 +618,7 @@ function computeRangeForMode(mode, rangeStart, rangeEnd, currentPreset, matchDow
 function aggregateBy(nameKey, baseData) {
   const map    = new Map(); // nameKey value → aggregated row
   const segMap = new Map(); // nameKey value → Map(group → {mainDur, cmpDur})
+  const opSet  = new Map(); // nameKey value → { main:Set, cmp:Set } distinct operators
 
   baseData.forEach(d => {
     // Split comma-separated multi-values so each individual item gets its own bar
@@ -356,16 +649,21 @@ function aggregateBy(nameKey, baseData) {
           _n: 0
         });
         segMap.set(k, new Map());
+        opSet.set(k, { main: new Set(), cmp: new Set() });
       }
       const row = map.get(k);
       const sg  = segMap.get(k);
+      // Collect distinct operators feeding this key (for deduped manhours).
+      const os = opSet.get(k);
+      operatorList(d.operator).forEach(nm => os.main.add(nm));
+      operatorList(d.cmpOperator).forEach(nm => os.cmp.add(nm));
       row.mainDur      += Math.round(d.mainDur      / n); row.cmpDur      += Math.round(d.cmpDur      / n);
       row.mainCount    += Math.round(d.mainCount    / n); row.cmpCount    += Math.round(d.cmpCount    / n);
       row.notes        += Math.round(d.notes        / n); row.cmpNotes    += Math.round(d.cmpNotes    / n);
       row.loss         += Math.round(d.loss         / n); row.cmpLoss     += Math.round(d.cmpLoss     / n);
       row.durOee       += Math.round(d.durOee       / n); row.cmpDurOee   += Math.round(d.cmpDurOee   / n);
-      row.mainManhours += Math.round((d.mainManhours || 0) / n);
-      row.cmpManhours  += Math.round((d.cmpManhours  || 0) / n);
+      // mainManhours/cmpManhours intentionally NOT summed here — computed from
+      // the distinct operator set after the loop (operator-level dedup).
       row.mainPct      += d.mainPct / n;                  row.cmpPct      += d.cmpPct   / n;
       row._n++;
       if (!sg.has(d.name)) sg.set(d.name, { name: d.name, group: d.group, mainDur: 0, cmpDur: 0 });
@@ -381,6 +679,10 @@ function aggregateBy(nameKey, baseData) {
       row.mainPct = Math.round(row.mainPct / row._n);
       row.cmpPct  = Math.round(row.cmpPct  / row._n);
     }
+    // Operator-level deduped manhours: Σ distinct operators' hours for this key.
+    const os = opSet.get(k);
+    row.mainManhours = [...os.main].reduce((s, nm) => s + ((OPERATOR_DIRECTORY[nm]?.hours)    || 0), 0);
+    row.cmpManhours  = [...os.cmp ].reduce((s, nm) => s + ((OPERATOR_DIRECTORY[nm]?.cmpHours) || 0), 0);
     row.segments = [...segMap.get(k).entries()]
       .map(([, v]) => ({ name: v.name, group: v.group, mainDur: v.mainDur, cmpDur: v.cmpDur }))
       .sort((a, b) => b.mainDur - a.mainDur);
@@ -516,8 +818,10 @@ function getAxisData(xAxis, baseData) {
     case 'Station groups':   return aggregateBy('stationGroup', baseData);
     case 'Factories':        return mockTimeSeries(['Factory A','Factory B','Factory C']);
     case 'Operators':        return aggregateBy('operator',          baseData);
-    case 'Operator role':    return aggregateBy('operatorRole',       baseData);
     case 'Operator group':   return aggregateBy('operatorGroupName',  baseData);
+    // One bar per leading supervisor. Rows with no leader are dropped (a leader
+    // X-axis only makes sense for shifts that had one).
+    case 'Shift leaders':    return aggregateBy('leader', baseData.filter(d => d.leader));
     case 'Products':         return aggregateBy('product',      baseData);
     case 'Product code':     return aggregateBy('productCode',  baseData);
     case 'Orders':           return mockTimeSeries(['ORD-1001','ORD-1002','ORD-1003','ORD-1004','ORD-1005']);
