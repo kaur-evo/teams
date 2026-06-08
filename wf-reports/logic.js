@@ -14,9 +14,19 @@ let _dtFixedWidth  = 200;          // first column width, px — resizable via d
 let currentReport  = 'downtime';   // 'downtime' | 'oee'
 let oeeSplitBy     = null;         // null = off, or a split label ('Shift leaders' | 'Operators' | 'Operator group')
 let oeeXAxis       = 'Day';        // OEE chart X-axis: 'Day' | 'Operators' | 'Operator group'
+let oeeChartType   = 'line';       // 'line' | 'bar' — user toggle. Line is only
+                                   // drawn for the Day (time) axis with no split;
+                                   // categorical axes / split always render bars.
 let _oeeHiddenLeaders = new Set(); // leaders toggled off via the legend
 let _oeePage       = 0;            // current page of category clusters (split mode)
 const OEE_CATS_PER_PAGE = 3;       // categories per page (matches real Evocon density)
+
+// Quantities report state (mirrors the OEE controls).
+let qtyXAxis       = 'Day';        // 'Day' | 'Operators' | 'Operator group' | 'Shift leaders'
+let qtySplitBy     = null;         // null = off, or a split label
+let _qtyHidden     = new Set();    // segments toggled off via the legend
+let _qtyPage       = 0;            // current page of category clusters
+const QTY_CATS_PER_PAGE = 6;       // bars per page (single-column bars, denser)
 
 const Y2_METRICS = {
   'Duration':     { main: d => d.mainDur,   cmp: d => d.cmpDur,   unit: ' min' },
@@ -360,6 +370,7 @@ function applyDatePicker() {
   }
 
   if (currentReport === 'oee') drawOeeChart();
+  else if (currentReport === 'quantities') drawQtyChart();
   else if (updateChartCompare) updateChartCompare(_appliedCompareOn);
   updateCddDescriptions();
   updateCompareBtnLabel();
@@ -381,6 +392,7 @@ function removeCompare() {
   compareEnd        = null;
 
   if (currentReport === 'oee') drawOeeChart();
+  else if (currentReport === 'quantities') drawQtyChart();
   else if (updateChartCompare) updateChartCompare(false);
   updateCompareBtnLabel();
   updateCddOptionStyles();
@@ -504,6 +516,7 @@ function applyCdd() {
   cddPicking        = false;
   cddPickFirst      = null;
   if (currentReport === 'oee') drawOeeChart();
+  else if (currentReport === 'quantities') drawQtyChart();
   else if (updateChartCompare) updateChartCompare(_appliedCompareOn);
   updateCompareBtnLabel();
   renderCalendars(); // refresh date-picker calendar compare band
@@ -1438,6 +1451,9 @@ document.addEventListener('click', () => {
   document.getElementById('compare-dropdown').classList.remove('open');
   document.getElementById('oee-splitby-dropdown')?.classList.remove('open');
   document.getElementById('oee-xaxis-dropdown')?.classList.remove('open');
+  document.getElementById('oee-charttype-dropdown')?.classList.remove('open');
+  document.getElementById('qty-xaxis-dropdown')?.classList.remove('open');
+  document.getElementById('qty-splitby-dropdown')?.classList.remove('open');
   ['opfilter-dropdown', 'leaderfilter-dropdown']
     .forEach(id => document.getElementById(id)?.classList.remove('open'));
 });
@@ -1625,6 +1641,7 @@ function updateFilterChipLabels() {
 // Operators picker resolves into a flat Set of operator names — selecting a
 // group is just a shortcut for selecting all its members.
 function applyOperatorFilters() {
+  _tblPage.oee = 0; _tblPage.qty = 0; // filter change → back to page 1
   const opSel     = filterState.operators;
   const leaderSel = filterState.leaders;
   if (opSel.size === 0 && leaderSel.size === 0) {
@@ -1648,6 +1665,7 @@ function applyOperatorFilters() {
   // OEE report derives from shift blocks — redraw it so it reconciles with the
   // filter chips too.
   if (currentReport === 'oee') drawOeeChart();
+  else if (currentReport === 'quantities') drawQtyChart();
 }
 
 // Init: ensure Role chip is hidden by default (no operators picked).
@@ -1660,14 +1678,18 @@ function switchReport(type) {
   if (type === currentReport) return;
   currentReport = type;
 
-  document.getElementById('page-title').textContent = type === 'oee' ? 'OEE' : 'Downtime';
+  const TITLES = { downtime: 'Downtime', oee: 'OEE', quantities: 'Quantities' };
+  document.getElementById('page-title').textContent = TITLES[type] || 'Downtime';
   document.getElementById('rnav-downtime').classList.toggle('active', type === 'downtime');
   document.getElementById('rnav-oee').classList.toggle('active', type === 'oee');
+  document.getElementById('rnav-quantities')?.classList.toggle('active', type === 'quantities');
   document.getElementById('downtime-chart-section').style.display = type === 'downtime' ? '' : 'none';
   document.getElementById('downtime-table-section').style.display  = type === 'downtime' ? '' : 'none';
   document.getElementById('oee-chart-section').style.display       = type === 'oee'      ? '' : 'none';
+  document.getElementById('qty-chart-section').style.display       = type === 'quantities' ? '' : 'none';
 
   if (type === 'oee') drawOeeChart();
+  else if (type === 'quantities') drawQtyChart();
 }
 
 // Shift blocks that pass the current filter chips — the OEE-by-people views
@@ -1682,6 +1704,35 @@ function selectedBlocks() {
     if (opSel.size && !b.operatorIds.some(o => opSel.has(o))) return false;
     return true;
   });
+}
+
+// ── OEE chart-type toggle (Line / Bar) ─────────────────────────────────────
+// Line is only drawn on the Day axis with no split; on categorical axes or in
+// split mode the chart is always bars (the toggle still records the preference
+// so switching back to Day restores the line view).
+function toggleOeeChartTypeDropdown(event) {
+  event.stopPropagation();
+  const dd = document.getElementById('oee-charttype-dropdown');
+  const wasOpen = dd.classList.contains('open');
+  document.querySelectorAll('.xaxis-dropdown, .filter-dropdown').forEach(el => el.classList.remove('open'));
+  if (wasOpen) return;
+  dd.innerHTML = '';
+  [{ val:'line', label:'~ Line chart' }, { val:'bar', label:'Bar chart' }].forEach(opt => {
+    const el = document.createElement('div');
+    el.className = 'xaxis-opt' + (oeeChartType === opt.val ? ' selected' : '');
+    el.textContent = opt.label;
+    el.addEventListener('click', e => { e.stopPropagation(); selectOeeChartType(opt.val, opt.label); });
+    dd.appendChild(el);
+  });
+  dd.classList.add('open');
+}
+
+function selectOeeChartType(val, label) {
+  oeeChartType = val;
+  _oeePage = 0; _tblPage.oee = 0;
+  document.getElementById('oee-charttype-dropdown').classList.remove('open');
+  document.getElementById('oee-charttype-btn').innerHTML = label + ' &nbsp;▾';
+  drawOeeChart();
 }
 
 // ── OEE "X-axis" dropdown (Day / Operators / Operator group) ────────────────
@@ -1704,7 +1755,7 @@ function toggleOeeXAxisDropdown(event) {
 
 function selectOeeXAxis(opt) {
   oeeXAxis = opt;
-  _oeePage = 0;
+  _oeePage = 0; _tblPage.oee = 0;
   document.getElementById('oee-xaxis-dropdown').classList.remove('open');
   document.getElementById('oee-xaxis-btn').textContent = 'X-axis: ' + opt + ' ▾';
   drawOeeChart();
@@ -1734,7 +1785,7 @@ function toggleOeeSplitDropdown(event) {
 function selectOeeSplit(val) {
   oeeSplitBy = val;
   _oeeHiddenLeaders = new Set();
-  _oeePage = 0;
+  _oeePage = 0; _tblPage.oee = 0;
   document.getElementById('oee-splitby-dropdown').classList.remove('open');
   document.getElementById('oee-splitby-btn').textContent = 'Split by: ' + (val || '–') + ' ▾';
   drawOeeChart();
@@ -1747,51 +1798,49 @@ function oeeDimKey(label) {
   return 'operator'; // 'Operators' (and anything else categorical)
 }
 
-// OEE split by shift leader — Evocon two-level bar layout (see ref screenshot):
-//   X-axis category (operator / group)  ← top-level cluster
-//     └ shift leader                    ← sub-cluster (the "split by")
-//         └ Quality / Performance / Availability / OEE  ← component bars
+// OEE bar chart — Evocon's grouped-bar layout (see ref screenshots).
+//   No split:   one cluster per X-axis category (operator / group / leader),
+//               each cluster = the 4 OEE % component bars.
+//   With split: two-level layout — X-axis category is the top cluster, the
+//               split-by value is the sub-cluster, each holding the 4 bars.
 // Components are separate bars (OEE = A×P×Q is multiplicative, never stacked).
-// Bottom axis is two rows: leader under each sub-cluster, category centred below.
-// _oeeHiddenLeaders here hides COMPONENT metrics (legend = metrics, like Evocon).
-function drawOeeLeaderBars(chart, width, height) {
-  // Outer dim = the OEE X-axis; inner dim = the split-by. Either can be
-  // operator / group / leader. Derived from the FILTERED blocks so the chart
-  // reconciles with the filter chips.
+// Manhours is NOT charted — it appears only in the data table below.
+// _oeeHiddenLeaders hides COMPONENT metrics (legend = metrics, like Evocon).
+function drawOeeBars(chart, width, height) {
+  const split = !!oeeSplitBy;
+  // Outer dim = the OEE X-axis (Day falls back to Operators for a bar view).
   const outerDim = oeeDimKey(oeeXAxis === 'Day' ? 'Operators' : oeeXAxis);
-  const innerDim = oeeDimKey(oeeSplitBy);
+  // Inner dim = the split-by, or a single implicit bucket when not splitting.
+  const innerDim = split ? oeeDimKey(oeeSplitBy) : outerDim;
   const { data, innerLabels, outerHeader, innerHeader } =
     oeeMatrixFromBlocks(selectedBlocks(), outerDim, innerDim);
   const labels = OEE_DIMS[outerDim].labels();
-  const inners = innerLabels;
+  // When not splitting, collapse each category to one sub-cluster keyed by the
+  // category itself (the diagonal cell data[cat][cat] holds that category's roll-up).
+  const inners = split ? innerLabels : labels;
 
-  // Bars per sub-cluster: the 4 OEE % components. Manhours is NOT a bar — it's
-  // drawn as a LINE on the secondary right (hours) axis, overlaid on the bars
-  // (Evocon's 2nd-Y-axis convention).
   const METRICS = [
     { key:'quality',      label:'Quality',      color:'#ff9800' },
     { key:'performance',  label:'Performance',  color:'#fdd835' },
     { key:'availability', label:'Availability', color:'#2ecc71' },
     { key:'oee',          label:'OEE',          color:'#212121' },
   ];
-  const MANHOURS = { key:'manhours', label:'Manhours', color:'#9e9e9e' };
   const metrics = METRICS.filter(m => !_oeeHiddenLeaders.has(m.key));
-  const showManhours = !_oeeHiddenLeaders.has('manhours');
 
-  // Only outer categories that actually have ≥1 inner sub-cluster.
-  const allCats = labels.filter(c => inners.some(l => data[c] && data[c][l]));
-  // Paginate — too many category clusters become unreadably thin (real Evocon
-  // paginates the OEE bar view too).
+  // For each category, the inner values that actually have data. No split → the
+  // single self-cell (cat,cat); split → every present split value.
+  const innersForCat = (cat) => split
+    ? inners.filter(l => data[cat] && data[cat][l])
+    : (data[cat] && data[cat][cat] ? [cat] : []);
+
+  // Only categories with ≥1 populated sub-cluster.
+  const allCats = labels.filter(c => innersForCat(c).length);
+  // Paginate — too many clusters become unreadably thin (Evocon paginates too).
   const pageCount = Math.max(1, Math.ceil(allCats.length / OEE_CATS_PER_PAGE));
   if (_oeePage >= pageCount) _oeePage = pageCount - 1;
   const cats = allCats.slice(_oeePage * OEE_CATS_PER_PAGE, (_oeePage + 1) * OEE_CATS_PER_PAGE);
 
   const y  = d3.scaleLinear().domain([0, 110]).range([height, 0]);
-  // Secondary right axis for manhours (hours). Domain from the data max + headroom.
-  let maxMh = 0;
-  cats.forEach(c => inners.forEach(l => { const d = data[c]?.[l]; if (d) maxMh = Math.max(maxMh, d.manhours || 0); }));
-  const yR = d3.scaleLinear().domain([0, Math.max(10, Math.ceil(maxMh * 1.15 / 10) * 10)]).range([height, 0]);
-  // Top-level: categories. Second-level: leaders (only those present per cat).
   const x0 = d3.scaleBand().domain(cats).range([0, width]).paddingInner(0.25).paddingOuter(0.1);
   const tooltipEl = document.getElementById('chart-tooltip');
 
@@ -1801,16 +1850,14 @@ function drawOeeLeaderBars(chart, width, height) {
     .call(ax => ax.select('.domain').remove())
     .call(ax => ax.selectAll('line').style('stroke', '#eeeeee'));
 
-  const subTicks = []; // {x, label} inner (sub-cluster) labels — row 1
-  const catTicks = []; // {x, label} outer category labels — row 2
-
-  const mhPoints = []; // {cx, mh, cat, l} sub-cluster centers for the manhours line
+  const subTicks = []; // {x, label} sub-cluster labels — row 1 (split only)
+  const catTicks = []; // {x, label} category labels — bottom row
 
   cats.forEach(cat => {
-    const present = inners.filter(l => data[cat] && data[cat][l]);
+    const present = innersForCat(cat);
     const catG = chart.append('g').attr('transform', `translate(${x0(cat)},0)`);
-    // Sub-cluster band: one slot per present inner value within this category.
-    const x1 = d3.scaleBand().domain(present).range([0, x0.bandwidth()]).paddingInner(0.18).paddingOuter(0.05);
+    // Sub-cluster band: one slot per present inner value (1 slot when not split).
+    const x1 = d3.scaleBand().domain(present).range([0, x0.bandwidth()]).paddingInner(0.18).paddingOuter(split ? 0.05 : 0.18);
     // Component band inside each sub-cluster.
     const x2 = d3.scaleBand().domain(metrics.map(m => m.key)).range([0, x1.bandwidth()]).padding(0.12);
 
@@ -1825,9 +1872,10 @@ function drawOeeLeaderBars(chart, width, height) {
           .attr('fill', m.color).attr('rx', 1)
           .on('mousemove', (event) => {
             if (!tooltipEl) return;
+            const title = split ? `${cat} — ${l}` : cat;
             tooltipEl.innerHTML =
               `<div style="font-family:'Open Sans',sans-serif;font-size:12px;">` +
-              `<div style="font-weight:600;margin-bottom:2px;">${cat} — ${l}</div>` +
+              `<div style="font-weight:600;margin-bottom:2px;">${title}</div>` +
               `<div>${m.label}: <b>${v.toFixed(1)}%</b></div></div>`;
             tooltipEl.style.display = 'block';
             tooltipEl.style.left = (event.offsetX + 64) + 'px';
@@ -1835,9 +1883,7 @@ function drawOeeLeaderBars(chart, width, height) {
           })
           .on('mouseleave', () => { if (tooltipEl) tooltipEl.style.display = 'none'; });
       });
-      const cx = x0(cat) + x1(l) + x1.bandwidth() / 2;
-      mhPoints.push({ cx, mh: vals.manhours || 0, cat, l });
-      subTicks.push({ x: cx, label: l });
+      if (split) subTicks.push({ x: x0(cat) + x1(l) + x1.bandwidth() / 2, label: l });
     });
     catTicks.push({ x: x0(cat) + x0.bandwidth() / 2, label: cat });
   });
@@ -1845,36 +1891,16 @@ function drawOeeLeaderBars(chart, width, height) {
   // Baseline
   chart.append('line').attr('x1', 0).attr('x2', width).attr('y1', height).attr('y2', height).style('stroke', '#e0e0e0');
 
-  // Manhours LINE on the secondary (hours) axis, overlaid on the bars — Evocon's
-  // 2nd-Y-axis convention. One point per sub-cluster, connected left→right.
-  if (showManhours && mhPoints.length) {
-    const lineGen = d3.line().x(p => p.cx).y(p => yR(p.mh)).curve(d3.curveMonotoneX);
-    chart.append('path').datum(mhPoints)
-      .attr('fill','none').attr('stroke', MANHOURS.color).attr('stroke-width', 2).attr('d', lineGen);
-    chart.selectAll('circle.mh').data(mhPoints).join('circle')
-      .attr('cx', p => p.cx).attr('cy', p => yR(p.mh)).attr('r', 3.5)
-      .attr('fill', MANHOURS.color).attr('stroke', 'white').attr('stroke-width', 1.5)
-      .on('mousemove', (event, p) => {
-        if (!tooltipEl) return;
-        tooltipEl.innerHTML =
-          `<div style="font-family:'Open Sans',sans-serif;font-size:12px;">` +
-          `<div style="font-weight:600;margin-bottom:2px;">${p.cat} — ${p.l}</div>` +
-          `<div>Manhours: <b>${p.mh.toFixed(1)} h</b></div></div>`;
-        tooltipEl.style.display = 'block';
-        tooltipEl.style.left = (event.offsetX + 64) + 'px';
-        tooltipEl.style.top  = (event.offsetY + 24) + 'px';
-      })
-      .on('mouseleave', () => { if (tooltipEl) tooltipEl.style.display = 'none'; });
+  // Row 1 — sub-cluster labels (split mode only)
+  if (split) {
+    chart.append('g').selectAll('text.sub').data(subTicks).join('text')
+      .attr('x', d => d.x).attr('y', height + 14).attr('text-anchor', 'middle')
+      .style('font-family','Inter,sans-serif').style('font-size','10px').style('fill','#616161')
+      .text(d => d.label);
   }
-
-  // Row 1 — leader labels under each sub-cluster
-  chart.append('g').selectAll('text.sub').data(subTicks).join('text')
-    .attr('x', d => d.x).attr('y', height + 14).attr('text-anchor', 'middle')
-    .style('font-family','Inter,sans-serif').style('font-size','10px').style('fill','#616161')
-    .text(d => d.label);
-  // Row 2 — category labels centred below
+  // Category labels — row 2 in split mode, the only row otherwise.
   chart.append('g').selectAll('text.cat').data(catTicks).join('text')
-    .attr('x', d => d.x).attr('y', height + 30).attr('text-anchor', 'middle')
+    .attr('x', d => d.x).attr('y', height + (split ? 30 : 16)).attr('text-anchor', 'middle')
     .style('font-family','Inter,sans-serif').style('font-size','11px').style('font-weight','600').style('fill','#424242')
     .text(d => d.label);
 
@@ -1883,26 +1909,14 @@ function drawOeeLeaderBars(chart, width, height) {
   yAxisG.select('.domain').remove();
   yAxisG.selectAll('text').style('font-family','Inter,sans-serif').style('font-size','11px').style('fill','#616161');
 
-  // Secondary Y axis (right, manhours) — shown only when Manhours is visible.
-  if (!_oeeHiddenLeaders.has('manhours')) {
-    const yRAxisG = chart.append('g').attr('transform', `translate(${width},0)`)
-      .call(d3.axisRight(yR).ticks(6).tickFormat(d => d + ' h').tickSize(0));
-    yRAxisG.select('.domain').remove();
-    yRAxisG.selectAll('text').style('font-family','Inter,sans-serif').style('font-size','11px').style('fill','#9e9e9e');
-  }
-
-  // Legend — the 4 component metrics (square swatch) + Manhours (line swatch,
-  // it's the 2nd-Y-axis line). Click any to hide/show.
+  // Legend — the 4 component metrics. Click any to hide/show.
   const legendEl = document.getElementById('oee-chart-legend');
   legendEl.innerHTML = '';
-  [...METRICS.map(m => ({...m, line:false})), {...MANHOURS, line:true}].forEach(m => {
+  METRICS.forEach(m => {
     const hidden = _oeeHiddenLeaders.has(m.key);
     const item = document.createElement('div');
     item.style.cssText = 'display:flex;align-items:center;gap:6px;cursor:pointer;opacity:' + (hidden ? '0.4' : '1') + ';';
-    const swatch = m.line
-      ? `<span style="display:inline-block;width:14px;height:2px;background:${m.color};flex-shrink:0;"></span>`
-      : `<span style="display:inline-block;width:12px;height:12px;border-radius:2px;background:${m.color};flex-shrink:0;"></span>`;
-    item.innerHTML = `${swatch}<span style="font-family:Inter,sans-serif;font-size:12px;color:#424242;">${m.label}</span>`;
+    item.innerHTML = `<span style="display:inline-block;width:12px;height:12px;border-radius:2px;background:${m.color};flex-shrink:0;"></span><span style="font-family:Inter,sans-serif;font-size:12px;color:#424242;">${m.label}</span>`;
     item.addEventListener('click', () => {
       if (_oeeHiddenLeaders.has(m.key)) _oeeHiddenLeaders.delete(m.key);
       else _oeeHiddenLeaders.add(m.key);
@@ -1914,8 +1928,13 @@ function drawOeeLeaderBars(chart, width, height) {
   // Pager (only when more than one page of category clusters).
   renderOeePager(allCats.length, pageCount);
 
-  // Data table — one row per category × leader (current page only, to match bars).
-  renderOeeTable(cats, inners, data, outerHeader, innerHeader);
+  // Data table. Split → category × split-value rows (with the inner column).
+  // No split → the proper full OEE table (manhours lives here, as a number).
+  if (split) {
+    renderOeeTable(cats, inners, data, outerHeader, innerHeader);
+  } else {
+    renderOeeMainTable(oeeTableRows(selectedBlocks(), outerDim), OEE_DIMS[outerDim].header);
+  }
 }
 
 // Pager for the OEE split chart — N category clusters per page.
@@ -1943,66 +1962,172 @@ function fmtMin(min) {
   return h > 0 ? `${h}h ${String(mm).padStart(2,'0')}m` : `${mm}m`;
 }
 
-// The proper OEE report data table (mirrors OEE.csv / screenshot): a dynamic
-// first column = the current X-axis dimension, then the fixed OEE columns, then
-// a bold "Total" (Kokku) row. Rows derive from blocks so they reconcile with
-// the chart + filter chips.
-function renderOeeMainTable(rows, firstHeader) {
-  const wrap = document.getElementById('oee-table-wrap');
-  const tbl  = document.getElementById('oee-table');
-  if (!wrap || !tbl) return;
+// ── Generic styled data table (shared by OEE + Quantities) ──────────────────
+// Produces the same chrome as the Downtime table: a sticky first column
+// (dt-fixed), styled headers with the dimension icon, zebra rows, a bold Total
+// row, horizontal scroll, and a paginated footer. One renderer so all the
+// report tables look identical.
+//
+// ctx = {
+//   key,                 // 'oee' | 'qty' — drives element ids + page state
+//   firstHeader,         // sticky first-column header label
+//   cols: [{ label, align, render(row)->html }],   // the scrolling columns
+//   rows,                // data rows; a row with _total:true renders as the bold Total
+// }
+// Page state is held per key in _tblPage; the footer prev/next re-render.
+const _tblPage = { oee: 0, qty: 0 };
+const TBL_PER_PAGE = 10;
+let _tblCtx = { oee: null, qty: null }; // last ctx, so the pager can re-render
+
+function renderStyledTable(ctx) {
+  _tblCtx[ctx.key] = ctx;
+  const wrap = document.getElementById(ctx.key + '-table-wrap');
+  const head = document.getElementById(ctx.key + '-head');
+  const body = document.getElementById(ctx.key + '-body');
+  if (!wrap || !head || !body) return;
   wrap.style.display = '';
-  const th = (t, right) => `<th style="text-align:${right?'right':'left'};padding:8px 10px;border-bottom:1px solid #e0e0e0;color:#616161;font-weight:600;white-space:nowrap;">${t}</th>`;
-  const td = (t, right, bold) => `<td style="text-align:${right?'right':'left'};padding:8px 10px;border-bottom:1px solid #f0f0f0;${bold?'font-weight:600;':''}white-space:nowrap;">${t}</td>`;
-  const numeric = c => c.type !== 'descr';
-  let html = `<thead><tr>${th(firstHeader)}` +
-    OEE_TABLE_COLS.map(c => th(c.label, numeric(c))).join('') + `</tr></thead><tbody>`;
-  rows.forEach(r => {
-    const bold = !!r._total;
-    const first = td(r._total ? 'Total' : r.name, false, true);
-    const cells = OEE_TABLE_COLS.map(c => {
-      let v;
-      if (c.type === 'descr')      v = r[c.key] || (r._total ? '' : '—');
-      else if (c.type === 'metric')v = (r[c.key]).toFixed(1) + '%';
-      else if (c.type === 'hours') v = (r[c.key]).toFixed(0) + ' h';
-      else if (c.type === 'time')  v = fmtMin(r[c.key]);
-      else if (c.type === 'qty')   v = Math.round(r[c.key]).toLocaleString();
-      return td(v, numeric(c), bold);
-    }).join('');
-    html += `<tr${bold?' style="background:#fafafa;"':''}>${first}${cells}</tr>`;
+
+  // Separate the Total row — it always pins to the bottom, off-pagination.
+  const dataRows  = ctx.rows.filter(r => !r._total);
+  const totalRow  = ctx.rows.find(r => r._total) || null;
+  const pageCount = Math.max(1, Math.ceil(dataRows.length / TBL_PER_PAGE));
+  if (_tblPage[ctx.key] >= pageCount) _tblPage[ctx.key] = pageCount - 1;
+  const pg    = _tblPage[ctx.key];
+  const start = pg * TBL_PER_PAGE;
+  const end   = Math.min(start + TBL_PER_PAGE, dataRows.length);
+  const page  = dataRows.slice(start, end);
+
+  // Header — sticky first col + scrolling cols.
+  let headHtml = `<tr style="height:32px;">`;
+  headHtml += `<th class="dt-fixed" style="text-align:left;padding:0 16px;font-family:'Open Sans',sans-serif;font-size:13px;font-weight:600;color:#424242;position:sticky;left:0;">`
+    + `<div class="dt-th-inner">${ICON_Y_INLINE}&nbsp;${ctx.firstHeader}</div></th>`;
+  ctx.cols.forEach(c => {
+    const right = c.align === 'right';
+    headHtml += `<th style="text-align:${right?'right':'left'};white-space:nowrap;padding:0 16px 0 8px;font-family:'Open Sans',sans-serif;font-size:12px;font-weight:600;color:#424242;">`
+      + `<div class="dt-th-inner ${right?'right':''}">${c.label}</div></th>`;
   });
-  html += '</tbody>';
-  tbl.innerHTML = html;
+  headHtml += `</tr>`;
+  head.innerHTML = headHtml;
+
+  // Body
+  const cellTd = (html, align, bold) =>
+    `<td style="text-align:${align==='right'?'right':'left'};font-family:${align==='right'?"'Roboto Mono',monospace":"'Open Sans',sans-serif"};font-size:14px;${bold?'font-weight:600;':''}color:#212121;vertical-align:middle;padding:6px 16px 6px 8px;white-space:nowrap;">${html}</td>`;
+  const firstTd = (label, rowClass) =>
+    `<td class="dt-fixed" style="font-family:'Open Sans',sans-serif;font-size:14px;font-weight:600;color:#212121;vertical-align:middle;padding:6px 16px;"><div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${label}</div></td>`;
+
+  let bodyHtml = '';
+  page.forEach((r, i) => {
+    const rowClass = (start + i) % 2 === 0 ? 'dt-row-even' : 'dt-row-odd';
+    bodyHtml += `<tr class="${rowClass}" style="height:44px;">`;
+    bodyHtml += firstTd(r.name, rowClass);
+    ctx.cols.forEach(c => { bodyHtml += cellTd(c.render(r), c.align, false); });
+    bodyHtml += `</tr>`;
+  });
+  if (totalRow) {
+    bodyHtml += `<tr class="dt-row-total" style="height:44px;">`;
+    bodyHtml += firstTd('Total');
+    ctx.cols.forEach(c => { bodyHtml += cellTd(c.render(totalRow), c.align, true); });
+    bodyHtml += `</tr>`;
+  }
+  body.innerHTML = bodyHtml;
+
+  // Footer pagination
+  const info = document.getElementById(ctx.key + '-tbl-page-info');
+  const prev = document.getElementById(ctx.key + '-tbl-prev');
+  const next = document.getElementById(ctx.key + '-tbl-next');
+  if (info) info.textContent = dataRows.length ? `${start + 1}–${end} / ${dataRows.length}` : '0 / 0';
+  if (prev) prev.disabled = pg === 0;
+  if (next) next.disabled = end >= dataRows.length;
+}
+
+// Pager handlers (wired from the footer buttons in index.html).
+function _tblPrev(key) { if (_tblPage[key] > 0) { _tblPage[key]--; if (_tblCtx[key]) renderStyledTable(_tblCtx[key]); } }
+function _tblNext(key) {
+  const ctx = _tblCtx[key]; if (!ctx) return;
+  const n = ctx.rows.filter(r => !r._total).length;
+  if ((_tblPage[key] + 1) * TBL_PER_PAGE < n) { _tblPage[key]++; renderStyledTable(ctx); }
+}
+function oeeTblPrev() { _tblPrev('oee'); }
+function oeeTblNext() { _tblNext('oee'); }
+function qtyTblPrev() { _tblPrev('qty'); }
+function qtyTblNext() { _tblNext('qty'); }
+
+// Minutes → "Xh Ym" (readable time format, like the OEE.csv columns).
+// (defined above near renderOeePager — kept here for proximity to the tables)
+
+// Format one OEE_TABLE_COLS cell value for a row.
+function oeeCellValue(c, r) {
+  if (c.type === 'descr')       return r[c.key] || (r._total ? '' : '—');
+  else if (c.type === 'metric') return (r[c.key]).toFixed(1) + '%';
+  else if (c.type === 'hours')  return (r[c.key]).toFixed(0) + ' h';
+  else if (c.type === 'time')   return fmtMin(r[c.key]);
+  else if (c.type === 'qty')    return Math.round(r[c.key]).toLocaleString();
+  return r[c.key];
+}
+
+// The proper OEE report data table (mirrors OEE.csv / screenshot): a dynamic
+// first column = the current X-axis dimension, then the full OEE columns, then a
+// bold Total row. Rows derive from blocks so they reconcile with chart + chips.
+function renderOeeMainTable(rows, firstHeader) {
+  const cc = document.getElementById('oee-col-count');
+  if (cc) cc.textContent = 'Columns: ' + (OEE_TABLE_COLS.length + 1);
+  renderStyledTable({
+    key: 'oee',
+    firstHeader,
+    cols: OEE_TABLE_COLS.map(c => ({
+      label: c.label,
+      align: c.type === 'descr' ? 'left' : 'right',
+      render: r => oeeCellValue(c, r),
+    })),
+    rows,
+  });
 }
 
 // Table under the OEE split chart: row per outer × inner, columns =
 // Availability / Performance / Quality / OEE / Manhours. Reconciles with bars.
 function renderOeeTable(cats, inners, data, outerHeader, innerHeader) {
-  const wrap = document.getElementById('oee-table-wrap');
-  const tbl  = document.getElementById('oee-table');
-  if (!wrap || !tbl) return;
-  wrap.style.display = '';
-  const th = (t, right) => `<th style="text-align:${right?'right':'left'};padding:8px 10px;border-bottom:1px solid #e0e0e0;color:#616161;font-weight:600;white-space:nowrap;">${t}</th>`;
-  const td = (t, right, bold) => `<td style="text-align:${right?'right':'left'};padding:8px 10px;border-bottom:1px solid #f0f0f0;${bold?'font-weight:600;':''}white-space:nowrap;">${t}</td>`;
-  let html = `<thead><tr>${th(outerHeader)}${th(innerHeader)}${th('Availability',1)}${th('Performance',1)}${th('Quality',1)}${th('OEE',1)}${th('Manhours',1)}</tr></thead><tbody>`;
-  cats.forEach(cat => {
-    inners.forEach(l => {
-      const d = data[cat] && data[cat][l];
-      if (!d) return;
-      html += `<tr>${td(cat)}${td(l)}${td(d.availability.toFixed(1)+'%',1)}${td(d.performance.toFixed(1)+'%',1)}${td(d.quality.toFixed(1)+'%',1)}${td(d.oee.toFixed(1)+'%',1,true)}${td(d.manhours.toFixed(1)+' h',1)}</tr>`;
-    });
+  const rows = [];
+  cats.forEach(cat => inners.forEach(l => {
+    const d = data[cat] && data[cat][l];
+    if (d) rows.push({ name: cat, _inner: l, ...d });
+  }));
+  // Total row — weighted OEE isn't meaningful from cell %s, so recompute from
+  // the underlying blocks (manhours deduped across all visible operators).
+  if (rows.length) {
+    const tot = rollupOEE(selectedBlocks());
+    rows.push({ name: 'Total', _inner: '', _total: true,
+      availability: tot.availability, performance: tot.performance, quality: tot.quality, oee: tot.oee,
+      manhours: blockManhours(selectedBlocks()) });
+  }
+  const cc = document.getElementById('oee-col-count');
+  if (cc) cc.textContent = 'Columns: 7';
+  renderStyledTable({
+    key: 'oee',
+    firstHeader: outerHeader,
+    cols: [
+      { label: innerHeader,    align: 'left',  render: r => r._total ? '' : (r._inner || '') },
+      { label: 'Availability', align: 'right', render: r => r.availability.toFixed(1) + '%' },
+      { label: 'Performance',  align: 'right', render: r => r.performance.toFixed(1) + '%' },
+      { label: 'Quality',      align: 'right', render: r => r.quality.toFixed(1) + '%' },
+      { label: 'OEE',          align: 'right', render: r => r.oee.toFixed(1) + '%' },
+      { label: 'Manhours',     align: 'right', render: r => r.manhours.toFixed(1) + ' h' },
+    ],
+    rows,
   });
-  html += '</tbody>';
-  tbl.innerHTML = html;
 }
 
 function drawOeeChart() {
   const container = document.getElementById('oee-chart-container');
   const W = container.clientWidth;
   const H = container.clientHeight;
-  // Split-by mode uses a two-row x-axis (leader + category), so give it more
-  // bottom room; the line chart keeps the tighter margin.
-  const margin = { top: 16, right: oeeSplitBy ? 52 : 24, bottom: oeeSplitBy ? 52 : 40, left: 56 };
+  // A line chart is only meaningful on the Day (time) axis with no split.
+  // Anything categorical, or any split, renders as bars — and the user's Bar
+  // toggle forces bars on the Day axis too.
+  const lineMode = oeeChartType === 'line' && oeeXAxis === 'Day' && !oeeSplitBy;
+
+  // Bars (split or single-cluster) use a roomier bottom margin (two x-axis rows
+  // in split mode); the line chart keeps the tighter margin.
+  const margin = { top: 16, right: 24, bottom: oeeSplitBy ? 52 : 40, left: 56 };
   const width  = W - margin.left - margin.right;
   const height = H - margin.top  - margin.bottom;
 
@@ -2010,25 +2135,20 @@ function drawOeeChart() {
   const svg   = d3.select('#oee-chart-container').append('svg').attr('width', W).attr('height', H);
   const chart = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`);
 
-  // Split by = Shift leader → grouped bars (one cluster per supervisor),
-  // following Evocon's "Split by switches a line chart to grouped bars" pattern.
-  if (oeeSplitBy) {
-    drawOeeLeaderBars(chart, width, height);
+  // Bar path: grouped (split) or single-cluster (no split). One cluster per
+  // X-axis category; bars inside = the 4 OEE % components (A×P×Q is
+  // multiplicative, never stacked). Manhours is NOT charted — it lives in the
+  // data table only.
+  if (!lineMode) {
+    drawOeeBars(chart, width, height);
     return;
   }
 
-  // Split off: no pager. The data table shows the proper per-X-axis OEE table
-  // for categorical axes (Operators / Operator group / Shift leaders); for the
-  // Day line view there's no per-category table, so hide it.
+  // Line path (Day axis, no split): no pager, no per-category table.
   const _pg = document.getElementById('oee-pager');
   if (_pg) _pg.style.display = 'none';
-  if (oeeXAxis === 'Day') {
-    const _tw = document.getElementById('oee-table-wrap');
-    if (_tw) _tw.style.display = 'none';
-  } else {
-    const dimKey = oeeDimKey(oeeXAxis);
-    renderOeeMainTable(oeeTableRows(selectedBlocks(), dimKey), OEE_DIMS[dimKey].header);
-  }
+  const _tw = document.getElementById('oee-table-wrap');
+  if (_tw) _tw.style.display = 'none';
 
   const x = d3.scaleLinear().domain([1, OEE_DATA.length]).range([0, width]);
   const y = d3.scaleLinear().domain([0, 100]).range([height, 0]);
@@ -2263,6 +2383,299 @@ function drawOeeChart() {
     item.innerHTML = `<span style="display:inline-block;width:12px;height:12px;border-radius:2px;background:${line.color};flex-shrink:0;"></span><span style="font-family:Inter,sans-serif;font-size:12px;color:#424242;">${line.label}</span>`;
     legendEl.appendChild(item);
   });
+}
+
+// ── Quantities report ───────────────────────────────────────────────────────
+// Stacked bar chart (Figma 2045-7344): per X-axis value, Scrap + Good quality +
+// Potential stack up to the ideal output. Derived from SHIFT_BLOCKS, so it
+// reconciles with OEE and the filter chips. Controls mirror OEE (X-axis / Split
+// by); Y-axis is fixed to "Quantity (primary unit)".
+
+function toggleQtyXAxisDropdown(event) {
+  event.stopPropagation();
+  const dd = document.getElementById('qty-xaxis-dropdown');
+  const wasOpen = dd.classList.contains('open');
+  document.querySelectorAll('.xaxis-dropdown, .filter-dropdown').forEach(el => el.classList.remove('open'));
+  if (wasOpen) return;
+  dd.innerHTML = '';
+  ['Day', 'Operators', 'Operator group', 'Shift leaders'].forEach(opt => {
+    const el = document.createElement('div');
+    el.className = 'xaxis-opt' + (qtyXAxis === opt ? ' selected' : '');
+    el.textContent = opt;
+    el.addEventListener('click', e => { e.stopPropagation(); selectQtyXAxis(opt); });
+    dd.appendChild(el);
+  });
+  dd.classList.add('open');
+}
+function selectQtyXAxis(opt) {
+  qtyXAxis = opt;
+  _qtyPage = 0; _tblPage.qty = 0;
+  document.getElementById('qty-xaxis-dropdown').classList.remove('open');
+  document.getElementById('qty-xaxis-btn').innerHTML = 'X-axis: ' + opt + ' &nbsp;▾';
+  drawQtyChart();
+}
+
+function toggleQtySplitDropdown(event) {
+  event.stopPropagation();
+  const dd = document.getElementById('qty-splitby-dropdown');
+  const wasOpen = dd.classList.contains('open');
+  document.querySelectorAll('.xaxis-dropdown, .filter-dropdown').forEach(el => el.classList.remove('open'));
+  if (wasOpen) return;
+  dd.innerHTML = '';
+  [{ val: null, label: '–' },
+   { val: 'Shift leaders', label: 'Shift leaders' },
+   { val: 'Operators', label: 'Operators' },
+   { val: 'Operator group', label: 'Operator group' }].forEach(opt => {
+    const el = document.createElement('div');
+    el.className = 'xaxis-opt' + (qtySplitBy === opt.val ? ' selected' : '');
+    el.textContent = opt.label;
+    el.addEventListener('click', e => { e.stopPropagation(); selectQtySplit(opt.val); });
+    dd.appendChild(el);
+  });
+  dd.classList.add('open');
+}
+function selectQtySplit(val) {
+  qtySplitBy = val;
+  _qtyPage = 0; _tblPage.qty = 0;
+  document.getElementById('qty-splitby-dropdown').classList.remove('open');
+  document.getElementById('qty-splitby-btn').innerHTML = 'Split by: ' + (val || '–') + ' &nbsp;▾';
+  drawQtyChart();
+}
+
+// Format a quantity for axis / tooltip — thousands spaced like Evocon ("4 000").
+function fmtQty(n) {
+  return Math.round(n || 0).toLocaleString('en-US').replace(/,/g, ' ');
+}
+
+// The quantities pager (N bars per page).
+function renderQtyPager(totalCats, pageCount) {
+  const el = document.getElementById('qty-pager');
+  if (!el) return;
+  if (pageCount <= 1) { el.style.display = 'none'; return; }
+  el.style.display = 'flex';
+  const from = _qtyPage * QTY_CATS_PER_PAGE + 1;
+  const to   = Math.min(totalCats, (_qtyPage + 1) * QTY_CATS_PER_PAGE);
+  el.innerHTML =
+    `<span style="font-family:Inter,sans-serif;font-size:12px;color:#616161;">${from}-${to}/${totalCats}</span>` +
+    `<button id="qty-prev" ${_qtyPage===0?'disabled':''} style="border:none;background:none;cursor:pointer;font-size:16px;color:${_qtyPage===0?'#ccc':'#616161'};padding:0 6px;">‹</button>` +
+    `<button id="qty-next" ${_qtyPage>=pageCount-1?'disabled':''} style="border:none;background:none;cursor:pointer;font-size:16px;color:${_qtyPage>=pageCount-1?'#ccc':'#616161'};padding:0 6px;">›</button>`;
+  document.getElementById('qty-prev')?.addEventListener('click', () => { if (_qtyPage>0){ _qtyPage--; drawQtyChart(); } });
+  document.getElementById('qty-next')?.addEventListener('click', () => { if (_qtyPage<pageCount-1){ _qtyPage++; drawQtyChart(); } });
+}
+
+// Quantities data table — dynamic first column + descr + qty columns + Total row.
+// Uses the shared styled-table renderer (same chrome as Downtime / OEE).
+function renderQtyTable(rows, firstHeader) {
+  const cc = document.getElementById('qty-col-count');
+  if (cc) cc.textContent = 'Columns: ' + (QTY_TABLE_COLS.length + 1);
+  renderStyledTable({
+    key: 'qty',
+    firstHeader,
+    cols: QTY_TABLE_COLS.map(c => ({
+      label: c.label,
+      align: c.type === 'descr' ? 'left' : 'right',
+      render: r => c.type === 'descr' ? (r[c.key] || (r._total ? '' : '—')) : fmtQty(r[c.key]),
+    })),
+    rows,
+  });
+}
+
+// Compact split-mode table: category × split-value rows + the qty buckets.
+function renderQtySplitTable(cats, inners, data, outerHeader, innerHeader) {
+  const rows = [];
+  cats.forEach(cat => inners.forEach(l => {
+    const d = data[cat] && data[cat][l];
+    if (d) rows.push({ name: cat, _inner: l, ...d });
+  }));
+  if (rows.length) {
+    const tot = rollupQty(selectedBlocks());
+    rows.push({ name: 'Total', _inner: '', _total: true, ...tot });
+  }
+  const cc = document.getElementById('qty-col-count');
+  if (cc) cc.textContent = 'Columns: 6';
+  renderStyledTable({
+    key: 'qty',
+    firstHeader: outerHeader,
+    cols: [
+      { label: innerHeader,     align: 'left',  render: r => r._total ? '' : (r._inner || '') },
+      { label: 'Good quantity', align: 'right', render: r => fmtQty(r.goodQty) },
+      { label: 'Scrap',         align: 'right', render: r => fmtQty(r.scrap) },
+      { label: 'Potential',     align: 'right', render: r => fmtQty(r.potential) },
+      { label: 'Total quantity',align: 'right', render: r => fmtQty(r.totalQty) },
+    ],
+    rows,
+  });
+}
+
+function drawQtyChart() {
+  const container = document.getElementById('qty-chart-container');
+  const W = container.clientWidth;
+  const H = container.clientHeight;
+  const split = !!qtySplitBy;
+  const margin = { top: 16, right: 24, bottom: split ? 52 : 28, left: 72 };
+  const width  = W - margin.left - margin.right;
+  const height = H - margin.top  - margin.bottom;
+
+  d3.select('#qty-chart-container').selectAll('svg').remove();
+  const svg   = d3.select('#qty-chart-container').append('svg').attr('width', W).attr('height', H);
+  const chart = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`);
+  const tooltipEl = document.getElementById('chart-tooltip');
+
+  // Build the (outer, inner) cells. Day axis → one cell per day; categorical
+  // axes → the matrix (self-cell when not split, split cells when split).
+  let cats, innersForCat, cellOf, catLabel, outerHeader, inners;
+  if (qtyXAxis === 'Day') {
+    const days = qtyByDay(selectedBlocks());
+    const byKey = {}; days.forEach(d => byKey[d.day] = d);
+    cats = days.map(d => d.day);
+    inners = [null];
+    innersForCat = () => [null];
+    cellOf = (cat) => byKey[cat];
+    catLabel = (cat) => String(cat);
+    outerHeader = 'Day';
+  } else {
+    const outerDim = oeeDimKey(qtyXAxis);
+    const innerDim = split ? oeeDimKey(qtySplitBy) : outerDim;
+    const m = qtyMatrixFromBlocks(selectedBlocks(), outerDim, innerDim);
+    inners = split ? m.innerLabels : m.labels;
+    cellOf = (cat, l) => m.data[cat] && m.data[cat][split ? l : cat];
+    innersForCat = (cat) => split
+      ? inners.filter(l => m.data[cat] && m.data[cat][l])
+      : (m.data[cat] && m.data[cat][cat] ? [cat] : []);
+    cats = m.labels.filter(c => innersForCat(c).length);
+    catLabel = (cat) => String(cat);
+    outerHeader = m.outerHeader;
+  }
+
+  // Paginate.
+  const pageCount = Math.max(1, Math.ceil(cats.length / QTY_CATS_PER_PAGE));
+  if (_qtyPage >= pageCount) _qtyPage = pageCount - 1;
+  const allCats = cats;
+  cats = cats.slice(_qtyPage * QTY_CATS_PER_PAGE, (_qtyPage + 1) * QTY_CATS_PER_PAGE);
+
+  // Y domain = max stacked total (ideal output) across visible cells.
+  let maxTotal = 0;
+  cats.forEach(cat => innersForCat(cat).forEach(l => {
+    const d = cellOf(cat, l); if (d) maxTotal = Math.max(maxTotal, d.idealQty || 0);
+  }));
+  const y  = d3.scaleLinear().domain([0, Math.max(10, maxTotal * 1.05)]).range([height, 0]).nice();
+  const x0 = d3.scaleBand().domain(cats).range([0, width]).paddingInner(0.3).paddingOuter(0.15);
+
+  // Gridlines
+  chart.append('g')
+    .call(d3.axisLeft(y).ticks(8).tickSize(-width).tickFormat(''))
+    .call(ax => ax.select('.domain').remove())
+    .call(ax => ax.selectAll('line').style('stroke', '#eeeeee'));
+
+  const subTicks = [];
+  const catTicks = [];
+
+  cats.forEach(cat => {
+    const present = innersForCat(cat);
+    const catG = chart.append('g').attr('transform', `translate(${x0(cat)},0)`);
+    const x1 = d3.scaleBand().domain(present.map((l,i)=>String(i))).range([0, x0.bandwidth()]).paddingInner(0.18).paddingOuter(split ? 0.05 : 0.22);
+
+    present.forEach((l, i) => {
+      const d = cellOf(cat, l);
+      if (!d) return;
+      const bw = x1.bandwidth();
+      const bx = x1(String(i));
+      // Stack bottom→top: Scrap, then Good quality, then Potential (top) —
+      // matches the Figma legend order (Potential / Good / Scrap top→bottom).
+      let acc = 0;
+      const order = QTY_SEGMENTS.filter(s => !_qtyHidden.has(s.key))
+        .sort((a,b) => QTY_SEGMENTS.indexOf(b) - QTY_SEGMENTS.indexOf(a)); // scrap→good→potential
+      order.forEach(s => {
+        const v = d[s.key] || 0;
+        if (v <= 0) return;
+        const yTop = y(acc + v), yBot = y(acc);
+        catG.append('rect')
+          .attr('x', bx).attr('width', bw)
+          .attr('y', yTop).attr('height', Math.max(0, yBot - yTop))
+          .attr('fill', s.color)
+          .on('mousemove', (event) => {
+            if (!tooltipEl) return;
+            const title = qtyXAxis === 'Day' ? ('Day ' + cat) : (split ? `${cat} — ${l}` : cat);
+            tooltipEl.innerHTML =
+              `<div style="font-family:'Open Sans',sans-serif;font-size:12px;">` +
+              `<div style="font-weight:600;margin-bottom:2px;">${title}</div>` +
+              `<div>${s.label}: <b>${fmtQty(v)}</b></div></div>`;
+            tooltipEl.style.display = 'block';
+            tooltipEl.style.left = (event.offsetX + 72) + 'px';
+            tooltipEl.style.top  = (event.offsetY + 24) + 'px';
+          })
+          .on('mouseleave', () => { if (tooltipEl) tooltipEl.style.display = 'none'; });
+        acc += v;
+      });
+      if (split) subTicks.push({ x: x0(cat) + bx + bw / 2, label: l });
+    });
+    catTicks.push({ x: x0(cat) + x0.bandwidth() / 2, label: catLabel(cat) });
+  });
+
+  // Baseline
+  chart.append('line').attr('x1', 0).attr('x2', width).attr('y1', height).attr('y2', height).style('stroke', '#e0e0e0');
+
+  // Sub-cluster labels (split only)
+  if (split) {
+    chart.append('g').selectAll('text.sub').data(subTicks).join('text')
+      .attr('x', d => d.x).attr('y', height + 14).attr('text-anchor', 'middle')
+      .style('font-family','Inter,sans-serif').style('font-size','10px').style('fill','#616161')
+      .text(d => d.label);
+  }
+  // Category labels
+  chart.append('g').selectAll('text.cat').data(catTicks).join('text')
+    .attr('x', d => d.x).attr('y', height + (split ? 30 : 16)).attr('text-anchor', 'middle')
+    .style('font-family','Inter,sans-serif').style('font-size','11px').style('font-weight', split ? '600' : '400').style('fill', split ? '#424242' : '#616161')
+    .text(d => d.label);
+
+  // Y axis (quantity)
+  const yAxisG = chart.append('g').call(d3.axisLeft(y).ticks(8).tickFormat(d => fmtQty(d)).tickSize(0));
+  yAxisG.select('.domain').remove();
+  yAxisG.selectAll('text').style('font-family','Inter,sans-serif').style('font-size','11px').style('fill','#616161');
+
+  // Legend — Potential / Good quality / Scrap, click to toggle.
+  const legendEl = document.getElementById('qty-chart-legend');
+  legendEl.innerHTML = '';
+  QTY_SEGMENTS.forEach(s => {
+    const hidden = _qtyHidden.has(s.key);
+    const item = document.createElement('div');
+    item.style.cssText = 'display:flex;align-items:center;gap:6px;cursor:pointer;opacity:' + (hidden ? '0.4' : '1') + ';';
+    item.innerHTML = `<span style="display:inline-block;width:12px;height:12px;border-radius:2px;background:${s.color};flex-shrink:0;"></span><span style="font-family:Inter,sans-serif;font-size:12px;color:#424242;">${s.label}</span>`;
+    item.addEventListener('click', () => {
+      if (_qtyHidden.has(s.key)) _qtyHidden.delete(s.key); else _qtyHidden.add(s.key);
+      drawQtyChart();
+    });
+    legendEl.appendChild(item);
+  });
+
+  // Pager
+  renderQtyPager(allCats.length, pageCount);
+
+  // Data table. Day / no-split → the full qty table; split → compact table.
+  if (split) {
+    const outerDim = oeeDimKey(qtyXAxis);
+    const innerDim = oeeDimKey(qtySplitBy);
+    const m = qtyMatrixFromBlocks(selectedBlocks(), outerDim, innerDim);
+    const tableCats = m.labels.filter(c => m.innerLabels.some(l => m.data[c] && m.data[c][l]));
+    renderQtySplitTable(tableCats, m.innerLabels, m.data, m.outerHeader, m.innerHeader);
+  } else if (qtyXAxis === 'Day') {
+    // Day view: one table row per day (familiar to the OEE Day-less table).
+    const days = qtyByDay(selectedBlocks());
+    const rows = days.map(d => {
+      const r = { ...d, name: 'Day ' + d.day };
+      QTY_TABLE_COLS.filter(c => c.type === 'descr').forEach(c => { r[c.key] = descrValues(selectedBlocks().filter(b => b.day === d.day), c.key); });
+      return r;
+    });
+    if (rows.length) {
+      const tot = rollupQty(selectedBlocks()); tot.name = 'Total'; tot._total = true;
+      QTY_TABLE_COLS.filter(c => c.type === 'descr').forEach(c => { tot[c.key] = ''; });
+      rows.push(tot);
+    }
+    renderQtyTable(rows, 'Day');
+  } else {
+    const outerDim = oeeDimKey(qtyXAxis);
+    renderQtyTable(qtyTableRows(selectedBlocks(), outerDim), OEE_DIMS[outerDim].header);
+  }
 }
 
 // ── Init ──────────────────────────────────────────────────────────────────────

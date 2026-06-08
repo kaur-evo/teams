@@ -14,7 +14,9 @@ const OperatorsPanel = {
 
         <!-- ═══════════ OVERVIEW ═══════════ -->
         <template v-if="currentView === 'overview'">
-          <div class="op-header">
+          <!-- Header matches the saved card (Figma 32124:11673): centered
+               operator-hat icon + "Operators", 20px SemiBold #212121. -->
+          <div class="op-header op-header--centered">
             <v-icon size="24" color="#212121">mdi-account-hard-hat</v-icon>
             <span class="op-header-title">Operators</span>
           </div>
@@ -69,8 +71,9 @@ const OperatorsPanel = {
             <div v-for="entry in entries" :key="entry.id" class="op-card op-card--alt"
                  @click="editEntry(entry.id)">
               <div class="op-card-alt-content">
-                <!-- Row 1: names (single line, truncated). Supervisors first,
-                     each with an inline star after the name, then the rest. -->
+                <!-- Row 1: label. With operators → their names (leader first w/
+                     flag, then the rest). Additional-workforce-only entry → the
+                     label reads "Additional workforce". -->
                 <div v-if="entry.operatorIds.length > 0" class="op-card-alt-row">
                   <span class="op-card-alt-names"
                         @mouseenter="showTooltip($event, getEntryNamesTooltip(entry))"
@@ -82,23 +85,25 @@ const OperatorsPanel = {
                     </template>
                   </span>
                 </div>
-
-                <!-- Row 2: single people-count chip (Figma 32124:11673). Operators
-                     + additional workforce combined. Hover surfaces the
-                     additional-workforce breakdown when present. -->
-                <div v-if="entry.operatorIds.length > 0 || entry.helperCount > 0" class="op-card-alt-row">
-                  <span class="op-card-alt-chip"
-                        @mouseenter="showTooltip($event, getEntryPeopleTooltip(entry))"
-                        @mouseleave="hideTooltip">
-                    <img src="icn/operators%20%28account-hard-hat%29.svg" alt="" width="18" height="18" class="op-card-alt-chip-icn">
-                    {{ entry.operatorIds.length + (entry.helperCount || 0) }}
-                  </span>
+                <div v-else-if="entry.helperCount > 0" class="op-card-alt-row">
+                  <span class="op-card-alt-names">Additional workforce</span>
                 </div>
 
-                <!-- Time row at the bottom. -->
-                <div class="op-card-alt-time">
-                  <v-icon size="16" color="#212121">mdi-clock-outline</v-icon>
-                  <span>{{ entry.startTime }} - {{ entry.endTime }}</span>
+                <!-- Labels row (Figma 32124:11673): inline caption icon-labels —
+                     clock + time, and hat + total people (operators + additional
+                     workforce). Not a chip; both sit on one 12px caption row. -->
+                <div class="op-card-alt-labels">
+                  <span class="op-card-alt-label">
+                    <v-icon size="16" color="#212121">mdi-clock-outline</v-icon>
+                    <span>{{ entry.startTime }} - {{ entry.endTime }}</span>
+                  </span>
+                  <span v-if="entry.operatorIds.length > 0 || entry.helperCount > 0"
+                        class="op-card-alt-label"
+                        @mouseenter="showTooltip($event, getEntryPeopleTooltip(entry))"
+                        @mouseleave="hideTooltip">
+                    <span class="op-card-alt-label-key">Total</span>
+                    <span>{{ entry.operatorIds.length + (entry.helperCount || 0) }}</span>
+                  </span>
                 </div>
               </div>
               <!-- Kebab menu — Edit / Duplicate / Delete. stopPropagation so
@@ -153,8 +158,10 @@ const OperatorsPanel = {
              same checkbox shape with an inline "N people" chip. Footer holds
              a toggle "Adjust operator roles" + Start/End time inputs. -->
         <template v-if="currentView === 'add-operators'">
+          <!-- Header matches the saved card (Figma 32124:11673): centered
+               operator-hat icon + "Operators". -->
           <div class="op-header op-header--centered">
-            <v-icon size="24" color="#212121">mdi-account</v-icon>
+            <v-icon size="24" color="#212121">mdi-account-hard-hat</v-icon>
             <span class="op-header-title">Operators</span>
           </div>
 
@@ -330,11 +337,14 @@ const OperatorsPanel = {
               </button>
             </div>
 
-            <!-- Leader mode: "Shift leader" select sits below the operators list
-                 (before the time inputs). The dropdown lists eligible (canLead)
-                 operators; picking one also checks them into the shift. -->
-            <div v-if="rolesMode === 'leader' && anyCanLead" class="op-leader-field">
-              <button type="button" class="op-leader-select" @click.stop="toggleLeaderDropdown">
+            <!-- Leader mode: "Shift leader" select below the operators list. The
+                 dropdown lists operators who can lead AND are checked into the
+                 shift — so the operator list populates what's pickable. Disabled
+                 (0.5 opacity) with a hover tooltip until ≥1 eligible is selected. -->
+            <div v-if="rolesMode === 'leader' && anyCanLead" class="op-leader-field" :class="{ 'is-disabled': !leaderEnabled }"
+                 @mouseenter="!leaderEnabled && showTooltip($event, 'No leading operators selected')"
+                 @mouseleave="hideTooltip">
+              <button type="button" class="op-leader-select" :disabled="!leaderEnabled" @click.stop="toggleLeaderDropdown">
                 <v-icon class="op-leader-icn" size="24" color="#707070">mdi-flag</v-icon>
                 <span class="op-leader-value" :class="{ 'is-placeholder': !leaderName }">{{ leaderName || 'Shift leader' }}</span>
                 <v-icon size="24" color="#757575">mdi-menu-down</v-icon>
@@ -443,11 +453,6 @@ const OperatorsPanel = {
     // 'flat' (all ops in one flat list — like Evocon today). Set via H-key.
     const opList = ref(window.__protoOpList || 'flat');
     window.addEventListener('proto:opList', (e) => { opList.value = e.detail; });
-
-    // Shift-leader auto-assign (H-key). 'off' (default) → user must pick the
-    // leader manually; 'on' → first eligible operator auto-fills.
-    const leaderAutopick = ref(window.__protoLeaderAutopick || 'off');
-    window.addEventListener('proto:leaderAutopick', (e) => { leaderAutopick.value = e.detail; });
 
     // ── Kebab menu (alternative card): one open at a time. ──
     // Teleported to <body> + position: fixed so the menu escapes the modal's
@@ -623,23 +628,20 @@ const OperatorsPanel = {
     }
 
     // ── Leader mode ("Shift leader" select, top of the picker) ──
-    // Inverted flow: the dropdown lists every operator who CAN lead (canLead),
-    // whether or not they're checked into the shift yet. Picking a leader also
-    // CHECKS THEM INTO the shift — so the leader drives the operator selection,
-    // not the other way around.
+    // The leader is chosen from operators who (a) can lead AND (b) are checked
+    // into this shift — so the operator-list checkboxes populate what's pickable.
+    // The field is disabled (with a tooltip) until ≥1 eligible operator is in.
     const formLeaderId = ref(null);
     const leaderDropdownOpen = ref(false);
     const leaderDropdownPos = ref({ top: 0, left: 0 });
     let _leaderAnchorEl = null;
-    const leaderOptions = computed(() => {
-      const q = searchQuery.value.toLowerCase().trim();
-      let ops = allOperators.filter(o => o.canLead);
-      if (q) ops = ops.filter(o =>
-        o.firstName.toLowerCase().includes(q) || o.lastName.toLowerCase().includes(q));
-      return ops;
-    });
+    const leaderOptions = computed(() =>
+      allOperators.filter(o => o.canLead && formSelectedOps.value.includes(o.id))
+    );
     // No operator in the org can lead → hide the field entirely.
     const anyCanLead = computed(() => allOperators.some(o => o.canLead));
+    // Eligible leaders present on the shift → field enabled.
+    const leaderEnabled = computed(() => leaderOptions.value.length > 0);
     const leaderName = computed(() => {
       const op = allOperators.find(o => o.id === formLeaderId.value);
       return op ? `${op.firstName} ${op.lastName}`.trim() : '';
@@ -653,6 +655,7 @@ const OperatorsPanel = {
       leaderDropdownPos.value = { top, left: r.left, width: r.width };
     }
     function toggleLeaderDropdown(event) {
+      if (!leaderEnabled.value) return;
       if (leaderDropdownOpen.value) { leaderDropdownOpen.value = false; return; }
       leaderDropdownOpen.value = true;
       _leaderAnchorEl = event && event.currentTarget;
@@ -660,32 +663,17 @@ const OperatorsPanel = {
     }
     function closeLeaderDropdown() { leaderDropdownOpen.value = false; }
     function pickLeader(op) {
-      if (formLeaderId.value === op.id) {
-        // Re-pick the active leader → clear the leader (operator stays checked in).
-        formLeaderId.value = null;
-      } else {
-        formLeaderId.value = op.id;
-        // Selecting a leader checks them into the shift if not already.
-        if (!formSelectedOps.value.includes(op.id)) {
-          formSelectedOps.value = [...formSelectedOps.value, op.id];
-          seedRoleForOp(op.id);
-        }
-      }
+      // Re-pick the active leader clears it; otherwise set it. (Operators are
+      // already checked in — this only picks among them.)
+      formLeaderId.value = formLeaderId.value === op.id ? null : op.id;
       leaderDropdownOpen.value = false;
     }
     // If the chosen leader gets unchecked from the shift, drop the selection.
+    // No auto-pick — the leader is always selected manually (the field stays on
+    // its "Shift leader" placeholder until the user picks one).
     watch(formSelectedOps, (ids) => {
       if (formLeaderId.value != null && !ids.includes(formLeaderId.value)) {
         formLeaderId.value = null;
-      }
-    });
-    // Auto-assign (ON only): as soon as ANY operator is checked into the shift
-    // and no leader is set, make the first checked-in operator the leader. With
-    // auto-assign OFF (default), the user always picks the leader manually.
-    watch(formSelectedOps, (ids) => {
-      if (leaderAutopick.value !== 'on') return;
-      if (ids.length > 0 && formLeaderId.value == null) {
-        formLeaderId.value = ids[0];
       }
     });
 
@@ -1379,6 +1367,7 @@ const OperatorsPanel = {
       leaderDropdownPos,
       leaderOptions,
       anyCanLead,
+      leaderEnabled,
       leaderName,
       toggleLeaderDropdown,
       pickLeader,

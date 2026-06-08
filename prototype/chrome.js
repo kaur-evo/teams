@@ -90,7 +90,7 @@
     { id: 'shift-view',       href: 'index.html' },
     { id: 'factory-overview' },
     { id: 'dashboards' },
-    { id: 'reports' },
+    { id: 'reports',          href: '../wf-reports/index.html' },
   ];
   const SB1_ITEMS_BOTTOM = [
     { id: 'settings',         href: 'setup-proto.html' },

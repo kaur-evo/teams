@@ -920,6 +920,31 @@
       line-height: 16px;
       color: #212121;
     }
+    /* Caption labels row (Figma 32124:11673): inline icon+value pairs (time,
+       total people) on one wrapping 12px row — not chips. */
+    .op-card-alt-labels {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 4px 16px;
+    }
+    .op-card-alt-label {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      font-family: 'Open Sans', sans-serif;
+      font-size: 12px;
+      line-height: 16px;
+      color: #212121;
+    }
+    .op-card-alt-label-icn { width: 16px; height: 16px; display: block; flex-shrink: 0; }
+    /* "TOTAL" key — Evocon caption-label style: uppercase, 600, tracked. */
+    .op-card-alt-label-key {
+      color: #707070;
+      font-weight: 600;
+      letter-spacing: 0.8px;
+      text-transform: uppercase;
+    }
     .op-card-alt-total {
       margin-left: 12px;
       font-weight: 600;

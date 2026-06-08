@@ -1,7 +1,7 @@
 // Shared mock data for operators & teams prototypes
 // Used by: setup-proto.html, index.html
 
-const DATA_VERSION = 19; // bump to wipe stale localStorage
+const DATA_VERSION = 20; // bump to wipe stale localStorage
 
 // Tags are setup-only descriptive labels (not used in Shift View role pick).
 const MOCK_TAGS = ['Night-shift', 'Trainer', 'Newcomer', 'Bilingual'];
@@ -28,20 +28,29 @@ const MOCK_FACTORIES = [
 // the group is scoped to.
 const MOCK_TEAMS = [
   { id: 1, name: 'Operators', color: '#9e9e9e', isGlobal: true, factoryIds: [], tags: [] },
+  { id: 2, name: 'Blue Team', color: '#2196f3', isGlobal: true, factoryIds: [], tags: [] },
+  { id: 3, name: 'Red Team',  color: '#e53935', isGlobal: true, factoryIds: [], tags: [] },
 ];
 
-// Operators all sit in the Operators group out of the box — Kaur creates named
-// groups if/when needed. `canLead` (Leader mode) is granted to a couple of
-// operators so the leader-select demo works.
+// Operators spread across the named groups: Blue Team and Red Team each have a
+// leader (canLead) plus members; the remaining two sit in the fallback
+// "Operators" group. `canLead` (Leader mode) drives the leader-select demo.
 const MOCK_OPERATORS = [
-  { id: 1, firstName: 'Vasilis',  lastName: 'Mavroeidis',   role: null, tags: ['Night-shift'], teamId: 1, canLead: true, stations: ['Filling Line 1', 'Filling Line 2', 'Packaging A', 'Packaging B'] },
-  { id: 2, firstName: 'Nikos',    lastName: 'Papadopoulos', role: null, tags: ['Trainer'],     teamId: 1, canLead: true, stations: ['Filling Line 1', 'Filling Line 2', 'Warehouse'] },
-  { id: 3, firstName: 'Maria',    lastName: 'Kostopoulou',  role: null, tags: [],              teamId: 1,                stations: ['Filling Line 1', 'Packaging A', 'Packaging B'] },
-  { id: 4, firstName: 'Giorgos',  lastName: 'Antoniou',     role: null, tags: [],              teamId: 1,                stations: ['Packaging A', 'Packaging B', 'Warehouse'] },
-  { id: 5, firstName: 'Elena',    lastName: 'Christodoulou',role: null, tags: ['Newcomer'],    teamId: 1,                stations: ['Filling Line 2', 'Packaging A', 'Quality Lab'] },
-  { id: 6, firstName: 'Dimitris', lastName: 'Ekonomou',     role: null, tags: [],              teamId: 1,                stations: ['Packaging A', 'Packaging B', 'Warehouse'] },
-  { id: 7, firstName: 'Stavros',  lastName: 'Nikolaou',     role: null, tags: [],              teamId: 1,                stations: ['Filling Line 1', 'Warehouse', 'Quality Lab'] },
-  { id: 8, firstName: 'Sofia',    lastName: 'Panagiotou',   role: null, tags: ['Night-shift'], teamId: 1,                stations: ['Quality Lab', 'Packaging B'] },
+  // Blue Team
+  { id: 1,  firstName: 'Vasilis',  lastName: 'Mavroeidis',   role: null, tags: ['Night-shift'], teamId: 2, canLead: true, stations: ['Filling Line 1', 'Filling Line 2', 'Packaging A', 'Packaging B'] },
+  { id: 3,  firstName: 'Maria',    lastName: 'Kostopoulou',  role: null, tags: [],              teamId: 2,                stations: ['Filling Line 1', 'Packaging A', 'Packaging B'] },
+  { id: 4,  firstName: 'Giorgos',  lastName: 'Antoniou',     role: null, tags: [],              teamId: 2,                stations: ['Packaging A', 'Packaging B', 'Warehouse'] },
+  { id: 9,  firstName: 'Petros',   lastName: 'Lambrou',      role: null, tags: [],              teamId: 2,                stations: ['Filling Line 1', 'Filling Line 2', 'Packaging A'] },
+  { id: 10, firstName: 'Anna',     lastName: 'Dimitriou',    role: null, tags: ['Newcomer'],    teamId: 2,                stations: ['Packaging A', 'Packaging B'] },
+  // Red Team
+  { id: 2,  firstName: 'Nikos',    lastName: 'Papadopoulos', role: null, tags: ['Trainer'],     teamId: 3, canLead: true, stations: ['Filling Line 1', 'Filling Line 2', 'Warehouse'] },
+  { id: 5,  firstName: 'Elena',    lastName: 'Christodoulou',role: null, tags: ['Newcomer'],    teamId: 3,                stations: ['Filling Line 2', 'Packaging A', 'Quality Lab'] },
+  { id: 6,  firstName: 'Dimitris', lastName: 'Ekonomou',     role: null, tags: [],              teamId: 3,                stations: ['Packaging A', 'Packaging B', 'Warehouse'] },
+  { id: 11, firstName: 'Kostas',   lastName: 'Vlachos',      role: null, tags: [],              teamId: 3,                stations: ['Filling Line 2', 'Warehouse', 'Packaging B'] },
+  { id: 12, firstName: 'Despina',  lastName: 'Roussou',      role: null, tags: ['Night-shift'], teamId: 3,                stations: ['Packaging A', 'Quality Lab'] },
+  // Operators (fallback group)
+  { id: 7,  firstName: 'Stavros',  lastName: 'Nikolaou',     role: null, tags: [],              teamId: 1,                stations: ['Filling Line 1', 'Warehouse', 'Quality Lab'] },
+  { id: 8,  firstName: 'Sofia',    lastName: 'Panagiotou',   role: null, tags: ['Night-shift'], teamId: 1,                stations: ['Quality Lab', 'Packaging B'] },
 ];
 
 // Per-station feature toggles. Off by default — Spiros constraint: "must be optional".

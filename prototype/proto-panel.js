@@ -38,14 +38,6 @@
         { value: 'flat',    label: 'Flat',    hint: '(all ops in one list — like live today)' },
       ],
     },
-    {
-      key: 'protoLeaderAutopick', global: '__protoLeaderAutopick', event: 'proto:leaderAutopick',
-      label: 'Shift leader auto-assign', def: 'off',
-      choices: [
-        { value: 'off', label: 'Off', hint: '(user must pick the leader)' },
-        { value: 'on',  label: 'On',  hint: '(first eligible auto-fills)' },
-      ],
-    },
   ];
 
   const RADIO_GROUP = 'proto_' + Math.random().toString(36).slice(2, 8);

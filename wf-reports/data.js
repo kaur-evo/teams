@@ -45,10 +45,18 @@ const OPERATOR_ROLES = [
   { name: 'Other',       enterprise: true  },
 ];
 
-const OPERATOR_GROUPS = ['Group A', 'Group B', 'Default'];
+// Operator groups. Mirrors the setup prototype (mock-data.js MOCK_TEAMS):
+// two named teams (Blue / Red) plus the fallback "Operators" bucket. The
+// group dimension / filter / Split-by all read from this list.
+const OPERATOR_GROUPS = ['Blue Team', 'Red Team', 'Operators'];
 
 // Static directory: every operator name appearing in mock data → its role + group.
-// "Default" group is the bucket for operators without a configured group.
+//
+// NAME SYNC: these are the SAME 8 operators as the setup prototype
+// (mock-data.js MOCK_OPERATORS) — so moving from setup → reports shows familiar
+// names. Short "V. Mavroeidis" form keeps the table compact; the mapping back to
+// the setup full names is 1:1 by last name. Vasilis & Nikos are the two canLead
+// operators (mirrors `canLead: true` in setup).
 //
 // `canLead`  — operator can be picked as shift leader (Settings "Allow as
 //              shift leader"). Drives the Shift-leaders X-axis / split / filter.
@@ -57,13 +65,21 @@ const OPERATOR_GROUPS = ['Group A', 'Group B', 'Default'];
 //              so a person spread across several stations is never double-counted
 //              (operator-level dedup). `cmpHours` is the compare-period figure.
 const OPERATOR_DIRECTORY = {
-  'A. Johnson':  { role: 'Supervisor',  group: 'Group A', canLead: true,  hours: 38, cmpHours: 40 },
-  'J. Smith':    { role: 'Operator',    group: 'Group A', canLead: false, hours: 40, cmpHours: 40 },
-  'M. Garcia':   { role: 'Operator',    group: 'Group A', canLead: false, hours: 36, cmpHours: 38 },
-  'K. Williams': { role: 'Quality',     group: 'Group B', canLead: false, hours: 32, cmpHours: 30 },
-  'R. Brown':    { role: 'Supervisor',  group: 'Group B', canLead: true,  hours: 40, cmpHours: 38 },
-  'T. Davis':    { role: 'Maintenance', group: 'Group B', canLead: false, hours: 28, cmpHours: 26 },
-  'P. Wilson':   { role: 'Operator',    group: 'Default',  canLead: false, hours: 34, cmpHours: 36 },
+  // Blue Team
+  'V. Mavroeidis':   { role: 'Supervisor',  group: 'Blue Team', canLead: true,  hours: 38, cmpHours: 40 },
+  'M. Kostopoulou':  { role: 'Operator',    group: 'Blue Team', canLead: false, hours: 36, cmpHours: 38 },
+  'G. Antoniou':     { role: 'Operator',    group: 'Blue Team', canLead: false, hours: 40, cmpHours: 40 },
+  'P. Lambrou':      { role: 'Operator',    group: 'Blue Team', canLead: false, hours: 38, cmpHours: 36 },
+  'A. Dimitriou':    { role: 'Operator',    group: 'Blue Team', canLead: false, hours: 34, cmpHours: 34 },
+  // Red Team
+  'N. Papadopoulos': { role: 'Supervisor',  group: 'Red Team',  canLead: true,  hours: 40, cmpHours: 38 },
+  'E. Christodoulou':{ role: 'Operator',    group: 'Red Team',  canLead: false, hours: 32, cmpHours: 30 },
+  'D. Ekonomou':     { role: 'Operator',    group: 'Red Team',  canLead: false, hours: 28, cmpHours: 26 },
+  'K. Vlachos':      { role: 'Operator',    group: 'Red Team',  canLead: false, hours: 36, cmpHours: 38 },
+  'D. Roussou':      { role: 'Operator',    group: 'Red Team',  canLead: false, hours: 30, cmpHours: 28 },
+  // Operators (fallback group)
+  'S. Nikolaou':     { role: 'Operator',    group: 'Operators', canLead: false, hours: 34, cmpHours: 36 },
+  'S. Panagiotou':   { role: 'Operator',    group: 'Operators', canLead: false, hours: 30, cmpHours: 32 },
 };
 
 // Operators allowed to lead a shift (mirrors Settings "Allow as shift leader").
@@ -79,7 +95,7 @@ function deriveLeader(operatorStr) {
   return leader || '';
 }
 
-// Helper: derive role + group for an operator string (e.g. "J. Smith, M. Garcia").
+// Helper: derive role + group for an operator string (e.g. "M. Kostopoulou, G. Antoniou").
 // Returns deduped, comma-joined lists matching the existing data shape.
 function deriveOperatorRoles(operatorStr) {
   if (!operatorStr) return '';
@@ -160,41 +176,41 @@ const CHART_PALETTE = ['#E01C21','#3498DB','#0066CC','#2ECC71','#F1C40F','#1ABC9
 
 const STOP_REASONS_DATA = [
   { name:'Uncommented',   group:'Uncommented', mainDur:145, cmpDur:98,  mainCount:12, cmpCount:9,  mainAvg:12, cmpAvg:11, notes:3, cmpNotes:2, mainPct:18, cmpPct:12,
-    station:'CNC-01, CNC-02, Press-01, Press-02, Assembly-01, Assembly-02', cmpStation:'CNC-01, CNC-03, Press-01, Press-03, Assembly-01, Assembly-03', stationGroup:'CNC, Press, Assembly', cmpStationGroup:'CNC, Press, Assembly', stopType:'Unplanned', location:'Hall A, Hall B, Hall C', cmpLocation:'Hall A, Hall B, Hall C', productGroup:'Electronics, Components, Assembly', cmpProductGroup:'Electronics, Components, Assembly', product:'Widget Pro, Gear Kit, Frame Set', cmpProduct:'Widget Pro, Circuit Bd., Frame Set', productCode:'PRD-001, PRD-002, PRD-003', cmpProductCode:'PRD-001, PRD-003, PRD-004', shift:'Morning, Afternoon, Night', cmpShift:'Morning, Afternoon, Night', operator:'J. Smith, M. Garcia, K. Williams, A. Johnson, R. Brown', cmpOperator:'K. Williams, A. Johnson, J. Smith, T. Davis', loss:145, cmpLoss:98,  durOee:145, cmpDurOee:98,  plannedTime:800, cmpPlannedTime:720 },
+    station:'CNC-01, CNC-02, Press-01, Press-02, Assembly-01, Assembly-02', cmpStation:'CNC-01, CNC-03, Press-01, Press-03, Assembly-01, Assembly-03', stationGroup:'CNC, Press, Assembly', cmpStationGroup:'CNC, Press, Assembly', stopType:'Unplanned', location:'Hall A, Hall B, Hall C', cmpLocation:'Hall A, Hall B, Hall C', productGroup:'Electronics, Components, Assembly', cmpProductGroup:'Electronics, Components, Assembly', product:'Widget Pro, Gear Kit, Frame Set', cmpProduct:'Widget Pro, Circuit Bd., Frame Set', productCode:'PRD-001, PRD-002, PRD-003', cmpProductCode:'PRD-001, PRD-003, PRD-004', shift:'Morning, Afternoon, Night', cmpShift:'Morning, Afternoon, Night', operator:'M. Kostopoulou, G. Antoniou, E. Christodoulou, V. Mavroeidis, N. Papadopoulos', cmpOperator:'E. Christodoulou, V. Mavroeidis, M. Kostopoulou, D. Ekonomou', loss:145, cmpLoss:98,  durOee:145, cmpDurOee:98,  plannedTime:800, cmpPlannedTime:720 },
   { name:'Motor failure', group:'Mechanical',  mainDur:112, cmpDur:134, mainCount:5,  cmpCount:6,  mainAvg:22, cmpAvg:22, notes:2, cmpNotes:3, mainPct:14, cmpPct:17,
-    station:'CNC-01, CNC-02, Press-01, Press-02', cmpStation:'CNC-02, CNC-03, Press-01, Press-03', stationGroup:'CNC, Press', cmpStationGroup:'CNC, Press', stopType:'Unplanned', location:'Hall A, Hall B', cmpLocation:'Hall A, Hall B', productGroup:'Electronics, Components', cmpProductGroup:'Electronics, Components', product:'Widget Pro, Gear Kit', cmpProduct:'Widget Pro, Circuit Bd., Bolt Pack', productCode:'PRD-001, PRD-002', cmpProductCode:'PRD-001, PRD-004, PRD-005', shift:'Morning, Afternoon', cmpShift:'Morning, Night', operator:'J. Smith, M. Garcia, R. Brown', cmpOperator:'J. Smith, K. Williams, P. Wilson', loss:112, cmpLoss:134, durOee:112, cmpDurOee:134, plannedTime:800, cmpPlannedTime:850 },
+    station:'CNC-01, CNC-02, Press-01, Press-02', cmpStation:'CNC-02, CNC-03, Press-01, Press-03', stationGroup:'CNC, Press', cmpStationGroup:'CNC, Press', stopType:'Unplanned', location:'Hall A, Hall B', cmpLocation:'Hall A, Hall B', productGroup:'Electronics, Components', cmpProductGroup:'Electronics, Components', product:'Widget Pro, Gear Kit', cmpProduct:'Widget Pro, Circuit Bd., Bolt Pack', productCode:'PRD-001, PRD-002', cmpProductCode:'PRD-001, PRD-004, PRD-005', shift:'Morning, Afternoon', cmpShift:'Morning, Night', operator:'M. Kostopoulou, G. Antoniou, N. Papadopoulos', cmpOperator:'M. Kostopoulou, E. Christodoulou, S. Nikolaou', loss:112, cmpLoss:134, durOee:112, cmpDurOee:134, plannedTime:800, cmpPlannedTime:850 },
   { name:'Belt broken',   group:'Mechanical',  mainDur:78,  cmpDur:52,  mainCount:3,  cmpCount:2,  mainAvg:26, cmpAvg:26, notes:1, cmpNotes:1, mainPct:10, cmpPct:6,
-    station:'Press-01, Press-02, Press-03', cmpStation:'Press-01, Press-02, Press-04', stationGroup:'Press', cmpStationGroup:'Press', stopType:'Unplanned', location:'Hall B', cmpLocation:'Hall B', productGroup:'Components', cmpProductGroup:'Components', product:'Gear Kit, Bolt Pack', cmpProduct:'Gear Kit, Bolt Pack', productCode:'PRD-002, PRD-005', cmpProductCode:'PRD-002, PRD-005', shift:'Morning, Afternoon', cmpShift:'Afternoon, Night', operator:'M. Garcia, R. Brown, T. Davis', cmpOperator:'R. Brown, P. Wilson, J. Smith', loss:78,  cmpLoss:52,  durOee:78,  cmpDurOee:52,  plannedTime:600, cmpPlannedTime:600 },
+    station:'Press-01, Press-02, Press-03', cmpStation:'Press-01, Press-02, Press-04', stationGroup:'Press', cmpStationGroup:'Press', stopType:'Unplanned', location:'Hall B', cmpLocation:'Hall B', productGroup:'Components', cmpProductGroup:'Components', product:'Gear Kit, Bolt Pack', cmpProduct:'Gear Kit, Bolt Pack', productCode:'PRD-002, PRD-005', cmpProductCode:'PRD-002, PRD-005', shift:'Morning, Afternoon', cmpShift:'Afternoon, Night', operator:'G. Antoniou, N. Papadopoulos, D. Ekonomou', cmpOperator:'N. Papadopoulos, S. Nikolaou, M. Kostopoulou', loss:78,  cmpLoss:52,  durOee:78,  cmpDurOee:52,  plannedTime:600, cmpPlannedTime:600 },
   { name:'Bearing worn',  group:'Mechanical',  mainDur:34,  cmpDur:41,  mainCount:4,  cmpCount:5,  mainAvg:9,  cmpAvg:8,  notes:0, cmpNotes:0, mainPct:4,  cmpPct:5,
-    station:'Press-02, Press-03, CNC-02', cmpStation:'Press-01, Press-03, CNC-01', stationGroup:'Press, CNC', cmpStationGroup:'Press, CNC', stopType:'Unplanned', location:'Hall A, Hall B', cmpLocation:'Hall A, Hall B', productGroup:'Components, Electronics', cmpProductGroup:'Components, Electronics', product:'Gear Kit, Widget Pro', cmpProduct:'Bolt Pack, Widget Pro', productCode:'PRD-002, PRD-001', cmpProductCode:'PRD-005, PRD-001', shift:'Morning, Afternoon', cmpShift:'Morning, Night', operator:'M. Garcia, A. Johnson, R. Brown', cmpOperator:'A. Johnson, J. Smith, M. Garcia', loss:34,  cmpLoss:41,  durOee:34,  cmpDurOee:41,  plannedTime:600, cmpPlannedTime:750 },
+    station:'Press-02, Press-03, CNC-02', cmpStation:'Press-01, Press-03, CNC-01', stationGroup:'Press, CNC', cmpStationGroup:'Press, CNC', stopType:'Unplanned', location:'Hall A, Hall B', cmpLocation:'Hall A, Hall B', productGroup:'Components, Electronics', cmpProductGroup:'Components, Electronics', product:'Gear Kit, Widget Pro', cmpProduct:'Bolt Pack, Widget Pro', productCode:'PRD-002, PRD-001', cmpProductCode:'PRD-005, PRD-001', shift:'Morning, Afternoon', cmpShift:'Morning, Night', operator:'G. Antoniou, V. Mavroeidis, N. Papadopoulos', cmpOperator:'V. Mavroeidis, M. Kostopoulou, G. Antoniou', loss:34,  cmpLoss:41,  durOee:34,  cmpDurOee:41,  plannedTime:600, cmpPlannedTime:750 },
   { name:'Planned maint.',group:'Planned',     mainDur:89,  cmpDur:89,  mainCount:2,  cmpCount:2,  mainAvg:45, cmpAvg:45, notes:1, cmpNotes:1, mainPct:11, cmpPct:11,
-    station:'Assembly-01, CNC-01, CNC-02, Press-01, Press-02', cmpStation:'Assembly-01, Assembly-02, CNC-01, Press-01, Press-02', stationGroup:'Assembly, CNC, Press', cmpStationGroup:'Assembly, CNC, Press', stopType:'Planned', location:'Hall A, Hall B, Hall C', cmpLocation:'Hall A, Hall B, Hall C', productGroup:'Assembly, Electronics, Components', cmpProductGroup:'Assembly, Electronics, Components', product:'Frame Set, Widget Pro, Gear Kit', cmpProduct:'Frame Set, Panel Set, Widget Pro', productCode:'PRD-003, PRD-001, PRD-002', cmpProductCode:'PRD-003, PRD-006, PRD-001', shift:'Morning, Afternoon', cmpShift:'Morning, Afternoon', operator:'A. Johnson, J. Smith, M. Garcia, R. Brown', cmpOperator:'A. Johnson, T. Davis, K. Williams', loss:0,   cmpLoss:0,   durOee:0,   cmpDurOee:0,   plannedTime:750, cmpPlannedTime:750 },
+    station:'Assembly-01, CNC-01, CNC-02, Press-01, Press-02', cmpStation:'Assembly-01, Assembly-02, CNC-01, Press-01, Press-02', stationGroup:'Assembly, CNC, Press', cmpStationGroup:'Assembly, CNC, Press', stopType:'Planned', location:'Hall A, Hall B, Hall C', cmpLocation:'Hall A, Hall B, Hall C', productGroup:'Assembly, Electronics, Components', cmpProductGroup:'Assembly, Electronics, Components', product:'Frame Set, Widget Pro, Gear Kit', cmpProduct:'Frame Set, Panel Set, Widget Pro', productCode:'PRD-003, PRD-001, PRD-002', cmpProductCode:'PRD-003, PRD-006, PRD-001', shift:'Morning, Afternoon', cmpShift:'Morning, Afternoon', operator:'V. Mavroeidis, M. Kostopoulou, G. Antoniou, N. Papadopoulos', cmpOperator:'V. Mavroeidis, D. Ekonomou, E. Christodoulou', loss:0,   cmpLoss:0,   durOee:0,   cmpDurOee:0,   plannedTime:750, cmpPlannedTime:750 },
   { name:'Planned break', group:'Planned',     mainDur:45,  cmpDur:38,  mainCount:3,  cmpCount:3,  mainAvg:15, cmpAvg:13, notes:0, cmpNotes:0, mainPct:6,  cmpPct:5,
-    station:'Assembly-01, Assembly-02, CNC-01, CNC-02, Press-01, Press-02', cmpStation:'Assembly-01, Assembly-02, Assembly-03, CNC-01, Press-01', stationGroup:'Assembly, CNC, Press', cmpStationGroup:'Assembly, CNC, Press', stopType:'Planned', location:'Hall A, Hall B, Hall C', cmpLocation:'Hall A, Hall B, Hall C', productGroup:'Assembly, Electronics, Components', cmpProductGroup:'Assembly, Electronics, Components', product:'Frame Set, Widget Pro, Gear Kit, Panel Set', cmpProduct:'Frame Set, Panel Set, Widget Pro', productCode:'PRD-003, PRD-001, PRD-002, PRD-006', cmpProductCode:'PRD-003, PRD-006, PRD-001', shift:'Morning, Afternoon, Night', cmpShift:'Morning, Afternoon, Night', operator:'A. Johnson, T. Davis, J. Smith, M. Garcia, P. Wilson', cmpOperator:'T. Davis, R. Brown, K. Williams, A. Johnson', loss:0,   cmpLoss:0,   durOee:0,   cmpDurOee:0,   plannedTime:750, cmpPlannedTime:750 },
+    station:'Assembly-01, Assembly-02, CNC-01, CNC-02, Press-01, Press-02', cmpStation:'Assembly-01, Assembly-02, Assembly-03, CNC-01, Press-01', stationGroup:'Assembly, CNC, Press', cmpStationGroup:'Assembly, CNC, Press', stopType:'Planned', location:'Hall A, Hall B, Hall C', cmpLocation:'Hall A, Hall B, Hall C', productGroup:'Assembly, Electronics, Components', cmpProductGroup:'Assembly, Electronics, Components', product:'Frame Set, Widget Pro, Gear Kit, Panel Set', cmpProduct:'Frame Set, Panel Set, Widget Pro', productCode:'PRD-003, PRD-001, PRD-002, PRD-006', cmpProductCode:'PRD-003, PRD-006, PRD-001', shift:'Morning, Afternoon, Night', cmpShift:'Morning, Afternoon, Night', operator:'V. Mavroeidis, D. Ekonomou, M. Kostopoulou, G. Antoniou, S. Nikolaou', cmpOperator:'D. Ekonomou, N. Papadopoulos, E. Christodoulou, V. Mavroeidis', loss:0,   cmpLoss:0,   durOee:0,   cmpDurOee:0,   plannedTime:750, cmpPlannedTime:750 },
   { name:'Mat. shortage', group:'Material',    mainDur:91,  cmpDur:67,  mainCount:7,  cmpCount:5,  mainAvg:13, cmpAvg:13, notes:4, cmpNotes:2, mainPct:11, cmpPct:8,
-    station:'CNC-03, CNC-04, Press-01, Press-02, Assembly-01, Assembly-02', cmpStation:'CNC-01, CNC-04, Press-02, Press-03, Assembly-01', stationGroup:'CNC, Press, Assembly', cmpStationGroup:'CNC, Press, Assembly', stopType:'Unplanned', location:'Hall A, Hall B, Hall C', cmpLocation:'Hall A, Hall B, Hall C', productGroup:'Electronics, Components, Assembly', cmpProductGroup:'Electronics, Components, Assembly', product:'Circuit Bd., Widget Pro, Gear Kit, Frame Set', cmpProduct:'Widget Pro, Circuit Bd., Gear Kit', productCode:'PRD-004, PRD-001, PRD-002, PRD-003', cmpProductCode:'PRD-001, PRD-004, PRD-002', shift:'Morning, Night', cmpShift:'Morning, Afternoon, Night', operator:'K. Williams, J. Smith, P. Wilson, M. Garcia, A. Johnson', cmpOperator:'K. Williams, A. Johnson, R. Brown', loss:91,  cmpLoss:67,  durOee:91,  cmpDurOee:67,  plannedTime:700, cmpPlannedTime:630 },
+    station:'CNC-03, CNC-04, Press-01, Press-02, Assembly-01, Assembly-02', cmpStation:'CNC-01, CNC-04, Press-02, Press-03, Assembly-01', stationGroup:'CNC, Press, Assembly', cmpStationGroup:'CNC, Press, Assembly', stopType:'Unplanned', location:'Hall A, Hall B, Hall C', cmpLocation:'Hall A, Hall B, Hall C', productGroup:'Electronics, Components, Assembly', cmpProductGroup:'Electronics, Components, Assembly', product:'Circuit Bd., Widget Pro, Gear Kit, Frame Set', cmpProduct:'Widget Pro, Circuit Bd., Gear Kit', productCode:'PRD-004, PRD-001, PRD-002, PRD-003', cmpProductCode:'PRD-001, PRD-004, PRD-002', shift:'Morning, Night', cmpShift:'Morning, Afternoon, Night', operator:'E. Christodoulou, M. Kostopoulou, S. Nikolaou, G. Antoniou, V. Mavroeidis', cmpOperator:'E. Christodoulou, V. Mavroeidis, N. Papadopoulos', loss:91,  cmpLoss:67,  durOee:91,  cmpDurOee:67,  plannedTime:700, cmpPlannedTime:630 },
   { name:'Waiting parts', group:'Material',    mainDur:47,  cmpDur:73,  mainCount:4,  cmpCount:6,  mainAvg:12, cmpAvg:12, notes:2, cmpNotes:3, mainPct:6,  cmpPct:9,
-    station:'Press-03, Press-04, Assembly-01, Assembly-02', cmpStation:'Press-03, Assembly-01, Assembly-02, Assembly-03', stationGroup:'Press, Assembly', cmpStationGroup:'Press, Assembly', stopType:'Unplanned', location:'Hall B, Hall C', cmpLocation:'Hall B, Hall C', productGroup:'Components, Assembly', cmpProductGroup:'Components, Assembly', product:'Bolt Pack, Gear Kit, Frame Set', cmpProduct:'Gear Kit, Frame Set, Panel Set', productCode:'PRD-005, PRD-002, PRD-003', cmpProductCode:'PRD-002, PRD-003, PRD-006', shift:'Morning, Afternoon', cmpShift:'Morning, Night', operator:'R. Brown, J. Smith, T. Davis, A. Johnson', cmpOperator:'J. Smith, T. Davis, A. Johnson', loss:47,  cmpLoss:73,  durOee:47,  cmpDurOee:73,  plannedTime:600, cmpPlannedTime:600 },
+    station:'Press-03, Press-04, Assembly-01, Assembly-02', cmpStation:'Press-03, Assembly-01, Assembly-02, Assembly-03', stationGroup:'Press, Assembly', cmpStationGroup:'Press, Assembly', stopType:'Unplanned', location:'Hall B, Hall C', cmpLocation:'Hall B, Hall C', productGroup:'Components, Assembly', cmpProductGroup:'Components, Assembly', product:'Bolt Pack, Gear Kit, Frame Set', cmpProduct:'Gear Kit, Frame Set, Panel Set', productCode:'PRD-005, PRD-002, PRD-003', cmpProductCode:'PRD-002, PRD-003, PRD-006', shift:'Morning, Afternoon', cmpShift:'Morning, Night', operator:'N. Papadopoulos, M. Kostopoulou, D. Ekonomou, V. Mavroeidis', cmpOperator:'M. Kostopoulou, D. Ekonomou, V. Mavroeidis', loss:47,  cmpLoss:73,  durOee:47,  cmpDurOee:73,  plannedTime:600, cmpPlannedTime:600 },
   { name:'Changeover',    group:'Setup',       mainDur:62,  cmpDur:55,  mainCount:4,  cmpCount:4,  mainAvg:16, cmpAvg:14, notes:0, cmpNotes:0, mainPct:8,  cmpPct:7,
-    station:'Assembly-03, Assembly-01, CNC-01, CNC-02', cmpStation:'Assembly-03, Assembly-02, CNC-01, CNC-03', stationGroup:'Assembly, CNC', cmpStationGroup:'Assembly, CNC', stopType:'Semi-planned', location:'Hall A, Hall C', cmpLocation:'Hall A, Hall C', productGroup:'Assembly, Electronics', cmpProductGroup:'Assembly, Electronics', product:'Panel Set, Frame Set, Widget Pro', cmpProduct:'Frame Set, Panel Set, Widget Pro', productCode:'PRD-006, PRD-003, PRD-001', cmpProductCode:'PRD-003, PRD-006, PRD-001', shift:'Morning, Afternoon', cmpShift:'Morning, Afternoon', operator:'T. Davis, A. Johnson, J. Smith, M. Garcia', cmpOperator:'T. Davis, M. Garcia, P. Wilson, J. Smith, K. Williams', loss:0,   cmpLoss:0,   durOee:62,  cmpDurOee:55,  plannedTime:750, cmpPlannedTime:750 },
+    station:'Assembly-03, Assembly-01, CNC-01, CNC-02', cmpStation:'Assembly-03, Assembly-02, CNC-01, CNC-03', stationGroup:'Assembly, CNC', cmpStationGroup:'Assembly, CNC', stopType:'Semi-planned', location:'Hall A, Hall C', cmpLocation:'Hall A, Hall C', productGroup:'Assembly, Electronics', cmpProductGroup:'Assembly, Electronics', product:'Panel Set, Frame Set, Widget Pro', cmpProduct:'Frame Set, Panel Set, Widget Pro', productCode:'PRD-006, PRD-003, PRD-001', cmpProductCode:'PRD-003, PRD-006, PRD-001', shift:'Morning, Afternoon', cmpShift:'Morning, Afternoon', operator:'D. Ekonomou, V. Mavroeidis, M. Kostopoulou, G. Antoniou', cmpOperator:'D. Ekonomou, G. Antoniou, S. Nikolaou, M. Kostopoulou, E. Christodoulou', loss:0,   cmpLoss:0,   durOee:62,  cmpDurOee:55,  plannedTime:750, cmpPlannedTime:750 },
   { name:'Calibration',   group:'Setup',       mainDur:28,  cmpDur:19,  mainCount:2,  cmpCount:1,  mainAvg:14, cmpAvg:19, notes:1, cmpNotes:0, mainPct:4,  cmpPct:2,
-    station:'CNC-04, CNC-01, CNC-02, CNC-03', cmpStation:'CNC-01, CNC-02, CNC-04', stationGroup:'CNC', cmpStationGroup:'CNC', stopType:'Planned', location:'Hall A', cmpLocation:'Hall A', productGroup:'Electronics', cmpProductGroup:'Electronics', product:'Widget Pro, Circuit Bd.', cmpProduct:'Widget Pro, Circuit Bd.', productCode:'PRD-001, PRD-004', cmpProductCode:'PRD-001, PRD-004', shift:'Morning, Night', cmpShift:'Morning, Afternoon', operator:'K. Williams, M. Garcia, J. Smith', cmpOperator:'J. Smith, K. Williams', loss:0,   cmpLoss:0,   durOee:0,   cmpDurOee:0,   plannedTime:800, cmpPlannedTime:800 },
+    station:'CNC-04, CNC-01, CNC-02, CNC-03', cmpStation:'CNC-01, CNC-02, CNC-04', stationGroup:'CNC', cmpStationGroup:'CNC', stopType:'Planned', location:'Hall A', cmpLocation:'Hall A', productGroup:'Electronics', cmpProductGroup:'Electronics', product:'Widget Pro, Circuit Bd.', cmpProduct:'Widget Pro, Circuit Bd.', productCode:'PRD-001, PRD-004', cmpProductCode:'PRD-001, PRD-004', shift:'Morning, Night', cmpShift:'Morning, Afternoon', operator:'E. Christodoulou, G. Antoniou, M. Kostopoulou', cmpOperator:'M. Kostopoulou, E. Christodoulou', loss:0,   cmpLoss:0,   durOee:0,   cmpDurOee:0,   plannedTime:800, cmpPlannedTime:800 },
   { name:'Quality check', group:'Quality',     mainDur:56,  cmpDur:61,  mainCount:5,  cmpCount:5,  mainAvg:11, cmpAvg:12, notes:2, cmpNotes:2, mainPct:7,  cmpPct:8,
-    station:'Press-04, Press-03, Assembly-01, CNC-01', cmpStation:'Press-04, Assembly-01, Assembly-02, CNC-02', stationGroup:'Press, Assembly, CNC', cmpStationGroup:'Press, Assembly, CNC', stopType:'Unplanned', location:'Hall A, Hall B, Hall C', cmpLocation:'Hall A, Hall B, Hall C', productGroup:'Components, Assembly, Electronics', cmpProductGroup:'Components, Assembly, Electronics', product:'Gear Kit, Frame Set, Widget Pro', cmpProduct:'Gear Kit, Frame Set, Widget Pro', productCode:'PRD-002, PRD-003, PRD-001', cmpProductCode:'PRD-002, PRD-003, PRD-001', shift:'Morning, Afternoon', cmpShift:'Afternoon, Night', operator:'M. Garcia, R. Brown, A. Johnson, K. Williams', cmpOperator:'M. Garcia, K. Williams, T. Davis', loss:56,  cmpLoss:61,  durOee:56,  cmpDurOee:61,  plannedTime:600, cmpPlannedTime:600 },
+    station:'Press-04, Press-03, Assembly-01, CNC-01', cmpStation:'Press-04, Assembly-01, Assembly-02, CNC-02', stationGroup:'Press, Assembly, CNC', cmpStationGroup:'Press, Assembly, CNC', stopType:'Unplanned', location:'Hall A, Hall B, Hall C', cmpLocation:'Hall A, Hall B, Hall C', productGroup:'Components, Assembly, Electronics', cmpProductGroup:'Components, Assembly, Electronics', product:'Gear Kit, Frame Set, Widget Pro', cmpProduct:'Gear Kit, Frame Set, Widget Pro', productCode:'PRD-002, PRD-003, PRD-001', cmpProductCode:'PRD-002, PRD-003, PRD-001', shift:'Morning, Afternoon', cmpShift:'Afternoon, Night', operator:'G. Antoniou, N. Papadopoulos, V. Mavroeidis, E. Christodoulou', cmpOperator:'G. Antoniou, E. Christodoulou, D. Ekonomou', loss:56,  cmpLoss:61,  durOee:56,  cmpDurOee:61,  plannedTime:600, cmpPlannedTime:600 },
   { name:'Prod. defect',  group:'Quality',     mainDur:23,  cmpDur:31,  mainCount:3,  cmpCount:4,  mainAvg:8,  cmpAvg:8,  notes:1, cmpNotes:1, mainPct:3,  cmpPct:4,
-    station:'Assembly-04, Assembly-01, Assembly-02', cmpStation:'Assembly-04, Assembly-03, Press-04', stationGroup:'Assembly', cmpStationGroup:'Assembly, Press', stopType:'Unplanned', location:'Hall C', cmpLocation:'Hall B, Hall C', productGroup:'Assembly, Components', cmpProductGroup:'Assembly, Components', product:'Frame Set, Panel Set', cmpProduct:'Bolt Pack, Frame Set', productCode:'PRD-003, PRD-006', cmpProductCode:'PRD-005, PRD-003', shift:'Morning, Afternoon', cmpShift:'Afternoon, Night', operator:'A. Johnson, T. Davis, R. Brown', cmpOperator:'R. Brown, J. Smith, K. Williams', loss:23,  cmpLoss:31,  durOee:23,  cmpDurOee:31,  plannedTime:750, cmpPlannedTime:600 },
+    station:'Assembly-04, Assembly-01, Assembly-02', cmpStation:'Assembly-04, Assembly-03, Press-04', stationGroup:'Assembly', cmpStationGroup:'Assembly, Press', stopType:'Unplanned', location:'Hall C', cmpLocation:'Hall B, Hall C', productGroup:'Assembly, Components', cmpProductGroup:'Assembly, Components', product:'Frame Set, Panel Set', cmpProduct:'Bolt Pack, Frame Set', productCode:'PRD-003, PRD-006', cmpProductCode:'PRD-005, PRD-003', shift:'Morning, Afternoon', cmpShift:'Afternoon, Night', operator:'V. Mavroeidis, D. Ekonomou, N. Papadopoulos', cmpOperator:'N. Papadopoulos, M. Kostopoulou, E. Christodoulou', loss:23,  cmpLoss:31,  durOee:23,  cmpDurOee:31,  plannedTime:750, cmpPlannedTime:600 },
   { name:'Operator break',group:'Operator',    mainDur:38,  cmpDur:29,  mainCount:6,  cmpCount:5,  mainAvg:6,  cmpAvg:6,  notes:0, cmpNotes:0, mainPct:5,  cmpPct:4,
-    station:'CNC-01, CNC-02, Press-01, Press-02, Assembly-01', cmpStation:'CNC-01, CNC-02, Press-01, Assembly-01, Assembly-02', stationGroup:'CNC, Press, Assembly', cmpStationGroup:'CNC, Press, Assembly', stopType:'Planned', location:'Hall A, Hall B, Hall C', cmpLocation:'Hall A, Hall B, Hall C', productGroup:'Electronics, Components, Assembly', cmpProductGroup:'Electronics, Components, Assembly', product:'Widget Pro, Gear Kit, Frame Set', cmpProduct:'Widget Pro, Gear Kit, Frame Set', productCode:'PRD-001, PRD-002, PRD-003', cmpProductCode:'PRD-001, PRD-002, PRD-003', shift:'Morning, Afternoon', cmpShift:'Morning, Afternoon', operator:'J. Smith, P. Wilson, T. Davis, M. Garcia, K. Williams', cmpOperator:'J. Smith, A. Johnson, R. Brown, T. Davis', loss:0,   cmpLoss:0,   durOee:0,   cmpDurOee:0,   plannedTime:800, cmpPlannedTime:800 },
+    station:'CNC-01, CNC-02, Press-01, Press-02, Assembly-01', cmpStation:'CNC-01, CNC-02, Press-01, Assembly-01, Assembly-02', stationGroup:'CNC, Press, Assembly', cmpStationGroup:'CNC, Press, Assembly', stopType:'Planned', location:'Hall A, Hall B, Hall C', cmpLocation:'Hall A, Hall B, Hall C', productGroup:'Electronics, Components, Assembly', cmpProductGroup:'Electronics, Components, Assembly', product:'Widget Pro, Gear Kit, Frame Set', cmpProduct:'Widget Pro, Gear Kit, Frame Set', productCode:'PRD-001, PRD-002, PRD-003', cmpProductCode:'PRD-001, PRD-002, PRD-003', shift:'Morning, Afternoon', cmpShift:'Morning, Afternoon', operator:'M. Kostopoulou, S. Nikolaou, D. Ekonomou, G. Antoniou, E. Christodoulou', cmpOperator:'M. Kostopoulou, V. Mavroeidis, N. Papadopoulos, D. Ekonomou', loss:0,   cmpLoss:0,   durOee:0,   cmpDurOee:0,   plannedTime:800, cmpPlannedTime:800 },
   { name:'Training',      group:'Operator',    mainDur:19,  cmpDur:24,  mainCount:2,  cmpCount:3,  mainAvg:10, cmpAvg:8,  notes:0, cmpNotes:0, mainPct:2,  cmpPct:3,
-    station:'Press-01, CNC-01, Assembly-01, CNC-03', cmpStation:'Press-03, CNC-02, Assembly-02', stationGroup:'Press, CNC, Assembly', cmpStationGroup:'Press, CNC, Assembly', stopType:'Planned', location:'Hall A, Hall B, Hall C', cmpLocation:'Hall A, Hall B, Hall C', productGroup:'Components, Electronics, Assembly', cmpProductGroup:'Components, Electronics, Assembly', product:'Gear Kit, Widget Pro, Frame Set', cmpProduct:'Bolt Pack, Widget Pro, Frame Set', productCode:'PRD-002, PRD-001, PRD-003', cmpProductCode:'PRD-005, PRD-001, PRD-003', shift:'Morning, Night', cmpShift:'Afternoon, Night', operator:'P. Wilson, M. Garcia, A. Johnson, K. Williams', cmpOperator:'R. Brown, K. Williams, A. Johnson, J. Smith', loss:0,   cmpLoss:0,   durOee:0,   cmpDurOee:0,   plannedTime:600, cmpPlannedTime:600 },
+    station:'Press-01, CNC-01, Assembly-01, CNC-03', cmpStation:'Press-03, CNC-02, Assembly-02', stationGroup:'Press, CNC, Assembly', cmpStationGroup:'Press, CNC, Assembly', stopType:'Planned', location:'Hall A, Hall B, Hall C', cmpLocation:'Hall A, Hall B, Hall C', productGroup:'Components, Electronics, Assembly', cmpProductGroup:'Components, Electronics, Assembly', product:'Gear Kit, Widget Pro, Frame Set', cmpProduct:'Bolt Pack, Widget Pro, Frame Set', productCode:'PRD-002, PRD-001, PRD-003', cmpProductCode:'PRD-005, PRD-001, PRD-003', shift:'Morning, Night', cmpShift:'Afternoon, Night', operator:'S. Nikolaou, G. Antoniou, V. Mavroeidis, E. Christodoulou', cmpOperator:'N. Papadopoulos, E. Christodoulou, V. Mavroeidis, M. Kostopoulou', loss:0,   cmpLoss:0,   durOee:0,   cmpDurOee:0,   plannedTime:600, cmpPlannedTime:600 },
   { name:'Ext. factor',   group:'Other',       mainDur:15,  cmpDur:22,  mainCount:2,  cmpCount:3,  mainAvg:8,  cmpAvg:7,  notes:0, cmpNotes:0, mainPct:2,  cmpPct:3,
-    station:'Assembly-01, CNC-01, Press-01, Press-02', cmpStation:'Assembly-01, CNC-02, Press-01, Press-03', stationGroup:'Assembly, CNC, Press', cmpStationGroup:'Assembly, CNC, Press', stopType:'Unplanned', location:'Hall A, Hall B, Hall C', cmpLocation:'Hall A, Hall B, Hall C', productGroup:'Assembly, Electronics, Components', cmpProductGroup:'Assembly, Electronics, Components', product:'Frame Set, Widget Pro, Gear Kit', cmpProduct:'Frame Set, Widget Pro', productCode:'PRD-003, PRD-001, PRD-002', cmpProductCode:'PRD-003, PRD-001', shift:'Morning, Afternoon', cmpShift:'Morning, Night', operator:'A. Johnson, T. Davis, P. Wilson, J. Smith', cmpOperator:'A. Johnson, K. Williams, M. Garcia', loss:15,  cmpLoss:22,  durOee:15,  cmpDurOee:22,  plannedTime:750, cmpPlannedTime:750 },
+    station:'Assembly-01, CNC-01, Press-01, Press-02', cmpStation:'Assembly-01, CNC-02, Press-01, Press-03', stationGroup:'Assembly, CNC, Press', cmpStationGroup:'Assembly, CNC, Press', stopType:'Unplanned', location:'Hall A, Hall B, Hall C', cmpLocation:'Hall A, Hall B, Hall C', productGroup:'Assembly, Electronics, Components', cmpProductGroup:'Assembly, Electronics, Components', product:'Frame Set, Widget Pro, Gear Kit', cmpProduct:'Frame Set, Widget Pro', productCode:'PRD-003, PRD-001, PRD-002', cmpProductCode:'PRD-003, PRD-001', shift:'Morning, Afternoon', cmpShift:'Morning, Night', operator:'V. Mavroeidis, D. Ekonomou, S. Nikolaou, M. Kostopoulou', cmpOperator:'V. Mavroeidis, E. Christodoulou, G. Antoniou', loss:15,  cmpLoss:22,  durOee:15,  cmpDurOee:22,  plannedTime:750, cmpPlannedTime:750 },
   // main-only: occurred in current period, absent in compare period
   { name:'Power outage',  group:'Other',       mainDur:42,  cmpDur:0,   mainCount:1,  cmpCount:0,  mainAvg:42, cmpAvg:0,  notes:1, cmpNotes:0, mainPct:5,  cmpPct:0,
-    station:'CNC-01, Press-01, Assembly-01', cmpStation:'', stationGroup:'CNC, Press, Assembly', cmpStationGroup:'', stopType:'Unplanned', location:'Hall A, Hall B', cmpLocation:'', productGroup:'Electronics, Components', cmpProductGroup:'', product:'Widget Pro, Gear Kit', cmpProduct:'', productCode:'PRD-001, PRD-002', cmpProductCode:'', shift:'Morning', cmpShift:'', operator:'J. Smith, M. Garcia, K. Williams', cmpOperator:'', loss:42, cmpLoss:0, durOee:42, cmpDurOee:0, plannedTime:800, cmpPlannedTime:0 },
+    station:'CNC-01, Press-01, Assembly-01', cmpStation:'', stationGroup:'CNC, Press, Assembly', cmpStationGroup:'', stopType:'Unplanned', location:'Hall A, Hall B', cmpLocation:'', productGroup:'Electronics, Components', cmpProductGroup:'', product:'Widget Pro, Gear Kit', cmpProduct:'', productCode:'PRD-001, PRD-002', cmpProductCode:'', shift:'Morning', cmpShift:'', operator:'M. Kostopoulou, G. Antoniou, E. Christodoulou', cmpOperator:'', loss:42, cmpLoss:0, durOee:42, cmpDurOee:0, plannedTime:800, cmpPlannedTime:0 },
   // compare-only: absent in current period, occurred in compare period
   { name:'Sensor error',  group:'Mechanical',  mainDur:0,   cmpDur:35,  mainCount:0,  cmpCount:2,  mainAvg:0,  cmpAvg:18, notes:0, cmpNotes:1, mainPct:0,  cmpPct:4,
-    station:'', cmpStation:'CNC-02, CNC-03', stationGroup:'', cmpStationGroup:'CNC', stopType:'Unplanned', location:'', cmpLocation:'Hall A', productGroup:'', cmpProductGroup:'Electronics', product:'', cmpProduct:'Circuit Bd., Widget Pro', productCode:'', cmpProductCode:'PRD-004, PRD-001', shift:'', cmpShift:'Afternoon, Night', operator:'', cmpOperator:'K. Williams, M. Garcia', loss:0, cmpLoss:35, durOee:0, cmpDurOee:35, plannedTime:0, cmpPlannedTime:800 },
+    station:'', cmpStation:'CNC-02, CNC-03', stationGroup:'', cmpStationGroup:'CNC', stopType:'Unplanned', location:'', cmpLocation:'Hall A', productGroup:'', cmpProductGroup:'Electronics', product:'', cmpProduct:'Circuit Bd., Widget Pro', productCode:'', cmpProductCode:'PRD-004, PRD-001', shift:'', cmpShift:'Afternoon, Night', operator:'', cmpOperator:'E. Christodoulou, G. Antoniou', loss:0, cmpLoss:35, durOee:0, cmpDurOee:35, plannedTime:0, cmpPlannedTime:800 },
 ];
 
 // Derive role + group from the operator names on each row. Adds:
@@ -278,22 +294,30 @@ const SHIFT_LEADERS = CAN_LEAD_OPERATORS;
 //
 // OEE = Availability(runMin/plannedMin) × Performance(totalQty/idealQty)
 //       × Quality(goodQty/totalQty).
+// Crews are kept within one team per block so the group comparison is clean:
+//   Blue Team  — led by V. Mavroeidis, runs a bit hotter (higher OEE)
+//   Red Team   — led by N. Papadopoulos, runs a bit lower
+//   Operators  — the fallback bucket (S. Nikolaou / S. Panagiotou), a couple shifts
+// so each named group shows a distinct OEE / quantity profile in the report.
 const SHIFT_BLOCKS = [
   // day, station, leader, operators, plannedMin, runMin, idealQty, totalQty, goodQty
-  blk(1, 'CNC-01',   'A. Johnson', ['A. Johnson','J. Smith','M. Garcia'],     480, 300, 1000, 560, 540),
-  blk(1, 'Press-01', 'R. Brown',   ['R. Brown','K. Williams','T. Davis'],     480, 250,  900, 470, 440),
-  blk(2, 'CNC-02',   'A. Johnson', ['A. Johnson','J. Smith','P. Wilson'],     480, 310, 1000, 580, 560),
-  blk(2, 'Press-02', 'R. Brown',   ['R. Brown','M. Garcia','T. Davis'],       480, 240,  900, 450, 425),
-  blk(3, 'CNC-01',   'A. Johnson', ['A. Johnson','K. Williams','M. Garcia'],  480, 295, 1000, 545, 525),
-  blk(3, 'Assembly-01','R. Brown', ['R. Brown','J. Smith','P. Wilson'],       480, 260,  850, 470, 445),
-  blk(4, 'Press-01', 'A. Johnson', ['A. Johnson','T. Davis','M. Garcia'],     480, 280,  900, 500, 480),
-  blk(4, 'CNC-03',   'R. Brown',   ['R. Brown','K. Williams','P. Wilson'],    480, 230, 1000, 430, 405),
-  blk(5, 'Assembly-02','A. Johnson',['A. Johnson','J. Smith','T. Davis'],     480, 305,  850, 530, 510),
-  blk(5, 'Press-03', 'R. Brown',   ['R. Brown','M. Garcia','K. Williams'],    480, 245,  900, 455, 430),
-  blk(6, 'CNC-02',   'A. Johnson', ['A. Johnson','M. Garcia','P. Wilson'],    480, 290, 1000, 540, 515),
-  blk(6, 'Press-02', 'R. Brown',   ['R. Brown','J. Smith','T. Davis'],        480, 235,  900, 440, 415),
-  blk(7, 'CNC-01',   'A. Johnson', ['A. Johnson','K. Williams','J. Smith'],   480, 300, 1000, 555, 535),
-  blk(7, 'Assembly-01','R. Brown', ['R. Brown','P. Wilson','M. Garcia'],      480, 255,  850, 465, 440),
+  // ── Blue Team (stronger) ─────────────────────────────────────────────────
+  blk(1, 'CNC-01',     'V. Mavroeidis', ['V. Mavroeidis','M. Kostopoulou','G. Antoniou'],  480, 320, 1000, 580, 562),
+  blk(2, 'CNC-02',     'V. Mavroeidis', ['V. Mavroeidis','P. Lambrou','A. Dimitriou'],     480, 315, 1000, 575, 558),
+  blk(3, 'CNC-01',     'V. Mavroeidis', ['V. Mavroeidis','M. Kostopoulou','P. Lambrou'],   480, 325, 1000, 590, 572),
+  blk(4, 'Press-01',   'V. Mavroeidis', ['V. Mavroeidis','G. Antoniou','A. Dimitriou'],    480, 305,  900, 525, 508),
+  blk(5, 'Assembly-02','V. Mavroeidis', ['V. Mavroeidis','P. Lambrou','M. Kostopoulou'],   480, 318,  850, 545, 528),
+  blk(6, 'CNC-02',     'V. Mavroeidis', ['V. Mavroeidis','G. Antoniou','A. Dimitriou'],    480, 312, 1000, 568, 552),
+  // ── Red Team (weaker) ────────────────────────────────────────────────────
+  blk(1, 'Press-01',   'N. Papadopoulos', ['N. Papadopoulos','E. Christodoulou','D. Ekonomou'], 480, 250, 900, 455, 428),
+  blk(2, 'Press-02',   'N. Papadopoulos', ['N. Papadopoulos','K. Vlachos','D. Roussou'],         480, 240, 900, 445, 416),
+  blk(3, 'Assembly-01','N. Papadopoulos', ['N. Papadopoulos','E. Christodoulou','K. Vlachos'],   480, 255, 850, 450, 422),
+  blk(4, 'CNC-03',     'N. Papadopoulos', ['N. Papadopoulos','D. Ekonomou','D. Roussou'],        480, 235, 1000, 430, 402),
+  blk(5, 'Press-03',   'N. Papadopoulos', ['N. Papadopoulos','K. Vlachos','E. Christodoulou'],   480, 245, 900, 448, 420),
+  blk(6, 'Press-02',   'N. Papadopoulos', ['N. Papadopoulos','D. Roussou','D. Ekonomou'],        480, 238, 900, 440, 412),
+  // ── Operators (fallback group): mid performance ──────────────────────────
+  blk(7, 'Warehouse',  'V. Mavroeidis',   ['S. Nikolaou','S. Panagiotou'],                 480, 280, 800, 470, 450),
+  blk(7, 'Quality Lab','N. Papadopoulos', ['S. Panagiotou','S. Nikolaou'],                 480, 270, 800, 455, 436),
 ];
 function blk(day, station, leaderId, operatorIds, plannedMin, runMin, idealQty, totalQty, goodQty) {
   // shiftMin: scheduled shift length (≥ planned). allMin: calendar time the
@@ -398,8 +422,8 @@ function descrValues(blocks, key) {
 }
 
 // Lightweight station → group / factory lookups for the descr columns.
-const STATION_GROUP_OF = { 'CNC-01':'CNC','CNC-02':'CNC','CNC-03':'CNC','Press-01':'Press','Press-02':'Press','Press-03':'Press','Assembly-01':'Assembly','Assembly-02':'Assembly' };
-const FACTORY_OF       = { 'CNC-01':'Factory 1','CNC-02':'Factory 1','CNC-03':'Factory 1','Press-01':'Factory 1','Press-02':'Factory 1','Press-03':'Factory 1','Assembly-01':'Factory 2','Assembly-02':'Factory 2' };
+const STATION_GROUP_OF = { 'CNC-01':'CNC','CNC-02':'CNC','CNC-03':'CNC','Press-01':'Press','Press-02':'Press','Press-03':'Press','Assembly-01':'Assembly','Assembly-02':'Assembly','Warehouse':'Logistics','Quality Lab':'Quality' };
+const FACTORY_OF       = { 'CNC-01':'Factory 1','CNC-02':'Factory 1','CNC-03':'Factory 1','Press-01':'Factory 1','Press-02':'Factory 1','Press-03':'Factory 1','Assembly-01':'Factory 2','Assembly-02':'Factory 2','Warehouse':'Factory 2','Quality Lab':'Factory 2' };
 
 // Build one OEE table row per value of the chosen X-axis dimension, from a
 // (filtered) block set. Each row = the dynamic first cell + the full metric +
@@ -517,6 +541,110 @@ function manhoursScoped(blocks, dim, val) {
   }));
   let total = 0; perOp.forEach(h => total += h);
   return total;
+}
+
+// ── Quantities report ─────────────────────────────────────────────────────────
+// The Quantities chart (Figma 2045-7344) is a STACKED bar per X-axis value:
+//   Scrap        (orange, bottom) = totalQty − goodQty
+//   Good quality (green)          = goodQty
+//   Potential    (grey, top)      = idealQty − totalQty   (the gap to ideal speed)
+// Stacked because they sum to the ideal output (unlike OEE's multiplicative
+// components). Derived from the SAME SHIFT_BLOCKS as OEE, so the two reconcile
+// and Split by operator / leader / group works for free.
+const QTY_SEGMENTS = [
+  { key:'potential', label:'Potential',    color:'#bdbdbd' },
+  { key:'good',      label:'Good quality', color:'#2ecc71' },
+  { key:'scrap',     label:'Scrap',        color:'#ff9800' },
+];
+
+// Roll up a block set into the three quantity buckets (+ totals for the table).
+function rollupQty(blocks) {
+  let ideal=0, total=0, good=0;
+  blocks.forEach(b => { ideal+=b.idealQty; total+=b.totalQty; good+=b.goodQty; });
+  return {
+    good, scrap: total - good, potential: Math.max(0, ideal - total),
+    totalQty: total, goodQty: good, idealQty: ideal,
+  };
+}
+
+// Quantities data-table columns: a dynamic first column (the X-axis dimension),
+// then descriptive context, then the quantity numbers. Mirrors the OEE table
+// shape (descr columns reuse descrValues / the same station lookups).
+const QTY_TABLE_COLS = [
+  { key:'stations',      label:'Stations',       type:'descr' },
+  { key:'stationGroups', label:'Station groups', type:'descr' },
+  { key:'factories',     label:'Factories',      type:'descr' },
+  { key:'products',      label:'Products',       type:'descr' },
+  { key:'productCodes',  label:'Product code',   type:'descr' },
+  { key:'shifts',        label:'Shifts',         type:'descr' },
+  { key:'goodQty',       label:'Good quantity',  type:'qty'   },
+  { key:'scrap',         label:'Scrap',          type:'qty'   },
+  { key:'potential',     label:'Potential',      type:'qty'   },
+  { key:'totalQty',      label:'Total quantity', type:'qty'   },
+];
+
+// One quantities table row per value of the chosen X-axis dimension, from a
+// (filtered) block set, + a bold Total row. Reuses OEE_DIMS / descrValues.
+function qtyTableRows(blocks, dimKey) {
+  const dim = OEE_DIMS[dimKey] || OEE_DIMS.operator;
+  const bucket = {};
+  blocks.forEach(b => dim.valsOf(b).forEach(v => (bucket[v] = bucket[v] || []).push(b)));
+  const rows = dim.labels()
+    .filter(v => bucket[v] && bucket[v].length)
+    .map(v => {
+      const bs = bucket[v];
+      const r = rollupQty(bs);
+      r.name = v;
+      QTY_TABLE_COLS.filter(c => c.type === 'descr').forEach(c => { r[c.key] = descrValues(bs, c.key); });
+      return r;
+    });
+  if (rows.length) {
+    const tot = rollupQty(blocks);
+    tot.name = 'Total'; tot._total = true;
+    QTY_TABLE_COLS.filter(c => c.type === 'descr').forEach(c => { tot[c.key] = ''; });
+    rows.push(tot);
+  }
+  return rows;
+}
+
+// Stacked quantities per X-axis category, optionally split by an inner
+// dimension. Returns { labels, innerLabels, data } where data[outer][inner] is a
+// rollupQty cell (or null). Mirrors oeeMatrixFromBlocks but for the qty buckets.
+function qtyMatrixFromBlocks(blocks, outerDim, innerDim) {
+  const O = OEE_DIMS[outerDim] || OEE_DIMS.operator;
+  const I = OEE_DIMS[innerDim] || OEE_DIMS.leader;
+  const bucket = {};
+  blocks.forEach(b => {
+    O.valsOf(b).forEach(ov => {
+      I.valsOf(b).forEach(iv => {
+        (bucket[ov] = bucket[ov] || {});
+        (bucket[ov][iv] = bucket[ov][iv] || []).push(b);
+      });
+    });
+  });
+  const data = {};
+  O.labels().forEach(ov => {
+    data[ov] = {};
+    I.labels().forEach(iv => {
+      const bs = bucket[ov] && bucket[ov][iv];
+      data[ov][iv] = (bs && bs.length) ? rollupQty(bs) : null;
+    });
+  });
+  return { labels: O.labels(), innerLabels: I.labels(), data, outerHeader: O.header, innerHeader: I.header };
+}
+
+// Per-day stacked quantities for the Day (time) X-axis. One entry per day in
+// SHIFT_BLOCKS, summing that day's blocks. (The OEE Day view uses synthetic
+// OEE_DATA; Quantities derives the Day view straight from the blocks so it
+// reconciles with the categorical views.)
+function qtyByDay(blocks) {
+  const byDay = new Map();
+  blocks.forEach(b => { (byDay.get(b.day) || byDay.set(b.day, []).get(b.day)).push(b); });
+  return [...byDay.keys()].sort((a,b)=>a-b).map(day => {
+    const r = rollupQty(byDay.get(day));
+    r.day = day; r.name = day;
+    return r;
+  });
 }
 
 // ── Date utilities ────────────────────────────────────────────────────────────
@@ -741,7 +869,7 @@ function mockTimeSeries(labels, cmpCount, mainCount, cmpLabels) {
       productGroup:'Electronics', cmpProductGroup:'Electronics',
       product:'Widget Pro', cmpProduct:'Circuit Bd.',
       productCode:'PRD-001', cmpProductCode:'PRD-004',
-      shift:'Morning', cmpShift:'Night', operator:'J. Smith', cmpOperator:'K. Williams',
+      shift:'Morning', cmpShift:'Night', operator:'M. Kostopoulou', cmpOperator:'E. Christodoulou',
       loss: mainDur, cmpLoss: cmpDur, durOee: mainDur, cmpDurOee: cmpDur,
       plannedTime: 800, cmpPlannedTime: 800,
       cmpName: (cmpLabels && cmpLabels[idx]) ? cmpLabels[idx] : undefined,

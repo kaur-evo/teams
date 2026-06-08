@@ -61,3 +61,29 @@ Load order matters: `data.js` must execute before `logic.js` (both are `<script 
 - **`_chartBaseData`** always stays at the stop-reason level (15 rows). Aggregated views are computed on the fly from it; only `redrawChart('Stop reasons')` overwrites it.
 - **Picker snapshot** — `toggleDatePicker()` saves all state to `_pickerSnapshot`; `closeDatePicker()` restores it. `applyDatePicker()` clears it (commit).
 - **`_appliedCompareOn`** tracks the last *applied* compare state (not the in-picker state). Guards compare columns in `renderTable` and tooltip in `drawChartWith`.
+
+---
+
+## Three reports: Downtime · OEE · Quantities
+
+`currentReport` ('downtime' | 'oee' | 'quantities') drives `switchReport(type)`, which toggles the three `*-chart-section` blocks and calls the right `draw*` function. The left rail buttons (`rnav-downtime` / `rnav-oee` / `rnav-quantities`) call it. The four filter/date apply paths (`applyDatePicker`, `removeCompare`, `applyCdd`, `applyOperatorFilters`) each redraw whichever report is active.
+
+### Shared people-data model (the important part)
+
+OEE and Quantities both derive **everything about operators / groups / leaders from `SHIFT_BLOCKS`** in `data.js` — one block = a station-shift with a `leaderId`, `operatorIds`, and raw counters (`plannedMin/runMin/idealQty/totalQty/goodQty`). So chart, table, and filter chips always reconcile, and Split-by works on either dimension for free.
+
+- **Name sync:** `OPERATOR_DIRECTORY` mirrors the setup prototype's 8 operators (`mock-data.js` MOCK_OPERATORS) in short form — `V. Mavroeidis`, `N. Papadopoulos` (the two `canLead`), `M. Kostopoulou`, etc., all in the single **`Operators`** group. Moving setup → reports shows familiar names. 1:1 by last name.
+- **`OEE_DIMS`** {operator, group, leader} maps a block → its value(s) per dimension. `oeeDimKey(label)` turns an axis/split label into a key. `oeeMatrixFromBlocks` / `qtyMatrixFromBlocks` build the outer×inner cell grid.
+- **`selectedBlocks()`** applies the operator + leader filter chips to `SHIFT_BLOCKS`.
+
+### OEE report
+
+- `drawOeeChart()` dispatches: **line** only when `oeeChartType==='line'` AND `oeeXAxis==='Day'` AND no split (synthetic `OEE_DATA` time series); otherwise **`drawOeeBars()`** (grouped bars). The 4 component bars are Quality/Performance/Availability/OEE (multiplicative — never stacked). **Manhours is table-only** — no 2nd-Y line.
+- Controls: `oee-charttype-btn` (Line/Bar), `oee-xaxis-btn`, `oee-splitby-btn`.
+- Tables: `renderOeeMainTable` (full 21-col `OEE_TABLE_COLS`, no-split) / `renderOeeTable` (compact category×inner, split). `oeeTableRows(blocks, dimKey)` builds rows + a Total.
+
+### Quantities report
+
+- `drawQtyChart()` — **stacked** bars (Scrap+Good+Potential = ideal output; opposite of OEE's multiplicative components). Per block: Good=`goodQty`, Scrap=`totalQty−goodQty`, Potential=`idealQty−totalQty`. `QTY_SEGMENTS` defines the colors (grey/green/orange). Day axis = `qtyByDay`; categorical = `qtyMatrixFromBlocks`.
+- Controls: `qty-xaxis-btn`, `qty-splitby-btn` (Y-axis fixed to Quantity). State: `qtyXAxis`, `qtySplitBy`, `_qtyHidden`, `_qtyPage`.
+- Tables: `renderQtyTable` (full, `QTY_TABLE_COLS`) / `renderQtySplitTable` (compact). `qtyTableRows(blocks, dimKey)`.

@@ -266,19 +266,6 @@
           </div>
         </div>
         <div class="field" style="position:relative;">
-          <button type="button" class="field__select is-empty" id="teamColorTrigger">
-            <span class="field__select-text">Color</span>
-            <span class="field__select-caret" data-icn="menu-down"></span>
-          </button>
-          <div class="field__bottom">
-            <span class="field__hint">Operator group color in reports</span>
-          </div>
-          <div class="dropdown" id="teamColorMenu" data-anchor="#teamColorTrigger"></div>
-        </div>
-      </div>
-      <!-- Tags (multi-select) on its own row. -->
-      <div class="field-row">
-        <div class="field" style="flex: 0 0 calc(50% - 4px); position:relative;">
           <button type="button" class="field__select is-empty" id="teamTagsTrigger">
             <span class="field__select-text">Tags</span>
             <span class="field__select-caret" data-icn="menu-down"></span>
@@ -287,30 +274,6 @@
             <span class="field__hint">Tags (Optional)</span>
           </div>
           <div class="dropdown" id="teamTagsMenu" data-anchor="#teamTagsTrigger"></div>
-        </div>
-      </div>
-      <!-- Global group toggle. ON → factory choice hidden (group visible
-           everywhere). OFF → factory choice appears below as a multi-select. -->
-      <div class="op-leader-toggle-row" style="padding: 16px 0 8px;">
-        <button type="button" class="op-switch" id="teamGlobalSwitch" role="switch" aria-checked="false" aria-label="Global group">
-          <span class="op-switch-knob"></span>
-        </button>
-        <div class="op-leader-toggle-text">
-          <div class="op-leader-toggle-label">Global group</div>
-          <div class="op-leader-toggle-hint">Turn on if this group should be visible across all factories.</div>
-        </div>
-      </div>
-      <!-- Factories (multi-select), shown only when Global group is OFF. -->
-      <div class="field-row" id="teamFactoryRow" style="display:none;">
-        <div class="field" style="flex: 0 0 calc(50% - 4px); position:relative;">
-          <button type="button" class="field__select is-empty" id="teamFactoryTrigger">
-            <span class="field__select-text">Factories</span>
-            <span class="field__select-caret" data-icn="menu-down"></span>
-          </button>
-          <div class="field__bottom">
-            <span class="field__hint">Factories</span>
-          </div>
-          <div class="dropdown" id="teamFactoryMenu" data-anchor="#teamFactoryTrigger"></div>
         </div>
       </div>
     </div>
@@ -454,15 +417,12 @@ function renderTagsCell(op) {
 function renderRoleCell(op) {
   return op.canLead ? 'Yes' : '-';
 }
-// Group cell shows the color swatch + group name (no swatch for Default to
-// avoid drawing attention to the fallback bucket).
+// Group cell shows just the group name — color dots were removed (operator
+// groups no longer carry a color; see the group modal).
 function renderGroupCell(op) {
   const team = teamById(op.teamId);
   if (!team) return '-';
-  const isDefault = team.name === 'Operators';
-  const swatch = isDefault ? '' :
-    `<span class="swatch" style="background:${team.color};width:10px;height:10px;margin-right:6px;vertical-align:middle;"></span>`;
-  return `${swatch}${escapeHtml(team.name)}`;
+  return escapeHtml(team.name);
 }
 
 function renderList() {
@@ -508,7 +468,6 @@ function renderTeams(expandTeamId) {
             <button class="icon-btn" aria-label="Edit team" data-edit-team="${team.id}">
               <span data-icn="edit"></span>
             </button>
-            <span class="team-group__swatch" style="background:${team.color}"></span>
             <span class="team-group__name">${escapeHtml(team.name)}</span>
           </div>
           <span class="team-group__caret" data-icn="menu-down"></span>
@@ -722,7 +681,7 @@ function refreshOperatorSummaries() {
   const team = teamById(window.__opTeam);
   tTrig.classList.toggle('is-empty', !team);
   $('.field__select-text', tTrig).innerHTML = team
-    ? `<span class="swatch" style="background:${team.color};margin-right:8px;vertical-align:middle;"></span>${escapeHtml(team.name)}`
+    ? escapeHtml(team.name)
     : 'Operator group';
 
   // Role field vs. leader toggle. Leader mode: hide the role field entirely
@@ -841,7 +800,6 @@ bindDropdown('#opTeamTrigger', '#opTeamMenu', () => {
   const rows = teams.map(t => `
     <div class="dropdown__row ${sel === t.id ? 'is-selected' : ''}" data-value="${t.id}">
       ${radioCheckMarker(sel === t.id)}
-      <span class="swatch" style="background:${t.color}"></span>
       <span style="flex:1;">${escapeHtml(t.name)}</span>
     </div>
   `).join('');
@@ -1003,49 +961,20 @@ function evoHideTooltip() {
   if (_evoTooltipEl) { _evoTooltipEl.remove(); _evoTooltipEl = null; }
 }
 
-// ─── Team modal ───
+// ─── Team modal (operator group) — Name + Tags only ───
 function setTeamForm(team) {
   $('#teamName').value = team?.name || '';
   $('#teamNameCount').textContent = $('#teamName').value.length;
-  window.__teamColor      = team?.color || null;
-  window.__teamFactoryIds = [...(team?.factoryIds || [])];
-  // Default new teams to Global (the common case). Existing teams use their flag.
-  window.__teamIsGlobal   = team ? !!team.isGlobal : true;
-  window.__teamTags       = [...(team?.tags || [])];
+  window.__teamTags = [...(team?.tags || [])];
   refreshTeamSummaries();
 }
 function refreshTeamSummaries() {
-  const cTrig = $('#teamColorTrigger');
-  const color = window.__teamColor;
-  cTrig.classList.toggle('is-empty', !color);
-  const colorEntry = TEAM_COLOR_PALETTE.find(c => c.value === color);
-  $('.field__select-text', cTrig).innerHTML = color
-    ? `<span class="swatch" style="background:${color};margin-right:8px;vertical-align:middle;"></span>${escapeHtml(colorEntry?.label || color)}`
-    : 'Color';
-
-  // Tags
   const tTrig = $('#teamTagsTrigger');
   const tags = window.__teamTags || [];
   tTrig.classList.toggle('is-empty', tags.length === 0);
   $('.field__select-text', tTrig).textContent = tags.length
     ? (tags.length === 1 ? tags[0] : `${tags[0]} + ${tags.length - 1} more`)
     : 'Tags';
-
-  // Global toggle + conditional Factories row
-  const sw = $('#teamGlobalSwitch');
-  const isGlobal = !!window.__teamIsGlobal;
-  sw.classList.toggle('is-on', isGlobal);
-  sw.setAttribute('aria-checked', String(isGlobal));
-  $('#teamFactoryRow').style.display = isGlobal ? 'none' : '';
-
-  // Factories (multi-select) — only meaningful when not global
-  const fTrig = $('#teamFactoryTrigger');
-  const fids = window.__teamFactoryIds || [];
-  const fnames = fids.map(id => factoryById(id)?.name).filter(Boolean);
-  fTrig.classList.toggle('is-empty', fnames.length === 0);
-  $('.field__select-text', fTrig).textContent = fnames.length
-    ? (fnames.length === 1 ? fnames[0] : `${fnames[0]} + ${fnames.length - 1} more`)
-    : 'Factories';
 }
 function openTeamModal(teamId) {
   editingTeam = teamId ? teams.find(t => t.id === teamId) : null;
@@ -1055,26 +984,16 @@ function openTeamModal(teamId) {
 }
 $('#btnNewTeam').addEventListener('click', () => openTeamModal(null));
 $('#teamName').addEventListener('input', e => $('#teamNameCount').textContent = e.target.value.length);
-$('#teamGlobalSwitch').addEventListener('click', () => {
-  window.__teamIsGlobal = !window.__teamIsGlobal;
-  refreshTeamSummaries();
-});
 $('#teamSave').addEventListener('click', () => {
   const name = $('#teamName').value.trim();
   if (!name) { $('#teamName').focus(); return; }
-  const data = {
-    name,
-    color: window.__teamColor || '#06c',
-    isGlobal: !!window.__teamIsGlobal,
-    factoryIds: window.__teamIsGlobal ? [] : [...(window.__teamFactoryIds || [])],
-    tags: [...(window.__teamTags || [])],
-  };
+  const data = { name, tags: [...(window.__teamTags || [])] };
   const isNew = !editingTeam;
   if (editingTeam) {
     Object.assign(editingTeam, data);
   } else {
     const id = (Math.max(0, ...teams.map(t => t.id)) || 0) + 1;
-    teams.push({ id, ...data });
+    teams.push({ id, color: '#9e9e9e', ...data });
   }
   persist();
   renderList();
@@ -1082,22 +1001,6 @@ $('#teamSave').addEventListener('click', () => {
   closeAllModals();
   // Brand-new team: jump to Teams view so the user sees their new row in the list.
   if (isNew) setView('teams');
-});
-
-// Color dropdown
-bindDropdown('#teamColorTrigger', '#teamColorMenu', () => {
-  const sel = window.__teamColor;
-  const rows = TEAM_COLOR_PALETTE.map(c => `
-    <div class="dropdown__row ${sel === c.value ? 'is-selected' : ''}" data-value="${c.value}">
-      ${radioCheckMarker(sel === c.value)}
-      <span class="swatch" style="background:${c.value}"></span>
-      <span style="flex:1;">${escapeHtml(c.label)}</span>
-    </div>
-  `).join('');
-  return `<div class="dropdown__rows">${rows}</div>`;
-});
-$('#teamColorTrigger').addEventListener('click', () => {
-  window.__currentSingleSelect = (v) => { window.__teamColor = v; refreshTeamSummaries(); };
 });
 
 // Tags dropdown (multi-select) — same MOCK_TAGS source as the operator modal.
@@ -1114,24 +1017,6 @@ bindDropdown('#teamTagsTrigger', '#teamTagsMenu', () => {
 $('#teamTagsTrigger').addEventListener('click', () => {
   window.__currentMultiSelect = () => {
     window.__teamTags = $$('#teamTagsMenu .dropdown__row.is-checked').map(r => r.dataset.value);
-    refreshTeamSummaries();
-  };
-});
-
-// Factory dropdown (multi-select)
-bindDropdown('#teamFactoryTrigger', '#teamFactoryMenu', () => {
-  const sel = window.__teamFactoryIds || [];
-  const rows = FACTORIES.map(f => `
-    <div class="dropdown__row ${sel.includes(f.id) ? 'is-checked' : ''}" data-value="${f.id}">
-      ${checkboxMarker(sel.includes(f.id))}
-      <span style="flex:1;">${escapeHtml(f.name)}</span>
-    </div>
-  `).join('');
-  return `<div class="dropdown__rows">${rows}</div>`;
-});
-$('#teamFactoryTrigger').addEventListener('click', () => {
-  window.__currentMultiSelect = () => {
-    window.__teamFactoryIds = $$('#teamFactoryMenu .dropdown__row.is-checked').map(r => Number(r.dataset.value));
     refreshTeamSummaries();
   };
 });

@@ -416,14 +416,15 @@
 <!-- ── App Body (sidemenu + content) ──────────────────────────── -->
 <div id="app-body">
 
-  <!-- Sidemenu -->
+  <!-- Sidemenu. The Shift-view + Settings icons link back to the other
+       prototype surfaces (Reports lives in this folder; they live in ../prototype). -->
   <div id="sidemenu">
     <div class="side-icon ico-menu"></div>
-    <div class="side-icon ico-target"></div>
+    <a href="../prototype/index.html" title="Shift View" style="text-decoration:none;color:inherit;"><div class="side-icon ico-target"></div></a>
     <div class="side-icon ico-grid"></div>
-    <div class="side-icon ico-chart active"></div>
+    <div class="side-icon ico-chart active" title="Reports"></div>
     <div class="side-spacer"></div>
-    <div class="side-icon ico-gear"></div>
+    <a href="../prototype/setup-proto.html" title="Settings" style="text-decoration:none;color:inherit;"><div class="side-icon ico-gear"></div></a>
     <div class="side-icon ico-dash"></div>
     <div class="side-icon ico-help"></div>
     <div class="side-icon ico-flag"></div>
@@ -455,7 +456,7 @@
       <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M18.5 3.5L3.5 18.5L5.5 20.5L20.5 5.5L18.5 3.5ZM7 4C6.20435 4 5.44129 4.31607 4.87868 4.87868C4.31607 5.44129 4 6.20435 4 7C4 7.79565 4.31607 8.55871 4.87868 9.12132C5.44129 9.68393 6.20435 10 7 10C7.79565 10 8.55871 9.68393 9.12132 9.12132C9.68393 8.55871 10 7.79565 10 7C10 6.20435 9.68393 5.44129 9.12132 4.87868C8.55871 4.31607 7.79565 4 7 4ZM17 14C16.2044 14 15.4413 14.3161 14.8787 14.8787C14.3161 15.4413 14 16.2044 14 17C14 17.7956 14.3161 18.5587 14.8787 19.1213C15.4413 19.6839 16.2044 20 17 20C17.7956 20 18.5587 19.6839 19.1213 19.1213C19.6839 18.5587 20 17.7956 20 17C20 16.2044 19.6839 15.4413 19.1213 14.8787C18.5587 14.3161 17.7956 14 17 14Z"/></svg>
     </button>
     <!-- Quantities — circle-multiple-outline -->
-    <button class="rnav-item" title="Quantities">
+    <button class="rnav-item" id="rnav-quantities" onclick="switchReport('quantities')" title="Quantities">
       <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path fill-rule="evenodd" clip-rule="evenodd" d="M15 4C10.58 4 7 7.58 7 12C7 16.42 10.58 20 15 20C19.42 20 23 16.42 23 12C23 7.58 19.42 4 15 4ZM15 18C11.69 18 9 15.31 9 12C9 8.69 11.69 6 15 6C18.31 6 21 8.69 21 12C21 15.31 18.31 18 15 18ZM7 6.35C4.67 7.17 3 9.39 3 12C3 14.61 4.67 16.83 7 17.65V19.74C3.55 18.85 1 15.73 1 12C1 8.27 3.55 5.15 7 4.26V6.35Z"/></svg>
     </button>
     <!-- Time usage — poll -->
@@ -629,7 +630,10 @@
       <button style="font-size:13px; font-weight:500; color:#212121; background:none; border:none; cursor:pointer; padding:0;">← BACK</button>
       <div style="flex:1;"></div>
       <div style="display:flex; gap:8px; align-items:center;">
-        <button class="filter-chip active">~ Line chart &nbsp;▾</button>
+        <div style="position:relative;">
+          <button class="filter-chip active" id="oee-charttype-btn" onclick="toggleOeeChartTypeDropdown(event)">~ Line chart &nbsp;▾</button>
+          <div class="xaxis-dropdown" id="oee-charttype-dropdown"></div>
+        </div>
         <div style="position:relative;">
           <button class="filter-chip" id="oee-xaxis-btn" onclick="toggleOeeXAxisDropdown(event)">X-axis: Day &nbsp;▾</button>
           <div class="xaxis-dropdown" id="oee-xaxis-dropdown"></div>
@@ -648,9 +652,101 @@
         <div id="oee-pager" style="display:none; align-items:center; gap:4px;"></div>
       </div>
     </div>
-    <!-- Data table (split-by mode) — one row per category × shift leader -->
-    <div id="oee-table-wrap" style="display:none; border-top:1px solid #e0e0e0; padding:16px 20px; overflow-x:auto;">
-      <table id="oee-table" style="width:100%; border-collapse:collapse; font-family:Inter,sans-serif; font-size:13px;"></table>
+    <!-- Data table — same chrome as the Downtime table -->
+    <div id="oee-table-wrap" style="display:none; padding:16px 24px 32px;">
+      <div class="dt-card">
+        <div style="padding:8px 8px 8px 16px; display:flex; align-items:center; justify-content:space-between;">
+          <div style="display:flex; align-items:center; gap:8px; flex-shrink:0;">
+            <span style="font-family:'Open Sans',sans-serif; font-size:20px; font-weight:600; color:#212121; line-height:1.296;">OEE</span>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="#9e9e9e" style="flex-shrink:0;"><path d="M13,9H11V7H13M13,17H11V11H13M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2Z"/></svg>
+          </div>
+          <div style="display:flex; gap:8px; align-items:center; flex-shrink:0;">
+            <div style="display:flex; align-items:center; gap:4px; height:32px; padding:0 12px; border-radius:24px; border:1px solid #2ecc71; background:rgba(46,204,113,0.12); cursor:pointer; white-space:nowrap;">
+              <span id="oee-col-count" style="font-family:'Open Sans',sans-serif; font-size:14px; color:#212121; line-height:20px;">Columns: 21</span>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="#212121"><path d="M7,10L12,15L17,10H7Z"/></svg>
+            </div>
+            <div style="display:flex; align-items:center; gap:4px; height:32px; padding:0 12px; border-radius:24px; border:1px solid #2ecc71; background:rgba(46,204,113,0.12); cursor:pointer; white-space:nowrap;">
+              <span style="font-family:'Open Sans',sans-serif; font-size:14px; color:#212121; line-height:20px;">Time format: Readable</span>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="#212121"><path d="M7,10L12,15L17,10H7Z"/></svg>
+            </div>
+            <div style="display:flex; align-items:center; gap:4px; height:32px; padding:0 12px; border-radius:24px; background:#eeeeee; cursor:pointer; white-space:nowrap;">
+              <span style="font-family:'Open Sans',sans-serif; font-size:14px; color:#212121; line-height:20px;">Export</span>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="#212121"><path d="M7,10L12,15L17,10H7Z"/></svg>
+            </div>
+          </div>
+        </div>
+        <div class="dt-scroll" id="oee-scroll">
+          <table id="oee-table" style="min-width:900px; width:100%;">
+            <thead id="oee-head"></thead>
+            <tbody id="oee-body"></tbody>
+          </table>
+        </div>
+        <div style="padding:6px 12px; display:flex; align-items:center; justify-content:flex-end; gap:4px; border-top:1px solid #e0e0e0;">
+          <span id="oee-tbl-page-info" style="font-family:'Open Sans',sans-serif; font-size:13px; color:#757575; margin-right:4px;"></span>
+          <button id="oee-tbl-prev" class="dt-page-btn" onclick="oeeTblPrev()">&#8249;</button>
+          <button id="oee-tbl-next" class="dt-page-btn" onclick="oeeTblNext()">&#8250;</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Quantities report ─────────────────────────────────────── -->
+  <div id="qty-chart-section" style="display:none;">
+    <!-- Chart controls -->
+    <div style="height:48px; background:white; border-bottom:1px solid #d1d1d1; display:flex; align-items:center; padding:0 15px; position:relative; z-index:20;">
+      <button style="font-size:13px; font-weight:500; color:#212121; background:none; border:none; cursor:pointer; padding:0;">← BACK</button>
+      <div style="flex:1;"></div>
+      <div style="display:flex; gap:8px; align-items:center;">
+        <button class="filter-chip active">Y-axis: Quantity (primary unit)</button>
+        <div style="position:relative;">
+          <button class="filter-chip" id="qty-xaxis-btn" onclick="toggleQtyXAxisDropdown(event)">X-axis: Day &nbsp;▾</button>
+          <div class="xaxis-dropdown" id="qty-xaxis-dropdown"></div>
+        </div>
+        <div style="position:relative;">
+          <button class="filter-chip" id="qty-splitby-btn" onclick="toggleQtySplitDropdown(event)">Split by: – &nbsp;▾</button>
+          <div class="xaxis-dropdown" id="qty-splitby-dropdown"></div>
+        </div>
+      </div>
+    </div>
+    <!-- Chart area -->
+    <div style="height:460px; background:white; display:flex; flex-direction:column; overflow:hidden;">
+      <div id="qty-chart-container" style="flex:1; min-height:0; position:relative;"></div>
+      <div style="display:flex; align-items:center; padding:6px 20px 12px 20px; flex-shrink:0;">
+        <div id="qty-chart-legend" style="display:flex; flex-wrap:wrap; gap:6px 18px; flex:1;"></div>
+        <div id="qty-pager" style="display:none; align-items:center; gap:4px;"></div>
+      </div>
+    </div>
+    <!-- Data table — same chrome as the Downtime table -->
+    <div id="qty-table-wrap" style="display:none; padding:16px 24px 32px;">
+      <div class="dt-card">
+        <div style="padding:8px 8px 8px 16px; display:flex; align-items:center; justify-content:space-between;">
+          <div style="display:flex; align-items:center; gap:8px; flex-shrink:0;">
+            <span style="font-family:'Open Sans',sans-serif; font-size:20px; font-weight:600; color:#212121; line-height:1.296;">Quantities</span>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="#9e9e9e" style="flex-shrink:0;"><path d="M13,9H11V7H13M13,17H11V11H13M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2Z"/></svg>
+          </div>
+          <div style="display:flex; gap:8px; align-items:center; flex-shrink:0;">
+            <div style="display:flex; align-items:center; gap:4px; height:32px; padding:0 12px; border-radius:24px; border:1px solid #2ecc71; background:rgba(46,204,113,0.12); cursor:pointer; white-space:nowrap;">
+              <span id="qty-col-count" style="font-family:'Open Sans',sans-serif; font-size:14px; color:#212121; line-height:20px;">Columns: 11</span>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="#212121"><path d="M7,10L12,15L17,10H7Z"/></svg>
+            </div>
+            <div style="display:flex; align-items:center; gap:4px; height:32px; padding:0 12px; border-radius:24px; background:#eeeeee; cursor:pointer; white-space:nowrap;">
+              <span style="font-family:'Open Sans',sans-serif; font-size:14px; color:#212121; line-height:20px;">Export</span>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="#212121"><path d="M7,10L12,15L17,10H7Z"/></svg>
+            </div>
+          </div>
+        </div>
+        <div class="dt-scroll" id="qty-scroll">
+          <table id="qty-table" style="min-width:900px; width:100%;">
+            <thead id="qty-head"></thead>
+            <tbody id="qty-body"></tbody>
+          </table>
+        </div>
+        <div style="padding:6px 12px; display:flex; align-items:center; justify-content:flex-end; gap:4px; border-top:1px solid #e0e0e0;">
+          <span id="qty-tbl-page-info" style="font-family:'Open Sans',sans-serif; font-size:13px; color:#757575; margin-right:4px;"></span>
+          <button id="qty-tbl-prev" class="dt-page-btn" onclick="qtyTblPrev()">&#8249;</button>
+          <button id="qty-tbl-next" class="dt-page-btn" onclick="qtyTblNext()">&#8250;</button>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -788,7 +884,7 @@
   <div id="dt-row-tip-name"></div>
 </div>
 
-<script src="data.js?v=18"></script>
-<script src="logic.js?v=35"></script>
+<script src="data.js?v=20"></script>
+<script src="logic.js?v=37"></script>
 </body>
 </html>
