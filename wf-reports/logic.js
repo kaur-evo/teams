@@ -8,6 +8,7 @@
 
 let _chartBaseData = [];           // working copy of STOP_REASONS_DATA; stays at stop-reason level
 let currentXAxis   = 'Stop reasons';
+let downtimeSplitBy = null;        // null = off, or 'Shift leaders' | 'Operator group' | 'Operators'
 let _dtColLabel    = 'Stop reasons';
 let currentY2      = null;         // null = off, or one of the Y2_METRICS keys
 let _dtFixedWidth  = 200;          // first column width, px — resizable via drag
@@ -1015,9 +1016,110 @@ function initChart() {
   drawChartWith(_chartBaseData);
 }
 
+// Downtime "Split by" — clustered bars. Each X-axis category (item) becomes a
+// cluster; within it, one bar per split value (shift leader / operator group /
+// operator) present on that category. A category's duration is distributed
+// evenly across the split values it lists, so the sub-bars sum to the category
+// total (same even-split convention aggregateBy uses for multi-value rows).
+function drawDowntimeSplit(items) {
+  const fieldKey = splitFieldKey(downtimeSplitBy);
+
+  // Build [{ name, subs:[{val, dur}] }] and the global set of split values.
+  const splitValSet = new Set();
+  const clusters = items.map(it => {
+    const raw = (it[fieldKey] || '').split(',').map(s => s.trim()).filter(Boolean);
+    const vals = raw.length ? raw : ['—'];
+    const per  = (it.mainDur || 0) / vals.length;
+    const subMap = new Map();
+    vals.forEach(v => { subMap.set(v, (subMap.get(v) || 0) + per); splitValSet.add(v); });
+    return { name: it.name, subs: [...subMap.entries()].map(([val, dur]) => ({ val, dur })) };
+  });
+  const splitVals = [...splitValSet];
+  const colorMap = Object.fromEntries(splitVals.map((v, i) => [v, CHART_PALETTE[i % CHART_PALETTE.length]]));
+
+  // Table stays in sync with the (unsplit) X-axis aggregation.
+  initTable(items);
+
+  // Legend = split values.
+  const legendEl = document.getElementById('chart-legend');
+  legendEl.innerHTML = '';
+  splitVals.forEach(v => {
+    const el = document.createElement('div');
+    el.style.cssText = 'display:flex;align-items:center;gap:6px;';
+    el.innerHTML = `<span style="display:inline-block;width:12px;height:12px;border-radius:2px;background:${colorMap[v]};flex-shrink:0;"></span><span style="font-family:Inter,sans-serif;font-size:12px;color:#424242;">${v}</span>`;
+    legendEl.appendChild(el);
+  });
+
+  const container = document.getElementById('chart-container');
+  const W = container.clientWidth, H = container.clientHeight;
+  const margin = { top: 16, right: 24, bottom: 88, left: 68 };
+  const width  = W - margin.left - margin.right;
+  const height = H - margin.top  - margin.bottom;
+
+  d3.select('#chart-container').selectAll('svg').remove();
+  const svg   = d3.select('#chart-container').append('svg').attr('width', W).attr('height', H);
+  const chart = svg.append('g').attr('transform', `translate(${margin.left},${margin.top})`);
+
+  const x0 = d3.scaleBand().domain(clusters.map(c => c.name)).range([0, width]).paddingInner(0.28).paddingOuter(0.05);
+  const x1 = d3.scaleBand().domain(splitVals).range([0, x0.bandwidth()]).padding(0.08);
+  const yMax = d3.max(clusters, c => d3.max(c.subs, s => s.dur)) * 1.15 || 10;
+  const y = d3.scaleLinear().domain([0, yMax]).nice().range([height, 0]);
+
+  // Grid
+  chart.append('g').call(d3.axisLeft(y).tickSize(-width).tickFormat(''))
+    .call(ax => ax.select('.domain').remove())
+    .call(ax => ax.selectAll('line').style('stroke', '#eeeeee'));
+
+  const tooltipEl = document.getElementById('chart-tooltip');
+
+  clusters.forEach(c => {
+    const g = chart.append('g').attr('transform', `translate(${x0(c.name)},0)`);
+    c.subs.forEach(s => {
+      g.append('rect')
+        .attr('x', x1(s.val)).attr('width', x1.bandwidth())
+        .attr('y', y(s.dur)).attr('height', height - y(s.dur))
+        .attr('fill', colorMap[s.val]).attr('rx', 2)
+        .on('mousemove', (event) => {
+          if (!tooltipEl) return;
+          tooltipEl.innerHTML =
+            `<div style="font-family:'Open Sans',sans-serif;font-size:12px;">` +
+            `<div style="font-weight:600;margin-bottom:2px;">${c.name} — ${s.val}</div>` +
+            `<div>${downtimeSplitBy}: <b>${Math.round(s.dur)} min</b></div></div>`;
+          tooltipEl.style.display = 'block';
+          tooltipEl.style.left = (event.clientX + 14) + 'px';
+          tooltipEl.style.top  = (event.clientY - 10) + 'px';
+        })
+        .on('mouseleave', () => { if (tooltipEl) tooltipEl.style.display = 'none'; });
+    });
+  });
+
+  // X axis
+  const xAxisG = chart.append('g').attr('transform', `translate(0,${height})`).call(d3.axisBottom(x0).tickSize(0));
+  xAxisG.select('.domain').style('stroke', '#e0e0e0');
+  xAxisG.selectAll('text')
+    .style('font-family', 'Inter, sans-serif').style('font-size', '11px').style('fill', '#616161')
+    .attr('transform', 'rotate(-38)').attr('text-anchor', 'end').attr('dx', '-0.4em').attr('dy', '0.25em');
+
+  // Y axis
+  const yAxisG = chart.append('g').call(d3.axisLeft(y).ticks(6).tickFormat(d => d + ' min').tickSize(0));
+  yAxisG.select('.domain').remove();
+  yAxisG.selectAll('text').style('font-family', 'Inter, sans-serif').style('font-size', '11px').style('fill', '#616161');
+  svg.append('text').attr('transform', 'rotate(-90)').attr('x', -(margin.top + height / 2)).attr('y', 14)
+    .attr('text-anchor', 'middle').style('font-family', 'Inter, sans-serif').style('font-size', '11px').style('fill', '#9e9e9e')
+    .text('Duration (min)');
+
+  // Compare is suppressed in split mode (like the OEE/Qty splits); keep the
+  // closure defined so applyDatePicker()/removeCompare() don't break.
+  updateChartCompare = function () { renderTable(); };
+}
+
 // Renders the D3 bar chart. Handles both flat bars (Stop reasons) and
 // stacked bars (all other axes where items have a .segments array).
 function drawChartWith(items) {
+  // Split-by mode: clustered bars (X-category × split value). Self-contained —
+  // bypasses the stacked/flat + compare + 2nd-Y machinery below.
+  if (downtimeSplitBy) { drawDowntimeSplit(items); return; }
+
   // Build a color map: group name → hex. Falls back to CHART_PALETTE for unknown groups.
   let uniqueGroups;
   const isStacked = items.length > 0 && Array.isArray(items[0].segments);
@@ -1444,9 +1546,51 @@ function buildXAxisDropdown() {
   });
 }
 
+// ── Downtime "Split by" dropdown (Shift leaders / Operator group / Operators) ─
+// Splits each X-axis category into grouped sub-bars by a people dimension, the
+// way Evocon's "Split by" turns a single series into clustered bars. Stacking by
+// stop group is the no-split default; in split mode each sub-bar is a total.
+function toggleSplitDropdown(event) {
+  event.stopPropagation();
+  const dd = document.getElementById('splitby-dropdown');
+  const wasOpen = dd.classList.contains('open');
+  document.querySelectorAll('.xaxis-dropdown').forEach(el => el.classList.remove('open'));
+  if (wasOpen) return;
+  dd.innerHTML = '';
+  [{ val: null, label: '–' },
+   { val: 'Shift leaders',  label: 'Shift leaders' },
+   { val: 'Operator group', label: 'Operator group' },
+   { val: 'Operators',      label: 'Operators' }].forEach(opt => {
+    const el = document.createElement('div');
+    el.className = 'xaxis-opt' + (downtimeSplitBy === opt.val ? ' selected' : '');
+    el.textContent = opt.label;
+    el.addEventListener('click', e => { e.stopPropagation(); selectSplit(opt.val); });
+    dd.appendChild(el);
+  });
+  dd.classList.add('open');
+}
+
+function selectSplit(val) {
+  downtimeSplitBy = val;
+  document.getElementById('splitby-dropdown').classList.remove('open');
+  document.getElementById('splitby-btn').innerHTML = 'Split by: ' + (val || '–') + ' &nbsp;▾';
+  // Re-render through the normal pipeline (split mode reshapes the items).
+  const items = getAxisData(currentXAxis, _chartBaseData);
+  if (!TIME_AXES.has(currentXAxis)) items.sort((a, b) => b.mainDur - a.mainDur);
+  drawChartWith(items);
+}
+
+// The row field that carries each split dimension's value(s) (comma-joined).
+function splitFieldKey(splitLabel) {
+  if (splitLabel === 'Shift leaders')  return 'leader';
+  if (splitLabel === 'Operator group') return 'operatorGroupName';
+  return 'operator'; // 'Operators'
+}
+
 // Close dropdowns when clicking outside them
 document.addEventListener('click', () => {
   document.getElementById('xaxis-dropdown').classList.remove('open');
+  document.getElementById('splitby-dropdown')?.classList.remove('open');
   document.getElementById('y2axis-dropdown').classList.remove('open');
   document.getElementById('compare-dropdown').classList.remove('open');
   document.getElementById('oee-splitby-dropdown')?.classList.remove('open');

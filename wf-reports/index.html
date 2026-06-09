@@ -615,7 +615,10 @@
           <button class="filter-chip" id="xaxis-btn" onclick="toggleXAxisDropdown(event)">X-axis: Stop reasons ▾</button>
           <div class="xaxis-dropdown" id="xaxis-dropdown"></div>
         </div>
-        <button class="filter-chip">Split by: – &nbsp;▾</button>
+        <div style="position:relative;">
+          <button class="filter-chip" id="splitby-btn" onclick="toggleSplitDropdown(event)">Split by: – &nbsp;▾</button>
+          <div class="xaxis-dropdown" id="splitby-dropdown"></div>
+        </div>
       </div>
     </div>
     <!-- Chart area -->
@@ -887,6 +890,6 @@
 </div>
 
 <script src="data.js?v=20"></script>
-<script src="logic.js?v=38"></script>
+<script src="logic.js?v=39"></script>
 </body>
 </html>
