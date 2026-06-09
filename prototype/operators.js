@@ -215,8 +215,8 @@ const OperatorsPanel = {
                           @click.stop="toggleRowLeader(op)"
                           :aria-pressed="formLeaderId === op.id"
                           :title="formLeaderId === op.id ? 'Shift leader' : 'Set as shift leader'">
-                    <v-icon size="16" :color="formLeaderId === op.id ? 'white' : '#757575'">mdi-flag</v-icon>
-                    <span>{{ formLeaderId === op.id ? 'Leader' : 'Set leader' }}</span>
+                    <v-icon size="18" :color="formLeaderId === op.id ? '#2ecc71' : '#757575'">mdi-flag</v-icon>
+                    <span>Leader</span>
                   </button>
                   <!-- Role chip on the right. Single mode: shown only when the
                        "Adjust operator roles" toggle is ON. Multi mode: always
@@ -289,8 +289,8 @@ const OperatorsPanel = {
                           @click.stop="toggleRowLeader(op)"
                           :aria-pressed="formLeaderId === op.id"
                           :title="formLeaderId === op.id ? 'Shift leader' : 'Set as shift leader'">
-                    <v-icon size="16" :color="formLeaderId === op.id ? 'white' : '#757575'">mdi-flag</v-icon>
-                    <span>{{ formLeaderId === op.id ? 'Leader' : 'Set leader' }}</span>
+                    <v-icon size="18" :color="formLeaderId === op.id ? '#2ecc71' : '#757575'">mdi-flag</v-icon>
+                    <span>Leader</span>
                   </button>
                   <div v-if="showRoleChip(op)" class="op-tag-area" @click.stop>
                     <button class="op-rolechip" :class="{ 'is-selected': effectiveRoles(op).length > 0 }" @click="openTagDropdown(op.id, $event)">
