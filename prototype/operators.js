@@ -692,13 +692,20 @@ const OperatorsPanel = {
       formLeaderId.value = formLeaderId.value === op.id ? null : op.id;
       leaderDropdownOpen.value = false;
     }
-    // Chip style: a leader flag chip shows on each row whose operator can lead
-    // AND is checked into the shift. Tapping it sets/clears the leader.
+    // Chip style: a leader flag chip shows on EVERY canLead operator's row
+    // (regardless of whether they're checked in yet). Tapping it sets/clears
+    // the leader — and checks the operator into the shift if they weren't.
     function canSetLeader(op) {
-      return rolesMode.value === 'leader' && op.canLead && formSelectedOps.value.includes(op.id);
+      return rolesMode.value === 'leader' && op.canLead;
     }
     function toggleRowLeader(op) {
-      formLeaderId.value = formLeaderId.value === op.id ? null : op.id;
+      if (formLeaderId.value === op.id) {
+        formLeaderId.value = null;
+        return;
+      }
+      formLeaderId.value = op.id;
+      // You can't lead a shift you're not on — check them in.
+      if (!formSelectedOps.value.includes(op.id)) formSelectedOps.value.push(op.id);
     }
     // If the chosen leader gets unchecked from the shift, drop the selection.
     // No auto-pick — the leader is always selected manually (the field stays on
