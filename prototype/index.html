@@ -1214,31 +1214,34 @@
       filter: invert(58%) sepia(82%) saturate(380%) hue-rotate(86deg) brightness(95%) contrast(88%);
     }
 
-    /* Leader chip (chip-style shift-leader assignment): outline pill that always
-       reads "Leader" with a flag (Figma 32207:12473). Two states:
-         not selected → neutral grey outline, transparent bg
-         selected     → green outline + green tint (chip/selected token) */
+    /* Leader chip (chip-style shift-leader assignment): pill that always reads
+       "Leader" with a flag (Figma 32207:12473). Two states:
+         not selected → solid #eee fill, transparent border (chip/default token)
+         selected     → green tint fill + green border (chip/selected token)
+       Geometry matches the Figma chip exactly: 12px text/16px line, 18px icon,
+       px 12 / py 5, gap 4, radius 24. */
     .op-leaderchip {
       display: inline-flex; align-items: center; gap: 4px;
-      height: 28px;
       padding: 5px 12px;
       border-radius: 24px;
-      background: transparent;
-      border: 1px solid #707070;
+      background: #eee;
+      border: 1px solid transparent;
       font-family: 'Open Sans', sans-serif;
       font-size: 12px;
+      font-weight: 400;
       line-height: 16px;
       color: #212121;
       cursor: pointer;
       flex-shrink: 0;
     }
-    .op-leaderchip:hover { background: rgba(0, 0, 0, 0.04); }
+    .op-leaderchip:hover { background: #e0e0e0; }
     .op-leaderchip.is-leader {
       background: rgba(46, 204, 113, 0.12);
       border-color: #2ecc71;
       color: #212121;
     }
     .op-leaderchip.is-leader:hover { background: rgba(46, 204, 113, 0.18); }
+    .op-leaderchip .v-icon { margin: 0; }
 
     /* Helpers row chip: same shape as the role chip, but with an editable
        number on the left of "people". Greyed at 50% when not checked. */
@@ -1656,8 +1659,8 @@
     </div>
   </div>
 
-  <script src="mock-data.js"></script>
-  <script src="proto-panel.js"></script>
+  <script src="mock-data.js?v=2"></script>
+  <script src="proto-panel.js?v=2"></script>
   <script src="chrome.js"></script>
   <script>
     // Inject only the 1st-level dark sidebar (Shift View is its own dark surface — no top bar).
@@ -1677,8 +1680,8 @@
   </script>
   <script src="https://cdn.jsdelivr.net/npm/vue@3/dist/vue.global.prod.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/vuetify@3/dist/vuetify.min.js"></script>
-  <script src="shift-view.js"></script>
-  <script src="operators.js"></script>
+  <script src="shift-view.js?v=2"></script>
+  <script src="operators.js?v=2"></script>
   <script>
     const { createApp, ref } = Vue;
     const { createVuetify } = Vuetify;
