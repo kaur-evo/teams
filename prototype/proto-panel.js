@@ -38,6 +38,14 @@
         { value: 'flat',    label: 'Flat',    hint: '(all ops in one list — like live today)' },
       ],
     },
+    {
+      key: 'protoLeaderStyle', global: '__protoLeaderStyle', event: 'proto:leaderStyle',
+      label: 'Shift leader assignment', def: 'field',
+      choices: [
+        { value: 'field', label: 'Field',  hint: '(dropdown below the list)' },
+        { value: 'chip',  label: 'Chip',   hint: '(flag chip on each operator row)' },
+      ],
+    },
   ];
 
   const RADIO_GROUP = 'proto_' + Math.random().toString(36).slice(2, 8);

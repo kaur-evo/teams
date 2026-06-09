@@ -1214,6 +1214,31 @@
       filter: invert(58%) sepia(82%) saturate(380%) hue-rotate(86deg) brightness(95%) contrast(88%);
     }
 
+    /* Leader chip (chip-style shift-leader assignment): a flag toggle on each
+       leading operator's row. Outlined when "Set leader"; filled green when this
+       operator IS the chosen leader. */
+    .op-leaderchip {
+      display: inline-flex; align-items: center; gap: 4px;
+      height: 28px;
+      padding: 5px 12px;
+      border-radius: 24px;
+      background: #eee;
+      border: 1px solid transparent;
+      font-family: 'Open Sans', sans-serif;
+      font-size: 12px;
+      line-height: 16px;
+      color: #212121;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+    .op-leaderchip:hover { background: #e0e0e0; }
+    .op-leaderchip.is-leader {
+      background: #2ecc71;
+      border-color: #2ecc71;
+      color: #fff;
+    }
+    .op-leaderchip.is-leader:hover { background: #29b765; }
+
     /* Helpers row chip: same shape as the role chip, but with an editable
        number on the left of "people". Greyed at 50% when not checked. */
     .op-helpers-chip {

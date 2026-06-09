@@ -207,6 +207,17 @@ const OperatorsPanel = {
                       <span v-if="rolesMode === 'single' && !adjustRolesOn && op.role" class="op-op-role-desc">{{ op.role }}</span>
                     </span>
                   </label>
+                  <!-- Leader chip (chip style only): a flag toggle on each
+                       leading operator's row. Green/filled when this op is the
+                       chosen shift leader. -->
+                  <button v-if="leaderStyle === 'chip' && canSetLeader(op)" type="button"
+                          class="op-leaderchip" :class="{ 'is-leader': formLeaderId === op.id }"
+                          @click.stop="toggleRowLeader(op)"
+                          :aria-pressed="formLeaderId === op.id"
+                          :title="formLeaderId === op.id ? 'Shift leader' : 'Set as shift leader'">
+                    <v-icon size="16" :color="formLeaderId === op.id ? 'white' : '#757575'">mdi-flag</v-icon>
+                    <span>{{ formLeaderId === op.id ? 'Leader' : 'Set leader' }}</span>
+                  </button>
                   <!-- Role chip on the right. Single mode: shown only when the
                        "Adjust operator roles" toggle is ON. Multi mode: always
                        shown for any operator that has ≥1 allowed role. -->
@@ -273,6 +284,14 @@ const OperatorsPanel = {
                       <span v-if="rolesMode === 'single' && !adjustRolesOn && op.role" class="op-op-role-desc">{{ op.role }}</span>
                     </span>
                   </label>
+                  <button v-if="leaderStyle === 'chip' && canSetLeader(op)" type="button"
+                          class="op-leaderchip" :class="{ 'is-leader': formLeaderId === op.id }"
+                          @click.stop="toggleRowLeader(op)"
+                          :aria-pressed="formLeaderId === op.id"
+                          :title="formLeaderId === op.id ? 'Shift leader' : 'Set as shift leader'">
+                    <v-icon size="16" :color="formLeaderId === op.id ? 'white' : '#757575'">mdi-flag</v-icon>
+                    <span>{{ formLeaderId === op.id ? 'Leader' : 'Set leader' }}</span>
+                  </button>
                   <div v-if="showRoleChip(op)" class="op-tag-area" @click.stop>
                     <button class="op-rolechip" :class="{ 'is-selected': effectiveRoles(op).length > 0 }" @click="openTagDropdown(op.id, $event)">
                       <img src="icn/operators%20%28account-hard-hat%29.svg" alt="" width="18" height="18" class="op-rolechip-icn">
@@ -341,7 +360,7 @@ const OperatorsPanel = {
                  dropdown lists operators who can lead AND are checked into the
                  shift — so the operator list populates what's pickable. Disabled
                  (0.5 opacity) with a hover tooltip until ≥1 eligible is selected. -->
-            <div v-if="rolesMode === 'leader' && anyCanLead" class="op-leader-field" :class="{ 'is-disabled': !leaderEnabled }"
+            <div v-if="rolesMode === 'leader' && anyCanLead && leaderStyle === 'field'" class="op-leader-field" :class="{ 'is-disabled': !leaderEnabled }"
                  @mouseenter="!leaderEnabled && showTooltip($event, 'No leading operators selected')"
                  @mouseleave="hideTooltip">
               <button type="button" class="op-leader-select" :disabled="!leaderEnabled" @click.stop="toggleLeaderDropdown">
@@ -453,6 +472,11 @@ const OperatorsPanel = {
     // 'flat' (all ops in one flat list — like Evocon today). Set via H-key.
     const opList = ref(window.__protoOpList || 'flat');
     window.addEventListener('proto:opList', (e) => { opList.value = e.detail; });
+
+    // Shift-leader assignment style: 'field' (dropdown below the list) or
+    // 'chip' (a flag chip on each leading operator's row). Proto-settings toggle.
+    const leaderStyle = ref(window.__protoLeaderStyle || 'field');
+    window.addEventListener('proto:leaderStyle', (e) => { leaderStyle.value = e.detail; });
 
     // ── Kebab menu (alternative card): one open at a time. ──
     // Teleported to <body> + position: fixed so the menu escapes the modal's
@@ -667,6 +691,14 @@ const OperatorsPanel = {
       // already checked in — this only picks among them.)
       formLeaderId.value = formLeaderId.value === op.id ? null : op.id;
       leaderDropdownOpen.value = false;
+    }
+    // Chip style: a leader flag chip shows on each row whose operator can lead
+    // AND is checked into the shift. Tapping it sets/clears the leader.
+    function canSetLeader(op) {
+      return rolesMode.value === 'leader' && op.canLead && formSelectedOps.value.includes(op.id);
+    }
+    function toggleRowLeader(op) {
+      formLeaderId.value = formLeaderId.value === op.id ? null : op.id;
     }
     // If the chosen leader gets unchecked from the shift, drop the selection.
     // No auto-pick — the leader is always selected manually (the field stays on
@@ -1369,6 +1401,9 @@ const OperatorsPanel = {
       anyCanLead,
       leaderEnabled,
       leaderName,
+      leaderStyle,
+      canSetLeader,
+      toggleRowLeader,
       toggleLeaderDropdown,
       pickLeader,
       getEntryTagRows,
