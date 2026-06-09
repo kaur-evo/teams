@@ -225,6 +225,19 @@
         </div>
       </div>
 
+      <!-- "Exclude from manhours" toggle. For indirect personnel (supervisors,
+           warehouse, engineers) whose time shouldn't count toward the shift's
+           manhours / labour total in Reports. -->
+      <div class="op-leader-toggle-row" id="opExcludeManhoursRow">
+        <button type="button" class="op-switch" id="opExcludeManhoursSwitch" role="switch" aria-checked="false" aria-label="Exclude from manhours">
+          <span class="op-switch-knob"></span>
+        </button>
+        <div class="op-leader-toggle-text">
+          <div class="op-leader-toggle-label">Exclude from manhours</div>
+          <div class="op-leader-toggle-hint">Operator's time is not counted in the shift's manhours total (indirect personnel)</div>
+        </div>
+      </div>
+
       <div class="section-title">
         <div class="section-title__spacer"></div>
         <div class="section-title__text">Checklists authentication</div>
@@ -652,6 +665,7 @@ function getOperatorFormState() {
     role:     window.__opRole || null,
     allowedRoles: window.__opAllowedRoles || [],
     canLead:  !!window.__opCanLead,
+    excludeManhours: !!window.__opExcludeManhours,
     tags:     window.__opTags || [],
   };
 }
@@ -666,6 +680,7 @@ function setOperatorFormState(op) {
   window.__opRole = op?.role || (isMultiRolesMode() ? null : 'Operator');
   window.__opAllowedRoles = [...(op?.allowedRoles || [])];
   window.__opCanLead = !!op?.canLead;
+  window.__opExcludeManhours = !!op?.excludeManhours;
   window.__opTags = [...(op?.tags || [])];
   refreshOperatorSummaries();
 }
@@ -709,6 +724,13 @@ function refreshOperatorSummaries() {
     if (rField) $('.field__hint', rField).textContent = 'Default role';
   }
 
+  // "Exclude from manhours" switch — always present, independent of role mode.
+  const emSw = $('#opExcludeManhoursSwitch');
+  if (emSw) {
+    emSw.classList.toggle('is-on', !!window.__opExcludeManhours);
+    emSw.setAttribute('aria-checked', String(!!window.__opExcludeManhours));
+  }
+
   // Tags
   const gTrig = $('#opTagsTrigger');
   const tags = window.__opTags || [];
@@ -728,6 +750,11 @@ $('#btnNewOperator').addEventListener('click', () => openOperatorModal(null));
 // "Allow as shift leader" toggle (leader mode).
 $('#opCanLeadSwitch').addEventListener('click', () => {
   window.__opCanLead = !window.__opCanLead;
+  refreshOperatorSummaries();
+});
+// "Exclude from manhours" toggle (indirect personnel).
+$('#opExcludeManhoursSwitch').addEventListener('click', () => {
+  window.__opExcludeManhours = !window.__opExcludeManhours;
   refreshOperatorSummaries();
 });
 $('#opFirst').addEventListener('input', e => $('#opFirstCount').textContent = e.target.value.length);
