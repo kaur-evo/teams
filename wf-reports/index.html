@@ -203,7 +203,9 @@
     .cal-day.range-dot:hover { background: #27ae60 !important; }
 
     /* ── Compare chip dropdown ── */
-    #compare-btn-wrap { position: relative; }
+    /* "Compare to:" chip hidden in this prototype (kept in DOM so the compare
+       JS still resolves its elements; just not shown). */
+    #compare-btn-wrap { position: relative; display: none; }
     #compare-btn {
       font-family: 'Inter', sans-serif; font-size: 13px; height: 32px;
       padding: 0 11px; border-radius: 16px; display: inline-flex; align-items: center; gap: 5px;
@@ -885,6 +887,6 @@
 </div>
 
 <script src="data.js?v=20"></script>
-<script src="logic.js?v=37"></script>
+<script src="logic.js?v=38"></script>
 </body>
 </html>
