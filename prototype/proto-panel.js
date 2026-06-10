@@ -41,6 +41,16 @@
       label: 'Show "Exclude from manhours" switch on operators',
       on: 'on', off: 'off', defOn: false,
     },
+    {
+      key: 'protoLeaderPrefill', global: '__protoLeaderPrefill', event: 'proto:leaderPrefill',
+      label: 'Pre-fill the first eligible operator as shift leader',
+      on: 'on', off: 'off', defOn: false,
+    },
+    {
+      key: 'protoMultiLeader', global: '__protoMultiLeader', event: 'proto:multiLeader',
+      label: 'Allow multiple shift leaders (multi-select / multiple chips)',
+      on: 'on', off: 'off', defOn: false,
+    },
   ];
 
   function get(opt) {

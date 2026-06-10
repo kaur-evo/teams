@@ -211,11 +211,11 @@ const OperatorsPanel = {
                        leading operator's row. Green/filled when this op is the
                        chosen shift leader. -->
                   <button v-if="leaderStyle === 'chip' && canSetLeader(op)" type="button"
-                          class="op-leaderchip" :class="{ 'is-leader': formLeaderId === op.id }"
+                          class="op-leaderchip" :class="{ 'is-leader': isLeader(op.id) }"
                           @click.stop="toggleRowLeader(op)"
-                          :aria-pressed="formLeaderId === op.id"
-                          :title="formLeaderId === op.id ? 'Shift leader' : 'Set as shift leader'">
-                    <v-icon size="18" :color="formLeaderId === op.id ? '#2ecc71' : '#757575'">mdi-flag</v-icon>
+                          :aria-pressed="isLeader(op.id)"
+                          :title="isLeader(op.id) ? 'Shift leader' : 'Set as shift leader'">
+                    <v-icon size="18" :color="isLeader(op.id) ? '#2ecc71' : '#757575'">mdi-flag</v-icon>
                     <span>Leader</span>
                   </button>
                   <!-- Role chip on the right. Single mode: shown only when the
@@ -285,11 +285,11 @@ const OperatorsPanel = {
                     </span>
                   </label>
                   <button v-if="leaderStyle === 'chip' && canSetLeader(op)" type="button"
-                          class="op-leaderchip" :class="{ 'is-leader': formLeaderId === op.id }"
+                          class="op-leaderchip" :class="{ 'is-leader': isLeader(op.id) }"
                           @click.stop="toggleRowLeader(op)"
-                          :aria-pressed="formLeaderId === op.id"
-                          :title="formLeaderId === op.id ? 'Shift leader' : 'Set as shift leader'">
-                    <v-icon size="18" :color="formLeaderId === op.id ? '#2ecc71' : '#757575'">mdi-flag</v-icon>
+                          :aria-pressed="isLeader(op.id)"
+                          :title="isLeader(op.id) ? 'Shift leader' : 'Set as shift leader'">
+                    <v-icon size="18" :color="isLeader(op.id) ? '#2ecc71' : '#757575'">mdi-flag</v-icon>
                     <span>Leader</span>
                   </button>
                   <div v-if="showRoleChip(op)" class="op-tag-area" @click.stop>
@@ -374,9 +374,9 @@ const OperatorsPanel = {
                      :style="{ top: leaderDropdownPos.top + 'px', left: leaderDropdownPos.left + 'px', width: leaderDropdownPos.width + 'px' }"
                      @click.stop>
                   <div v-for="op in leaderOptions" :key="op.id"
-                       class="op-role-row" :class="{ 'is-selected': formLeaderId === op.id }"
+                       class="op-role-row" :class="{ 'is-selected': isLeader(op.id) }"
                        @click="pickLeader(op)">
-                    <v-icon v-if="formLeaderId === op.id" class="op-role-marker" size="24" color="#2ecc71">mdi-check-circle</v-icon>
+                    <v-icon v-if="isLeader(op.id)" class="op-role-marker" size="24" color="#2ecc71">mdi-check-circle</v-icon>
                     <span v-else class="op-role-marker"></span>
                     <span class="op-role-label">{{ op.firstName }} {{ op.lastName }}</span>
                   </div>
@@ -651,14 +651,23 @@ const OperatorsPanel = {
       return adjustRolesOn.value;
     }
 
-    // ── Leader mode ("Shift leader" select, top of the picker) ──
-    // The leader is chosen from operators who (a) can lead AND (b) are checked
-    // into this shift — so the operator-list checkboxes populate what's pickable.
-    // The field is disabled (with a tooltip) until ≥1 eligible operator is in.
-    const formLeaderId = ref(null);
+    // ── Leader mode ("Shift leader" select / chips) ──
+    // Source of truth is a SET of leader ids (formLeaderIds) to support the
+    // "multiple leaders" proto-setting. Single-leader consumers (saved card,
+    // bottom-bar summary, reports) read `formLeaderId` = the first leader, kept
+    // as a computed shim so nothing downstream had to change.
+    const formLeaderIds = ref([]);                       // ordered; [0] = primary
+    const formLeaderId  = computed(() => formLeaderIds.value[0] ?? null);
     const leaderDropdownOpen = ref(false);
     const leaderDropdownPos = ref({ top: 0, left: 0 });
     let _leaderAnchorEl = null;
+
+    // Proto-settings: auto-prefill the first eligible leader, and allow many.
+    const leaderPrefill = ref(window.__protoLeaderPrefill === 'on');
+    window.addEventListener('proto:leaderPrefill', (e) => { leaderPrefill.value = e.detail === 'on'; });
+    const multiLeader = ref(window.__protoMultiLeader === 'on');
+    window.addEventListener('proto:multiLeader', (e) => { multiLeader.value = e.detail === 'on'; maybePrefillLeader(); });
+
     const leaderOptions = computed(() =>
       allOperators.filter(o => o.canLead && formSelectedOps.value.includes(o.id))
     );
@@ -666,10 +675,26 @@ const OperatorsPanel = {
     const anyCanLead = computed(() => allOperators.some(o => o.canLead));
     // Eligible leaders present on the shift → field enabled.
     const leaderEnabled = computed(() => leaderOptions.value.length > 0);
+    // Field-style label: primary name, "+N" when several are selected.
     const leaderName = computed(() => {
-      const op = allOperators.find(o => o.id === formLeaderId.value);
-      return op ? `${op.firstName} ${op.lastName}`.trim() : '';
+      const ids = formLeaderIds.value;
+      if (!ids.length) return '';
+      const first = allOperators.find(o => o.id === ids[0]);
+      const base = first ? `${first.firstName} ${first.lastName}`.trim() : '';
+      return ids.length > 1 ? `${base} +${ids.length - 1}` : base;
     });
+    const isLeader = (id) => formLeaderIds.value.includes(id);
+
+    // Auto-prefill: when enabled and no leader is set yet, make the first
+    // eligible (checked-in, can-lead) operator the leader. Single-leader only
+    // picks one; multi leaves the rest for the user to add.
+    function maybePrefillLeader() {
+      if (!leaderPrefill.value) return;
+      if (formLeaderIds.value.length) return;
+      const first = leaderOptions.value[0];
+      if (first) formLeaderIds.value = [first.id];
+    }
+
     function positionLeaderDropdown(triggerEl) {
       if (!triggerEl) return;
       const r = triggerEl.getBoundingClientRect();
@@ -686,34 +711,39 @@ const OperatorsPanel = {
       positionLeaderDropdown(_leaderAnchorEl);
     }
     function closeLeaderDropdown() { leaderDropdownOpen.value = false; }
+    // Field dropdown row click. Multi → toggle within the set (dropdown stays
+    // open). Single → set the one leader (or clear on re-pick) and close.
     function pickLeader(op) {
-      // Re-pick the active leader clears it; otherwise set it. (Operators are
-      // already checked in — this only picks among them.)
-      formLeaderId.value = formLeaderId.value === op.id ? null : op.id;
-      leaderDropdownOpen.value = false;
+      if (multiLeader.value) {
+        formLeaderIds.value = isLeader(op.id)
+          ? formLeaderIds.value.filter(id => id !== op.id)
+          : [...formLeaderIds.value, op.id];
+      } else {
+        formLeaderIds.value = isLeader(op.id) ? [] : [op.id];
+        leaderDropdownOpen.value = false;
+      }
     }
-    // Chip style: a leader flag chip shows on EVERY canLead operator's row
-    // (regardless of whether they're checked in yet). Tapping it sets/clears
-    // the leader — and checks the operator into the shift if they weren't.
+    // Chip style: a leader flag chip shows on EVERY canLead operator's row.
+    // Tapping toggles their leader state and checks them into the shift. Multi
+    // off → picking one replaces any other; multi on → independent toggles.
     function canSetLeader(op) {
       return rolesMode.value === 'leader' && op.canLead;
     }
     function toggleRowLeader(op) {
-      if (formLeaderId.value === op.id) {
-        formLeaderId.value = null;
+      if (isLeader(op.id)) {
+        formLeaderIds.value = formLeaderIds.value.filter(id => id !== op.id);
         return;
       }
-      formLeaderId.value = op.id;
+      formLeaderIds.value = multiLeader.value ? [...formLeaderIds.value, op.id] : [op.id];
       // You can't lead a shift you're not on — check them in.
       if (!formSelectedOps.value.includes(op.id)) formSelectedOps.value.push(op.id);
     }
-    // If the chosen leader gets unchecked from the shift, drop the selection.
-    // No auto-pick — the leader is always selected manually (the field stays on
-    // its "Shift leader" placeholder until the user picks one).
+    // Keep leaders in sync with the shift roster: drop any leader who gets
+    // unchecked, then (if enabled) prefill a leader when none remains.
     watch(formSelectedOps, (ids) => {
-      if (formLeaderId.value != null && !ids.includes(formLeaderId.value)) {
-        formLeaderId.value = null;
-      }
+      const kept = formLeaderIds.value.filter(id => ids.includes(id));
+      if (kept.length !== formLeaderIds.value.length) formLeaderIds.value = kept;
+      maybePrefillLeader();
     });
 
     // Role catalog (mirrors setup-proto's OPERATOR_ROLES). Order matters for
@@ -839,6 +869,13 @@ const OperatorsPanel = {
       } else {
         formSelectedOps.value = [...formSelectedOps.value, opId];
         seedRoleForOp(opId);
+        // Prefill: the FIRST leading operator the user checks in becomes the
+        // shift leader (only when prefill is on and none is set yet).
+        const op = allOperators.find(o => o.id === opId);
+        if (leaderPrefill.value && rolesMode.value === 'leader' &&
+            op && op.canLead && formLeaderIds.value.length === 0) {
+          formLeaderIds.value = [opId];
+        }
       }
     }
 
@@ -976,8 +1013,12 @@ const OperatorsPanel = {
       const ops = entry.operatorIds
         .map(id => allOperators.find(o => o.id === id))
         .filter(Boolean);
-      // The star marks the ACTIVE shift leader for this entry only.
-      const isLeader = (op) => entry.leaderId === op.id;
+      // The star marks the ACTIVE shift leader(s) for this entry. Supports
+      // multiple leaders (entry.leaderIds); falls back to the single leaderId.
+      const leaderSet = Array.isArray(entry.leaderIds) && entry.leaderIds.length
+        ? new Set(entry.leaderIds)
+        : new Set(entry.leaderId != null ? [entry.leaderId] : []);
+      const isLeader = (op) => leaderSet.has(op.id);
       const leader = ops.filter(isLeader);
       const rest   = ops.filter(op => !isLeader(op));
       return [
@@ -1064,7 +1105,7 @@ const OperatorsPanel = {
       formHelperCount.value = null;
       helpersOn.value = false;
       adjustRolesOn.value = false;
-      formLeaderId.value = null;
+      formLeaderIds.value = [];
       leaderDropdownOpen.value = false;
       searchQuery.value = '';
       editingEntryId.value = null;
@@ -1125,7 +1166,8 @@ const OperatorsPanel = {
         if (entry) {
           entry.operatorIds = [...formSelectedOps.value];
           entry.roles = newRoles;
-          entry.leaderId = formLeaderId.value;
+          entry.leaderIds = [...formLeaderIds.value];
+          entry.leaderId = formLeaderId.value; // back-compat: primary leader
           entry.startTime = formStartTime.value;
           entry.endTime = formEndTime.value;
           entry.helperCount = hasHelpers ? formHelperCount.value : 0;
@@ -1182,7 +1224,10 @@ const OperatorsPanel = {
         base.operatorIds = [...allOpIds];
         base.roles = mergedRoles;
         // New pick wins; otherwise keep whatever the base entry had.
-        if (formLeaderId.value != null) base.leaderId = formLeaderId.value;
+        if (formLeaderIds.value.length) {
+          base.leaderIds = [...formLeaderIds.value];
+          base.leaderId  = formLeaderId.value;
+        }
         base.helperCount = mergedHelpers;
         base.startTime = start;
         base.endTime = end;
@@ -1195,7 +1240,8 @@ const OperatorsPanel = {
           id: _nextId++,
           operatorIds: [...formSelectedOps.value],
           roles: newRoles,
-          leaderId: formLeaderId.value,
+          leaderIds: [...formLeaderIds.value],
+          leaderId: formLeaderId.value, // back-compat: primary leader
           helperCount: hasHelpers ? formHelperCount.value : 0,
           startTime: formStartTime.value,
           endTime: formEndTime.value,
@@ -1229,9 +1275,11 @@ const OperatorsPanel = {
       helpersOn.value = !!entry.helperCount;
       // Role-adjust toggle defaults to OFF when editing; user can flip it.
       adjustRolesOn.value = false;
-      // Leader mode: restore the picked shift leader. If the entry has no
-      // saved leader, the auto-pick watcher will fill in the first eligible.
-      formLeaderId.value = entry.leaderId != null ? entry.leaderId : null;
+      // Leader mode: restore the picked shift leader(s). Prefer the array;
+      // fall back to the legacy single leaderId on older entries.
+      formLeaderIds.value = Array.isArray(entry.leaderIds)
+        ? [...entry.leaderIds]
+        : (entry.leaderId != null ? [entry.leaderId] : []);
       leaderDropdownOpen.value = false;
       // Wipe + restore per-operator roles as string[] (multi-tag model).
       Object.keys(formOperatorRoles).forEach(k => delete formOperatorRoles[k]);
@@ -1305,9 +1353,14 @@ const OperatorsPanel = {
       const leaderIds = new Set();
       const leaderNames = [];
       for (const entry of entries.value) {
-        if (entry.leaderId != null && !leaderIds.has(entry.leaderId)) {
-          const op = allOperators.find(o => o.id === entry.leaderId);
-          if (op) { leaderIds.add(entry.leaderId); leaderNames.push(fullName(op)); }
+        // All leaders on the entry (multi-leader), falling back to the single id.
+        const ids = Array.isArray(entry.leaderIds) && entry.leaderIds.length
+          ? entry.leaderIds
+          : (entry.leaderId != null ? [entry.leaderId] : []);
+        for (const lid of ids) {
+          if (leaderIds.has(lid)) continue;
+          const op = allOperators.find(o => o.id === lid);
+          if (op) { leaderIds.add(lid); leaderNames.push(fullName(op)); }
         }
       }
 
@@ -1402,6 +1455,9 @@ const OperatorsPanel = {
       showRoleChip,
       roleOptionsFor,
       formLeaderId,
+      formLeaderIds,
+      isLeader,
+      multiLeader,
       leaderDropdownOpen,
       leaderDropdownPos,
       leaderOptions,
