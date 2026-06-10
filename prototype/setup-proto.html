@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="evocon-ui.css">
+  <link rel="stylesheet" href="evocon-ui.css?v=2">
   <style>
     /* Page-local: precise column widths per Figma frame 32002:10454 */
     .table.list { table-layout: fixed; }
@@ -227,8 +227,9 @@
 
       <!-- "Exclude from manhours" toggle. For indirect personnel (supervisors,
            warehouse, engineers) whose time shouldn't count toward the shift's
-           manhours / labour total in Reports. -->
-      <div class="op-leader-toggle-row" id="opExcludeManhoursRow">
+           manhours / labour total in Reports. Gated by the proto setting — hidden
+           by default; openOperatorModal() reveals it when the setting is on. -->
+      <div class="op-leader-toggle-row" id="opExcludeManhoursRow" style="display:none;">
         <button type="button" class="op-switch" id="opExcludeManhoursSwitch" role="switch" aria-checked="false" aria-label="Exclude from manhours">
           <span class="op-switch-knob"></span>
         </button>
@@ -301,7 +302,7 @@
 </div>
 
 <script src="mock-data.js"></script>
-<script src="proto-panel.js"></script>
+<script src="proto-panel.js?v=3"></script>
 <script src="chrome.js"></script>
 <script>
 // ─── Bootstrap chrome ───
@@ -724,7 +725,10 @@ function refreshOperatorSummaries() {
     if (rField) $('.field__hint', rField).textContent = 'Default role';
   }
 
-  // "Exclude from manhours" switch — always present, independent of role mode.
+  // "Exclude from manhours" switch — gated by the proto setting (H-panel).
+  const emRow = $('#opExcludeManhoursRow');
+  const emOn  = window.__protoExcludeManhours === 'on';
+  if (emRow) emRow.style.display = emOn ? '' : 'none';
   const emSw = $('#opExcludeManhoursSwitch');
   if (emSw) {
     emSw.classList.toggle('is-on', !!window.__opExcludeManhours);
@@ -1060,7 +1064,7 @@ setView('list');
 // Prototype settings (proto-panel.js, H-key) can change while this page is
 // open. Re-render the affected views + any open operator modal so the Role
 // field, list cells, and dropdowns reflect the new tier / roles mode live.
-['proto:tier', 'proto:rolesMode'].forEach(evt => {
+['proto:tier', 'proto:rolesMode', 'proto:excludeManhours'].forEach(evt => {
   window.addEventListener(evt, () => {
     renderList();
     renderTeams();

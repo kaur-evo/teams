@@ -1098,11 +1098,14 @@ img.role-card__star { width: 16px; height: 16px; }
   background: #eee; border-radius: 3px; padding: 1px 5px;
   font-family: inherit; font-size: 11px;
 }
-.proto-panel__group { display: flex; flex-direction: column; gap: 8px; }
-.proto-panel__group + .proto-panel__group { margin-top: 16px; }
-.proto-panel__label { font-size: 12px; font-weight: 600; color: #707070; text-transform: uppercase; letter-spacing: 0.4px; }
-.proto-panel__opt { display: flex; gap: 8px; align-items: center; cursor: pointer; font-size: 14px; }
-.proto-panel__opt small { color: #707070; }
+/* Feature checkboxes: one sentence + a tickbox per row, no headings. */
+.proto-panel__check {
+  display: flex; gap: 10px; align-items: flex-start;
+  cursor: pointer; font-size: 13px; line-height: 18px;
+  padding: 6px 0;
+}
+.proto-panel__check + .proto-panel__check { border-top: 1px solid #f0f0f0; }
+.proto-panel__check input { margin: 1px 0 0; flex-shrink: 0; accent-color: #2ecc71; width: 16px; height: 16px; cursor: pointer; }
 
 /* ─── "Allow as shift leader" toggle row (Leader mode, Figma 32106:13385) ─── */
 .op-leader-toggle-row {
