@@ -376,8 +376,15 @@ const OperatorsPanel = {
                   <div v-for="op in leaderOptions" :key="op.id"
                        class="op-role-row" :class="{ 'is-selected': isLeader(op.id) }"
                        @click="pickLeader(op)">
-                    <v-icon v-if="isLeader(op.id)" class="op-role-marker" size="24" color="#2ecc71">mdi-check-circle</v-icon>
-                    <span v-else class="op-role-marker"></span>
+                    <!-- Multi: a tickbox per row (same checkbox style as the
+                         operator list / setup). Single: a check-circle marker. -->
+                    <span v-if="multiLeader" class="op-check-box op-role-marker" :class="{ checked: isLeader(op.id) }">
+                      <v-icon v-if="isLeader(op.id)" size="18" color="white">mdi-check</v-icon>
+                    </span>
+                    <template v-else>
+                      <v-icon v-if="isLeader(op.id)" class="op-role-marker" size="24" color="#2ecc71">mdi-check-circle</v-icon>
+                      <span v-else class="op-role-marker"></span>
+                    </template>
                     <span class="op-role-label">{{ op.firstName }} {{ op.lastName }}</span>
                   </div>
                 </div>
