@@ -365,10 +365,10 @@ const OperatorsPanel = {
                  @mouseleave="hideTooltip">
               <button type="button" class="op-leader-select" :disabled="!leaderEnabled" @click.stop="toggleLeaderDropdown">
                 <v-icon class="op-leader-icn" size="24" color="#707070">mdi-flag</v-icon>
-                <span class="op-leader-value" :class="{ 'is-placeholder': !leaderName }">{{ leaderName || 'Shift leader' }}</span>
+                <span class="op-leader-value" :class="{ 'is-placeholder': !leaderName }">{{ leaderName || leaderFieldLabel }}</span>
                 <v-icon size="24" color="#757575">mdi-menu-down</v-icon>
               </button>
-              <span class="op-leader-caption">Leading operator who leads the shift</span>
+              <span class="op-leader-caption">{{ leaderCaption }}</span>
               <teleport to="body">
                 <div v-if="leaderDropdownOpen" class="op-tag-dropdown op-role-dropdown"
                      :style="{ top: leaderDropdownPos.top + 'px', left: leaderDropdownPos.left + 'px', width: leaderDropdownPos.width + 'px' }"
@@ -682,6 +682,12 @@ const OperatorsPanel = {
     const anyCanLead = computed(() => allOperators.some(o => o.canLead));
     // Eligible leaders present on the shift → field enabled.
     const leaderEnabled = computed(() => leaderOptions.value.length > 0);
+    // Plural-aware copy: when multiple leaders are allowed, say "Shift leaders"
+    // / "Leading operators…". Singular otherwise.
+    const leaderFieldLabel = computed(() => multiLeader.value ? 'Shift leaders' : 'Shift leader');
+    const leaderCaption = computed(() => multiLeader.value
+      ? 'Leading operators who lead the shift'
+      : 'Leading operator who leads the shift');
     // Field-style label: primary name, "+N" when several are selected.
     const leaderName = computed(() => {
       const ids = formLeaderIds.value;
@@ -1471,6 +1477,8 @@ const OperatorsPanel = {
       anyCanLead,
       leaderEnabled,
       leaderName,
+      leaderFieldLabel,
+      leaderCaption,
       leaderStyle,
       canSetLeader,
       toggleRowLeader,
