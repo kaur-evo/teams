@@ -1598,222 +1598,237 @@ document.addEventListener('click', () => {
   document.getElementById('oee-charttype-dropdown')?.classList.remove('open');
   document.getElementById('qty-xaxis-dropdown')?.classList.remove('open');
   document.getElementById('qty-splitby-dropdown')?.classList.remove('open');
-  ['opfilter-dropdown', 'leaderfilter-dropdown']
-    .forEach(id => document.getElementById(id)?.classList.remove('open'));
+  // Filter CTA menu + per-dimension selection list (new filter bar).
+  if (typeof closeFilterMenus === 'function') closeFilterMenus();
 });
 
-// ── Multi-select filter chips: Operators, Operator group, Role ───────────────
-// All three follow the same pattern: a Set of selected values, a dropdown
-// built from a master list, and a filter pass on the base chart data when any
-// selection changes. The Role chip is only "armed" (label switches from
-// "All" to selected count) when at least one operator has been picked.
+// ── Filter bar: + FILTER CTA → action menu → per-dimension selection list ────
+// Matches the live Evocon filter pattern. A dimension is "added" from the
+// action menu, which mounts an active chip; clicking the chip opens a
+// multi-select list (search + Select all + checkboxes + trash/Cancel/Apply).
+// Each people-dimension drives the same selectedBlocks() / chart pipeline.
 
+// One canonical Set of selected values per dimension (the APPLIED selection).
 const filterState = {
   operators: new Set(),
-  leaders:   new Set(),   // selected shift-leader names (canLead operators)
-  // Tracks which group sections are visually collapsed in the dropdown.
-  // Persisted across re-renders so checking a member doesn't re-expand all.
-  _opCollapsed: new Set(),
+  groups:    new Set(),
+  leaders:   new Set(),
 };
 
-// Master option lists
-function getAllOperators() { return Object.keys(OPERATOR_DIRECTORY).sort(); }
-function getAllGroups()    { return OPERATOR_GROUPS.slice(); }
-function getAllRoles()     { return OPERATOR_ROLES.slice(); }
+// The dimensions offered in the action menu. `values()` is the option list;
+// `icon` is the menu/chip glyph. Operators = hat, Operator group = group list,
+// Shift leaders = flag (matching Shift View).
+const FILTER_DIMS = {
+  operators: {
+    label: 'Operators', singular: 'operator',
+    icon: '<svg width="20" height="20" viewBox="0 0 24 24" fill="#616161"><path d="M12 3 4 6v2h16V6M4 19v2h16v-2M2 10v2h20v-2M5 13v5h2v-5M11 13v5h2v-5M17 13v5h2v-5M12 4.5l4.5 1.5h-9Z"/></svg>',
+    values: () => Object.keys(OPERATOR_DIRECTORY),
+  },
+  groups: {
+    label: 'Operator group', singular: 'group',
+    icon: '<svg width="20" height="20" viewBox="0 0 24 24" fill="#616161"><path d="M3 5h2v2H3V5m0 6h2v2H3v-2m0 6h2v2H3v-2M7 5h14v2H7V5m0 6h14v2H7v-2m0 6h14v2H7v-2Z"/></svg>',
+    values: () => OPERATOR_GROUPS.slice(),
+  },
+  leaders: {
+    label: 'Shift leaders', singular: 'leader',
+    icon: '<svg width="20" height="20" viewBox="0 0 24 24" fill="#616161"><path d="M14.4 6 14 4H5v17h2v-7h5.6l.4 2h7V6Z"/></svg>',
+    values: () => CAN_LEAD_OPERATORS.slice(),
+  },
+};
+const FILTER_ORDER = ['operators', 'groups', 'leaders'];
 
-// Group an operator list by its directory group (Group A / Group B / Default).
-function getOperatorsByGroup() {
-  const grouped = new Map(); // groupName → operator[]
-  OPERATOR_GROUPS.forEach(g => grouped.set(g, []));
-  Object.entries(OPERATOR_DIRECTORY).forEach(([name, info]) => {
-    const g = info.group || 'Default';
-    if (!grouped.has(g)) grouped.set(g, []);
-    grouped.get(g).push(name);
-  });
-  grouped.forEach(arr => arr.sort());
-  return grouped;
+// Which dimensions are currently shown as chips (in the order added).
+let activeFilters = [];
+// The dimension whose selection list is open, + a draft Set being edited.
+let _slDim = null;
+let _slDraft = null;
+let _slSearch = '';
+
+function closeFilterMenus() {
+  document.getElementById('filter-menu')?.classList.remove('open');
+  document.getElementById('selection-list')?.classList.remove('open');
+  _slDim = null; _slDraft = null; _slSearch = '';
 }
 
-// Group-level checkbox state derived from the canonical operators Set.
-function getGroupCheckState(members) {
-  const checked = members.filter(m => filterState.operators.has(m)).length;
-  if (checked === 0) return 'empty';
-  if (checked === members.length) return 'full';
-  return 'partial';
-}
-
-// Map our logical kind names to the DOM-id prefixes used in index.html.
-const FILTER_DD_ID = { operators: 'opfilter-dropdown', leaders: 'leaderfilter-dropdown' };
-
-function toggleFilterDropdown(event, kind) {
+// ── Action menu (+ FILTER) ──
+function toggleFilterMenu(event) {
   event.stopPropagation();
-  const dd = document.getElementById(FILTER_DD_ID[kind]);
-  if (!dd) return;
-  const wasOpen = dd.classList.contains('open');
-  // Close every dropdown first
-  document.querySelectorAll('.filter-dropdown').forEach(el => el.classList.remove('open'));
-  document.getElementById('xaxis-dropdown').classList.remove('open');
-  document.getElementById('y2axis-dropdown').classList.remove('open');
-  document.getElementById('compare-dropdown').classList.remove('open');
-  if (!wasOpen) {
-    buildFilterDropdown(kind);
-    dd.classList.add('open');
-  }
+  const menu = document.getElementById('filter-menu');
+  const wasOpen = menu.classList.contains('open');
+  closeFilterMenus();
+  document.getElementById('selection-list').classList.remove('open');
+  if (wasOpen) return;
+  menu.innerHTML = '';
+  FILTER_ORDER.forEach(key => {
+    const dim = FILTER_DIMS[key];
+    const added = activeFilters.includes(key);
+    const row = document.createElement('div');
+    row.className = 'action-menu-row' + (added ? ' is-added' : '');
+    row.innerHTML = `${dim.icon}<span>${dim.label}</span>`;
+    if (!added) row.addEventListener('click', () => addFilter(key));
+    menu.appendChild(row);
+  });
+  menu.classList.add('open');
 }
 
-function buildFilterDropdown(kind) {
-  const dd = document.getElementById(FILTER_DD_ID[kind]);
-  if (!dd) return;
-  dd.innerHTML = '';
-  dd.onclick = e => e.stopPropagation();
+// Add a dimension as a chip, then immediately open its selection list.
+function addFilter(key) {
+  if (!activeFilters.includes(key)) activeFilters.push(key);
+  document.getElementById('filter-menu').classList.remove('open');
+  renderActiveChips();
+  openSelectionList(key);
+}
 
-  if (kind === 'operators') {
-    // Two-level picker: group header row, then collapsible operator rows.
-    const grouped = getOperatorsByGroup();
-    grouped.forEach((members, groupName) => {
-      if (members.length === 0) return;
-      const state = getGroupCheckState(members);
-      const collapsed = filterState._opCollapsed.has(groupName);
-
-      // Group header row
-      const header = document.createElement('div');
-      header.className = 'filter-opt filter-opt-group';
-      header.innerHTML = `
-        <span class="filter-opt-check ${state === 'full' ? 'is-full' : state === 'partial' ? 'is-partial' : ''}"
-              data-group="${groupName}"></span>
-        <span class="filter-opt-label" style="font-weight:600;">${groupName}</span>
-        <span class="filter-opt-caret" style="opacity:0.6;transform:${collapsed ? 'rotate(-90deg)' : 'rotate(0deg)'};transition:transform 0.15s;">▾</span>
-      `;
-      // Click on caret/label → toggle collapse. Click on check → toggle group.
-      header.querySelector('.filter-opt-check').addEventListener('click', e => {
-        e.stopPropagation();
-        toggleGroupSelection(groupName, members);
-      });
-      header.addEventListener('click', () => toggleGroupCollapse(groupName));
-      dd.appendChild(header);
-
-      // Operator rows (rendered only when expanded)
-      if (!collapsed) {
-        members.forEach(name => {
-          const el = document.createElement('div');
-          el.className = 'filter-opt filter-opt-member' +
-                         (filterState.operators.has(name) ? ' selected' : '');
-          el.innerHTML = `<span class="filter-opt-check"></span><span class="filter-opt-label">${name}</span>`;
-          el.addEventListener('click', () => toggleFilterValue('operators', name));
-          dd.appendChild(el);
-        });
-      }
+// ── Active chips ──
+function chipLabel(key) {
+  const dim = FILTER_DIMS[key];
+  const n = filterState[key].size;
+  if (n === 0) return dim.label + ': All';
+  if (n === 1) return dim.label + ': ' + [...filterState[key]][0];
+  return `${dim.label}: ${n} selected`;
+}
+function renderActiveChips() {
+  const wrap = document.getElementById('active-filters');
+  if (!wrap) return;
+  wrap.innerHTML = '';
+  activeFilters.forEach(key => {
+    const dim = FILTER_DIMS[key];
+    const chip = document.createElement('div');
+    chip.className = 'active-chip' + (filterState[key].size ? ' has-sel' : '');
+    chip.innerHTML = `${dim.icon}<span style="margin:0 2px;">${chipLabel(key)}</span>`
+      + `<span class="chip-x" title="Remove filter"><svg width="14" height="14" viewBox="0 0 24 24" fill="#616161"><path d="M19 6.4 17.6 5 12 10.6 6.4 5 5 6.4 10.6 12 5 17.6 6.4 19 12 13.4 17.6 19 19 17.6 13.4 12Z"/></svg></span>`;
+    chip.addEventListener('click', (e) => {
+      if (e.target.closest('.chip-x')) { removeFilter(key); return; }
+      openSelectionList(key, chip);
     });
-  } else if (kind === 'leaders') {
-    // Flat multi-select of every operator allowed to lead a shift (canLead).
-    CAN_LEAD_OPERATORS.forEach(name => {
-      const isSelected = filterState.leaders.has(name);
-      const el = document.createElement('div');
-      el.className = 'filter-opt' + (isSelected ? ' selected' : '');
-      el.innerHTML = `<span class="filter-opt-check"></span><span class="filter-opt-label">${name}</span>`;
-      el.addEventListener('click', () => toggleFilterValue('leaders', name));
-      dd.appendChild(el);
-    });
+    wrap.appendChild(chip);
+  });
+}
+function removeFilter(key) {
+  activeFilters = activeFilters.filter(k => k !== key);
+  filterState[key].clear();
+  if (_slDim === key) closeFilterMenus();
+  renderActiveChips();
+  applyFilters();
+}
+
+// ── Selection list (per dimension) ──
+function openSelectionList(key, anchorEl) {
+  const sl = document.getElementById('selection-list');
+  document.getElementById('filter-menu').classList.remove('open');
+  // Toggle closed if re-clicking the same open one.
+  if (_slDim === key && sl.classList.contains('open')) { closeFilterMenus(); return; }
+  _slDim = key;
+  _slDraft = new Set(filterState[key]); // edit a draft; commit on Apply
+  _slSearch = '';
+  renderSelectionList();
+  // Position under the chip (or the + FILTER button as a fallback).
+  const anchor = anchorEl
+    || [...document.querySelectorAll('#active-filters .active-chip')][activeFilters.indexOf(key)]
+    || document.getElementById('filter-cta');
+  if (anchor) {
+    const r = anchor.getBoundingClientRect();
+    const barRect = document.getElementById('app').getBoundingClientRect();
+    let left = r.left - barRect.left;
+    if (left + 320 > barRect.width) left = Math.max(0, barRect.width - 320);
+    sl.style.left = left + 'px';
   }
+  sl.classList.add('open');
 }
 
-function toggleFilterValue(kind, value) {
-  const set = filterState[kind];
-  if (set.has(value)) set.delete(value); else set.add(value);
-  buildFilterDropdown(kind);
-  updateFilterChipLabels();
-  applyOperatorFilters();
+function renderSelectionList() {
+  const sl = document.getElementById('selection-list');
+  if (!sl || !_slDim) return;
+  const dim = FILTER_DIMS[_slDim];
+  const all = dim.values();
+  const q = _slSearch.trim().toLowerCase();
+  const shown = q ? all.filter(v => v.toLowerCase().includes(q)) : all;
+  const allChecked = shown.length > 0 && shown.every(v => _slDraft.has(v));
+
+  const check = (on) => on
+    ? '<svg width="18" height="18" viewBox="0 0 24 24" fill="white"><path d="M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4Z"/></svg>'
+    : '';
+  const row = (v, on) =>
+    `<div class="sl-row${on ? ' is-checked' : ''}" data-val="${v.replace(/"/g,'&quot;')}"><span class="sl-check">${check(on)}</span><span>${v}</span></div>`;
+
+  sl.innerHTML = `
+    <div class="sl-search"><div class="sl-search-inner">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="#2ecc71"><path d="M9.5 3a6.5 6.5 0 0 1 5.2 10.4l5 5-1.4 1.4-5-5A6.5 6.5 0 1 1 9.5 3m0 2a4.5 4.5 0 1 0 0 9 4.5 4.5 0 0 0 0-9Z"/></svg>
+      <input type="text" placeholder="Search" id="sl-search-input" value="${_slSearch.replace(/"/g,'&quot;')}">
+    </div></div>
+    <div class="sl-rows">
+      ${row('Select all', allChecked).replace('data-val="Select all"', 'data-all="1"')}
+      <div class="sl-divider"></div>
+      ${shown.map(v => row(v, _slDraft.has(v))).join('')}
+    </div>
+    <div class="sl-footer">
+      <span class="sl-trash" id="sl-trash" title="Clear"><svg width="20" height="20" viewBox="0 0 24 24" fill="#616161"><path d="M9 3v1H4v2h16V4h-5V3H9M6 7v13a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1V7H6Z"/></svg></span>
+      <div class="sl-footer-right">
+        <button class="sl-btn sl-btn-cancel" id="sl-cancel">Cancel</button>
+        <button class="sl-btn sl-btn-apply"  id="sl-apply">Apply</button>
+      </div>
+    </div>`;
+
+  sl.onclick = e => e.stopPropagation();
+  const input = sl.querySelector('#sl-search-input');
+  input.addEventListener('input', e => { _slSearch = e.target.value; renderSelectionList(); sl.querySelector('#sl-search-input').focus(); });
+  sl.querySelectorAll('.sl-row').forEach(r => r.addEventListener('click', () => {
+    if (r.dataset.all) {
+      if (allChecked) shown.forEach(v => _slDraft.delete(v));
+      else            shown.forEach(v => _slDraft.add(v));
+    } else {
+      const v = r.dataset.val;
+      if (_slDraft.has(v)) _slDraft.delete(v); else _slDraft.add(v);
+    }
+    renderSelectionList();
+  }));
+  sl.querySelector('#sl-trash').addEventListener('click', () => { _slDraft.clear(); renderSelectionList(); });
+  sl.querySelector('#sl-cancel').addEventListener('click', () => closeFilterMenus());
+  sl.querySelector('#sl-apply').addEventListener('click', () => {
+    filterState[_slDim] = new Set(_slDraft);
+    closeFilterMenus();
+    renderActiveChips();
+    applyFilters();
+  });
 }
 
-// Two-level helpers for the Operators picker.
-function toggleGroupSelection(groupName, members) {
-  const state = getGroupCheckState(members);
-  if (state === 'full') {
-    members.forEach(m => filterState.operators.delete(m));
-  } else {
-    members.forEach(m => filterState.operators.add(m));
-  }
-  buildFilterDropdown('operators');
-  updateFilterChipLabels();
-  applyOperatorFilters();
-}
-function toggleGroupCollapse(groupName) {
-  if (filterState._opCollapsed.has(groupName)) {
-    filterState._opCollapsed.delete(groupName);
-  } else {
-    filterState._opCollapsed.add(groupName);
-  }
-  buildFilterDropdown('operators');
+function resetFilters() {
+  activeFilters = [];
+  FILTER_ORDER.forEach(k => filterState[k].clear());
+  closeFilterMenus();
+  renderActiveChips();
+  applyFilters();
 }
 
-function updateFilterChipLabels() {
-  const opCount     = filterState.operators.size;
-  const leaderCount = filterState.leaders.size;
-
-  // Operators chip — also summarises by group when the whole group is selected:
-  //   "Operators: Group A"        when only group A's members are selected
-  //   "Operators: Group A, Mati"  when group A + individuals from elsewhere
-  //   "Operators: 3 selected"     when too many to fit
-  let opLabel = 'Operators: All';
-  if (opCount > 0) {
-    const grouped = getOperatorsByGroup();
-    const summary = [];
-    const accountedFor = new Set();
-    grouped.forEach((members, groupName) => {
-      if (members.length === 0) return;
-      if (getGroupCheckState(members) === 'full') {
-        summary.push(groupName);
-        members.forEach(m => accountedFor.add(m));
-      }
-    });
-    const loose = [...filterState.operators].filter(m => !accountedFor.has(m));
-    summary.push(...loose);
-    if (summary.length === 1) opLabel = 'Operators: ' + summary[0];
-    else if (summary.length <= 2) opLabel = 'Operators: ' + summary.join(', ');
-    else opLabel = `Operators: ${opCount} selected`;
-  }
-  document.getElementById('opfilter-label').textContent = opLabel;
-
-  document.getElementById('leaderfilter-label').textContent =
-    leaderCount === 0 ? 'Shift leaders: All' :
-    leaderCount === 1 ? 'Shift leaders: ' + [...filterState.leaders][0] :
-    `Shift leaders: ${leaderCount} selected`;
-}
-
-// Filter STOP_REASONS_DATA by the current operator + role selections, then
-// re-feed the chart + table through the normal pipeline. The two-level
-// Operators picker resolves into a flat Set of operator names — selecting a
-// group is just a shortcut for selecting all its members.
-function applyOperatorFilters() {
-  _tblPage.oee = 0; _tblPage.qty = 0; // filter change → back to page 1
+// Re-feed the downtime chart/table + (if active) OEE/Quantities through the
+// normal pipeline using the applied filterState. Groups resolve to the
+// operators in those groups for the downtime row filter.
+function applyFilters() {
+  _tblPage.oee = 0; _tblPage.qty = 0;
   const opSel     = filterState.operators;
+  const grpSel    = filterState.groups;
   const leaderSel = filterState.leaders;
-  if (opSel.size === 0 && leaderSel.size === 0) {
+  const inGroup = (name) => grpSel.has(OPERATOR_DIRECTORY[name]?.group || 'Operators');
+
+  if (!opSel.size && !grpSel.size && !leaderSel.size) {
     _chartBaseData = STOP_REASONS_DATA.map(d => ({ ...d }));
   } else {
     _chartBaseData = STOP_REASONS_DATA.filter(d => {
-      if (opSel.size) {
-        const names = (d.operator || '').split(',').map(s => s.trim());
-        if (![...opSel].some(n => names.includes(n))) return false;
-      }
-      // Shift-leaders filter: keep rows whose leading supervisor is selected.
-      if (leaderSel.size) {
-        if (!leaderSel.has(d.leader)) return false;
-      }
+      const names = (d.operator || '').split(',').map(s => s.trim()).filter(Boolean);
+      if (opSel.size  && !names.some(n => opSel.has(n)))  return false;
+      if (grpSel.size && !names.some(inGroup))            return false;
+      if (leaderSel.size && !leaderSel.has(d.leader))     return false;
       return true;
     }).map(d => ({ ...d }));
   }
   const items = getAxisData(currentXAxis, _chartBaseData);
   drawChartWith(items);
   initTable(items);
-  // OEE report derives from shift blocks — redraw it so it reconciles with the
-  // filter chips too.
   if (currentReport === 'oee') drawOeeChart();
   else if (currentReport === 'quantities') drawQtyChart();
 }
-
-// Init: ensure Role chip is hidden by default (no operators picked).
-window.addEventListener('DOMContentLoaded', updateFilterChipLabels);
+// Back-compat alias (older call sites referenced applyOperatorFilters).
+const applyOperatorFilters = applyFilters;
 
 
 // ── Report switching ──────────────────────────────────────────────────────────
@@ -1843,9 +1858,11 @@ function switchReport(type) {
 function selectedBlocks() {
   const leaderSel = filterState.leaders;
   const opSel     = filterState.operators;
+  const grpSel    = filterState.groups;
   return SHIFT_BLOCKS.filter(b => {
     if (leaderSel.size && !leaderSel.has(b.leaderId)) return false;
     if (opSel.size && !b.operatorIds.some(o => opSel.has(o))) return false;
+    if (grpSel.size && !b.operatorIds.some(o => grpSel.has(OPERATOR_DIRECTORY[o]?.group || 'Operators'))) return false;
     return true;
   });
 }
@@ -2833,4 +2850,4 @@ buildXAxisDropdown();
 initTableEvents();
 updateCddOptionStyles();   // initialise radio images to RADIO_OFF
 updateCompareBtnLabel();   // initialise compare button label
-updateFilterChipLabels();  // hide Role chip until an operator is picked
+renderActiveChips();       // filter bar starts with no active filter chips
