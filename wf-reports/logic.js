@@ -1611,23 +1611,23 @@ document.addEventListener('click', () => {
 // One canonical Set of selected values per dimension (the APPLIED selection).
 const filterState = {
   operators: new Set(),
-  groups:    new Set(),
   leaders:   new Set(),
 };
 
 // The dimensions offered in the action menu. `values()` is the option list;
-// `icon` is the menu/chip glyph. Operators = hat, Operator group = group list,
-// Shift leaders = flag (matching Shift View).
+// `icon` is the menu/chip glyph. Operators = hat, Shift leaders = flag
+// (matching Shift View). Operator group is NOT a filter — it's only shown as
+// group headers inside the Operators list (`grouped: true`).
 const FILTER_DIMS = {
   operators: {
-    label: 'Operators', singular: 'operator',
+    label: 'Operators', singular: 'operator', grouped: true,
     icon: '<svg width="20" height="20" viewBox="0 0 24 24" fill="#616161"><path d="M12 3 4 6v2h16V6M4 19v2h16v-2M2 10v2h20v-2M5 13v5h2v-5M11 13v5h2v-5M17 13v5h2v-5M12 4.5l4.5 1.5h-9Z"/></svg>',
     values: () => Object.keys(OPERATOR_DIRECTORY),
-  },
-  groups: {
-    label: 'Operator group', singular: 'group',
-    icon: '<svg width="20" height="20" viewBox="0 0 24 24" fill="#616161"><path d="M3 5h2v2H3V5m0 6h2v2H3v-2m0 6h2v2H3v-2M7 5h14v2H7V5m0 6h14v2H7v-2m0 6h14v2H7v-2Z"/></svg>',
-    values: () => OPERATOR_GROUPS.slice(),
+    // Group → its operators, in OPERATOR_GROUPS order.
+    groupsOf: () => OPERATOR_GROUPS.map(g => ({
+      group: g,
+      members: Object.keys(OPERATOR_DIRECTORY).filter(n => (OPERATOR_DIRECTORY[n]?.group || 'Operators') === g),
+    })).filter(s => s.members.length),
   },
   leaders: {
     label: 'Shift leaders', singular: 'leader',
@@ -1635,7 +1635,7 @@ const FILTER_DIMS = {
     values: () => CAN_LEAD_OPERATORS.slice(),
   },
 };
-const FILTER_ORDER = ['operators', 'groups', 'leaders'];
+const FILTER_ORDER = ['operators', 'leaders'];
 
 // Which dimensions are currently shown as chips (in the order added).
 let activeFilters = [];
@@ -1742,24 +1742,44 @@ function renderSelectionList() {
   const dim = FILTER_DIMS[_slDim];
   const all = dim.values();
   const q = _slSearch.trim().toLowerCase();
-  const shown = q ? all.filter(v => v.toLowerCase().includes(q)) : all;
+  const match = (v) => !q || v.toLowerCase().includes(q);
+  const shown = all.filter(match);
   const allChecked = shown.length > 0 && shown.every(v => _slDraft.has(v));
 
   const check = (on) => on
     ? '<svg width="18" height="18" viewBox="0 0 24 24" fill="white"><path d="M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4Z"/></svg>'
     : '';
-  const row = (v, on) =>
-    `<div class="sl-row${on ? ' is-checked' : ''}" data-val="${v.replace(/"/g,'&quot;')}"><span class="sl-check">${check(on)}</span><span>${v}</span></div>`;
+  const dash = '<svg width="18" height="18" viewBox="0 0 24 24" fill="white"><path d="M5 11h14v2H5z"/></svg>';
+  const esc = (v) => v.replace(/"/g, '&quot;');
+  const row = (v, on, extraCls) =>
+    `<div class="sl-row${on ? ' is-checked' : ''}${extraCls || ''}" data-val="${esc(v)}"><span class="sl-check">${check(on)}</span><span>${v}</span></div>`;
+
+  // Body: grouped (group header + indented members) or a flat list.
+  let body;
+  if (dim.grouped) {
+    body = dim.groupsOf().map(({ group, members }) => {
+      const vis = members.filter(match);
+      if (!vis.length) return '';
+      const selN = vis.filter(m => _slDraft.has(m)).length;
+      const state = selN === 0 ? 'empty' : selN === vis.length ? 'full' : 'partial';
+      const headMark = state === 'full' ? check(true) : state === 'partial' ? dash : '';
+      const header = `<div class="sl-row sl-row-group" data-group="${esc(group)}"><span class="sl-check${state!=='empty'?' is-on':''}">${headMark}</span><span style="font-weight:600;">${group}</span></div>`;
+      const rows = vis.map(m => row(m, _slDraft.has(m), ' sl-row-member')).join('');
+      return header + rows;
+    }).join('');
+  } else {
+    body = shown.map(v => row(v, _slDraft.has(v))).join('');
+  }
 
   sl.innerHTML = `
     <div class="sl-search"><div class="sl-search-inner">
       <svg width="22" height="22" viewBox="0 0 24 24" fill="#2ecc71"><path d="M9.5 3a6.5 6.5 0 0 1 5.2 10.4l5 5-1.4 1.4-5-5A6.5 6.5 0 1 1 9.5 3m0 2a4.5 4.5 0 1 0 0 9 4.5 4.5 0 0 0 0-9Z"/></svg>
-      <input type="text" placeholder="Search" id="sl-search-input" value="${_slSearch.replace(/"/g,'&quot;')}">
+      <input type="text" placeholder="Search" id="sl-search-input" value="${esc(_slSearch)}">
     </div></div>
     <div class="sl-rows">
-      ${row('Select all', allChecked).replace('data-val="Select all"', 'data-all="1"')}
+      <div class="sl-row" data-all="1"><span class="sl-check${allChecked?' is-on':''}">${allChecked?check(true):''}</span><span>Select all</span></div>
       <div class="sl-divider"></div>
-      ${shown.map(v => row(v, _slDraft.has(v))).join('')}
+      ${body}
     </div>
     <div class="sl-footer">
       <span class="sl-trash" id="sl-trash" title="Clear"><svg width="20" height="20" viewBox="0 0 24 24" fill="#616161"><path d="M9 3v1H4v2h16V4h-5V3H9M6 7v13a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1V7H6Z"/></svg></span>
@@ -1776,6 +1796,11 @@ function renderSelectionList() {
     if (r.dataset.all) {
       if (allChecked) shown.forEach(v => _slDraft.delete(v));
       else            shown.forEach(v => _slDraft.add(v));
+    } else if (r.dataset.group != null) {
+      // Toggle all (filtered) members of this group.
+      const members = (dim.groupsOf().find(s => s.group === r.dataset.group)?.members || []).filter(match);
+      const allOn = members.length && members.every(m => _slDraft.has(m));
+      members.forEach(m => allOn ? _slDraft.delete(m) : _slDraft.add(m));
     } else {
       const v = r.dataset.val;
       if (_slDraft.has(v)) _slDraft.delete(v); else _slDraft.add(v);
@@ -1806,17 +1831,14 @@ function resetFilters() {
 function applyFilters() {
   _tblPage.oee = 0; _tblPage.qty = 0;
   const opSel     = filterState.operators;
-  const grpSel    = filterState.groups;
   const leaderSel = filterState.leaders;
-  const inGroup = (name) => grpSel.has(OPERATOR_DIRECTORY[name]?.group || 'Operators');
 
-  if (!opSel.size && !grpSel.size && !leaderSel.size) {
+  if (!opSel.size && !leaderSel.size) {
     _chartBaseData = STOP_REASONS_DATA.map(d => ({ ...d }));
   } else {
     _chartBaseData = STOP_REASONS_DATA.filter(d => {
       const names = (d.operator || '').split(',').map(s => s.trim()).filter(Boolean);
       if (opSel.size  && !names.some(n => opSel.has(n)))  return false;
-      if (grpSel.size && !names.some(inGroup))            return false;
       if (leaderSel.size && !leaderSel.has(d.leader))     return false;
       return true;
     }).map(d => ({ ...d }));
@@ -1858,11 +1880,9 @@ function switchReport(type) {
 function selectedBlocks() {
   const leaderSel = filterState.leaders;
   const opSel     = filterState.operators;
-  const grpSel    = filterState.groups;
   return SHIFT_BLOCKS.filter(b => {
     if (leaderSel.size && !leaderSel.has(b.leaderId)) return false;
     if (opSel.size && !b.operatorIds.some(o => opSel.has(o))) return false;
-    if (grpSel.size && !b.operatorIds.some(o => grpSel.has(OPERATOR_DIRECTORY[o]?.group || 'Operators'))) return false;
     return true;
   });
 }
