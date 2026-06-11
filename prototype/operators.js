@@ -1141,7 +1141,7 @@ const OperatorsPanel = {
     function getEntryNamesTooltip(entry) {
       const names = getEntryNameParts(entry)
         .map(p => p.supervisor ? `${p.name} (Shift leader)` : p.name);
-      if (entry.helperCount > 0) names.push('Additional workforce');
+      if (entry.helperCount > 0) names.push(`Additional workforce: ${entry.helperCount}`);
       return names.join(', ');
     }
 
@@ -1477,40 +1477,30 @@ const OperatorsPanel = {
 
       // Full team-grouped operator+helper list (for chip hover tooltip).
       // Aggregates across all entries so the user sees the entire shift.
+      // Bottom-bar chip tooltip — same shape as the saved-card names tooltip:
+      // leader(s) first with "(Shift leader)", then the rest of the operators,
+      // then "Additional workforce: N" as the last item.
       const fullTooltip = (() => {
-        const lines = [];
-        // Group all unique operators by their team
-        const byTeam = new Map(); // teamId|0 → { teamName, names[] }
-        const seenOpIds = new Set();
-        // Union all role lists across entries for each operator id.
-        const allEntryRoles = {}; // opId → string[]
+        const leaderIdSet = new Set();
         entries.value.forEach(e => {
-          Object.entries(e.roles || {}).forEach(([id, r]) => {
-            const list = Array.isArray(r) ? r : (r ? [r] : []);
-            const existing = allEntryRoles[id] || [];
-            allEntryRoles[id] = [...new Set([...existing, ...list])];
-          });
+          const ids = Array.isArray(e.leaderIds) && e.leaderIds.length
+            ? e.leaderIds : (e.leaderId != null ? [e.leaderId] : []);
+          ids.forEach(id => leaderIdSet.add(id));
         });
-        entries.value.forEach(e => {
-          e.operatorIds.forEach(id => {
-            if (seenOpIds.has(id)) return;
-            seenOpIds.add(id);
-            const op = allOperators.find(o => o.id === id);
-            if (!op) return;
-            const team = op.teamId ? allTeams.find(t => t.id === op.teamId) : null;
-            const key = team ? team.id : 0;
-            if (!byTeam.has(key)) byTeam.set(key, { teamName: team ? team.name : null, names: [] });
-            const roles = allEntryRoles[id] || [];
-            const fullName = `${op.firstName} ${op.lastName}`.trim();
-            byTeam.get(key).names.push(roles.length ? `${fullName} (${roles.join(', ')})` : fullName);
-          });
-        });
-        byTeam.forEach(g => {
-          if (g.teamName) lines.push(`${g.teamName}: ${g.names.join(', ')}`);
-          else if (g.names.length) lines.push(g.names.join(', '));
-        });
-        if (totalHelpers > 0) lines.push(`Additional workforce: ${totalHelpers}`);
-        return lines.join(', ');
+        const fullName = (op) => `${op.firstName} ${op.lastName}`.trim();
+        const leaders = [], rest = [];
+        const seen = new Set();
+        entries.value.forEach(e => e.operatorIds.forEach(id => {
+          if (seen.has(id)) return;
+          seen.add(id);
+          const op = allOperators.find(o => o.id === id);
+          if (!op) return;
+          if (leaderIdSet.has(id)) leaders.push(`${fullName(op)} (Shift leader)`);
+          else rest.push(fullName(op));
+        }));
+        const parts = [...leaders, ...rest];
+        if (totalHelpers > 0) parts.push(`Additional workforce: ${totalHelpers}`);
+        return parts.join(', ');
       })();
 
       emit('update:summary', {
