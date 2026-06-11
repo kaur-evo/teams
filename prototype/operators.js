@@ -82,7 +82,9 @@ const OperatorsPanel = {
                       <template v-if="i > 0">, </template><!--
                       --><v-icon v-if="part.supervisor" class="op-card-alt-star" size="18" color="#707070">mdi-flag</v-icon><!--
                       --><span>{{ part.name }}</span>
-                    </template>
+                    </template><!--
+                    Additional workforce listed as the last item when present.
+                    --><template v-if="entry.helperCount > 0">, <span>Additional workforce</span></template>
                   </span>
                 </div>
                 <div v-else-if="entry.helperCount > 0" class="op-card-alt-row">
@@ -1137,9 +1139,10 @@ const OperatorsPanel = {
     // The assigned shift leader(s) for THIS entry get "(Shift leader)" appended.
     // No group references, no "Operators:" prefix.
     function getEntryNamesTooltip(entry) {
-      return getEntryNameParts(entry)
-        .map(p => p.supervisor ? `${p.name} (Shift leader)` : p.name)
-        .join(', ');
+      const names = getEntryNameParts(entry)
+        .map(p => p.supervisor ? `${p.name} (Shift leader)` : p.name);
+      if (entry.helperCount > 0) names.push('Additional workforce');
+      return names.join(', ');
     }
 
     // Saved-card name list: everyone who has ANY role comes first (entry order
