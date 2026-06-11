@@ -1243,6 +1243,27 @@
     .op-leaderchip.is-leader:hover { background: rgba(46, 204, 113, 0.18); }
     .op-leaderchip .v-icon { margin: 0; }
 
+    /* Dropdown-style leader chip (flag + "Shift leader"/"-" + chevron) that
+       opens a single-select role menu (Figma 32229:21663). Same pill geometry;
+       grey when unset, green tint + border when this op is a leader. */
+    .op-leaderddchip {
+      display: inline-flex; align-items: center; gap: 4px;
+      padding: 5px 12px;
+      border-radius: 24px;
+      background: #eee;
+      border: 1px solid transparent;
+      font-family: 'Open Sans', sans-serif;
+      font-size: 12px; font-weight: 400; line-height: 16px;
+      color: #212121; cursor: pointer; flex-shrink: 0;
+    }
+    .op-leaderddchip:hover { background: #e0e0e0; }
+    .op-leaderddchip.is-leader {
+      background: rgba(46, 204, 113, 0.12);
+      border-color: #2ecc71;
+    }
+    .op-leaderddchip.is-leader:hover { background: rgba(46, 204, 113, 0.18); }
+    .op-leaderddchip .v-icon { margin: 0; }
+
     /* Helpers row chip: same shape as the role chip, but with an editable
        number on the left of "people". Greyed at 50% when not checked. */
     .op-helpers-chip {
@@ -1660,7 +1681,7 @@
   </div>
 
   <script src="mock-data.js?v=2"></script>
-  <script src="proto-panel.js?v=4"></script>
+  <script src="proto-panel.js?v=5"></script>
   <script src="chrome.js"></script>
   <script>
     // Inject only the 1st-level dark sidebar (Shift View is its own dark surface — no top bar).
@@ -1681,7 +1702,7 @@
   <script src="https://cdn.jsdelivr.net/npm/vue@3/dist/vue.global.prod.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/vuetify@3/dist/vuetify.min.js"></script>
   <script src="shift-view.js?v=2"></script>
-  <script src="operators.js?v=5"></script>
+  <script src="operators.js?v=6"></script>
   <script>
     const { createApp, ref } = Vue;
     const { createVuetify } = Vuetify;

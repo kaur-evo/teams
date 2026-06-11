@@ -218,6 +218,31 @@ const OperatorsPanel = {
                     <v-icon size="18" :color="isLeader(op.id) ? '#2ecc71' : '#757575'">mdi-flag</v-icon>
                     <span>Leader</span>
                   </button>
+                  <!-- Dropdown style: a role chip per row (flag + selection +
+                       chevron) opening a single-select menu. Extensible to more
+                       roles later (currently Shift leader / -). -->
+                  <div v-if="leaderStyle === 'dropdown' && canSetLeader(op)" class="op-tag-area" @click.stop>
+                    <button class="op-leaderddchip" :class="{ 'is-leader': isLeader(op.id) }" @click="openLeaderDD(op.id, $event)">
+                      <v-icon size="18" :color="isLeader(op.id) ? '#2ecc71' : '#757575'">mdi-flag</v-icon>
+                      <span>{{ isLeader(op.id) ? 'Shift leader' : '-' }}</span>
+                      <v-icon size="18" color="#757575">mdi-menu-down</v-icon>
+                    </button>
+                    <teleport to="body">
+                      <div v-if="leaderDDOpId === op.id" class="op-tag-dropdown op-role-dropdown"
+                           :style="{ top: leaderDDPos.top + 'px', left: leaderDDPos.left + 'px' }" @click.stop>
+                        <div class="op-role-row" :class="{ 'is-selected': isLeader(op.id) }" @click="pickLeaderRole(op, true)">
+                          <v-icon v-if="isLeader(op.id)" class="op-role-marker" size="24" color="#2ecc71">mdi-check-circle</v-icon>
+                          <span v-else class="op-role-marker"></span>
+                          <span class="op-role-label">Shift leader</span>
+                        </div>
+                        <div class="op-role-row" :class="{ 'is-selected': !isLeader(op.id) }" @click="pickLeaderRole(op, false)">
+                          <v-icon v-if="!isLeader(op.id)" class="op-role-marker" size="24" color="#2ecc71">mdi-check-circle</v-icon>
+                          <span v-else class="op-role-marker"></span>
+                          <span class="op-role-label">-</span>
+                        </div>
+                      </div>
+                    </teleport>
+                  </div>
                   <!-- Role chip on the right. Single mode: shown only when the
                        "Adjust operator roles" toggle is ON. Multi mode: always
                        shown for any operator that has ≥1 allowed role. -->
@@ -292,6 +317,28 @@ const OperatorsPanel = {
                     <v-icon size="18" :color="isLeader(op.id) ? '#2ecc71' : '#757575'">mdi-flag</v-icon>
                     <span>Leader</span>
                   </button>
+                  <div v-if="leaderStyle === 'dropdown' && canSetLeader(op)" class="op-tag-area" @click.stop>
+                    <button class="op-leaderddchip" :class="{ 'is-leader': isLeader(op.id) }" @click="openLeaderDD(op.id, $event)">
+                      <v-icon size="18" :color="isLeader(op.id) ? '#2ecc71' : '#757575'">mdi-flag</v-icon>
+                      <span>{{ isLeader(op.id) ? 'Shift leader' : '-' }}</span>
+                      <v-icon size="18" color="#757575">mdi-menu-down</v-icon>
+                    </button>
+                    <teleport to="body">
+                      <div v-if="leaderDDOpId === op.id" class="op-tag-dropdown op-role-dropdown"
+                           :style="{ top: leaderDDPos.top + 'px', left: leaderDDPos.left + 'px' }" @click.stop>
+                        <div class="op-role-row" :class="{ 'is-selected': isLeader(op.id) }" @click="pickLeaderRole(op, true)">
+                          <v-icon v-if="isLeader(op.id)" class="op-role-marker" size="24" color="#2ecc71">mdi-check-circle</v-icon>
+                          <span v-else class="op-role-marker"></span>
+                          <span class="op-role-label">Shift leader</span>
+                        </div>
+                        <div class="op-role-row" :class="{ 'is-selected': !isLeader(op.id) }" @click="pickLeaderRole(op, false)">
+                          <v-icon v-if="!isLeader(op.id)" class="op-role-marker" size="24" color="#2ecc71">mdi-check-circle</v-icon>
+                          <span v-else class="op-role-marker"></span>
+                          <span class="op-role-label">-</span>
+                        </div>
+                      </div>
+                    </teleport>
+                  </div>
                   <div v-if="showRoleChip(op)" class="op-tag-area" @click.stop>
                     <button class="op-rolechip" :class="{ 'is-selected': effectiveRoles(op).length > 0 }" @click="openTagDropdown(op.id, $event)">
                       <img src="icn/operators%20%28account-hard-hat%29.svg" alt="" width="18" height="18" class="op-rolechip-icn">
@@ -750,6 +797,42 @@ const OperatorsPanel = {
       formLeaderIds.value = multiLeader.value ? [...formLeaderIds.value, op.id] : [op.id];
       // You can't lead a shift you're not on — check them in.
       if (!formSelectedOps.value.includes(op.id)) formSelectedOps.value.push(op.id);
+    }
+
+    // ── Dropdown style: a per-row role chip opening a single-select menu
+    // (Shift leader / -), extensible to more roles later. ──
+    const leaderDDOpId = ref(null);
+    const leaderDDPos  = ref({ top: 0, left: 0 });
+    let _leaderDDAnchor = null;
+    function positionLeaderDD(triggerEl) {
+      if (!triggerEl) return;
+      const r = triggerEl.getBoundingClientRect();
+      const menuW = 240, menuH = 120;
+      let top = r.bottom + 4, left = r.right - menuW;
+      if (top + menuH > window.innerHeight - 8) top = r.top - menuH - 4;
+      if (left < 8) left = 8;
+      leaderDDPos.value = { top, left };
+    }
+    function openLeaderDD(opId, event) {
+      event.stopPropagation();
+      if (leaderDDOpId.value === opId) { leaderDDOpId.value = null; _leaderDDAnchor = null; return; }
+      leaderDDOpId.value = opId;
+      _leaderDDAnchor = event.currentTarget;
+      positionLeaderDD(_leaderDDAnchor);
+    }
+    function closeLeaderDD() { leaderDDOpId.value = null; }
+    // Pick a role from the row dropdown. `asLeader` true → set leader (+ check
+    // in), false → clear this operator's leader role. Respects multi-leader.
+    function pickLeaderRole(op, asLeader) {
+      if (asLeader) {
+        if (!isLeader(op.id)) {
+          formLeaderIds.value = multiLeader.value ? [...formLeaderIds.value, op.id] : [op.id];
+          if (!formSelectedOps.value.includes(op.id)) formSelectedOps.value.push(op.id);
+        }
+      } else {
+        formLeaderIds.value = formLeaderIds.value.filter(id => id !== op.id);
+      }
+      leaderDDOpId.value = null;
     }
     // Keep leaders in sync with the shift roster: drop any leader who gets
     // unchecked, then (if enabled) prefill a leader when none remains.
@@ -1441,22 +1524,28 @@ const OperatorsPanel = {
       document.addEventListener('click', closeTagDropdown);
       document.addEventListener('click', closeKebab);
       document.addEventListener('click', closeLeaderDropdown);
+      document.addEventListener('click', closeLeaderDD);
       // Scroll capture catches the inner scroll containers (.op-body-scroll)
       // so the dropdown follows the anchor on scroll.
       window.addEventListener('scroll', repositionTagDropdown, true);
       window.addEventListener('scroll', closeLeaderDropdown, true);
+      window.addEventListener('scroll', closeLeaderDD, true);
       window.addEventListener('resize', closeTagDropdown);
       window.addEventListener('resize', closeLeaderDropdown);
+      window.addEventListener('resize', closeLeaderDD);
     });
 
     const { onUnmounted } = Vue;
     onUnmounted(() => {
       document.removeEventListener('click', closeTagDropdown);
       document.removeEventListener('click', closeLeaderDropdown);
+      document.removeEventListener('click', closeLeaderDD);
       window.removeEventListener('scroll', repositionTagDropdown, true);
       window.removeEventListener('scroll', closeLeaderDropdown, true);
+      window.removeEventListener('scroll', closeLeaderDD, true);
       window.removeEventListener('resize', closeTagDropdown);
       window.removeEventListener('resize', closeLeaderDropdown);
+      window.removeEventListener('resize', closeLeaderDD);
     });
 
     return {
@@ -1482,6 +1571,10 @@ const OperatorsPanel = {
       leaderStyle,
       canSetLeader,
       toggleRowLeader,
+      leaderDDOpId,
+      leaderDDPos,
+      openLeaderDD,
+      pickLeaderRole,
       toggleLeaderDropdown,
       pickLeader,
       getEntryTagRows,

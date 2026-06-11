@@ -32,9 +32,15 @@
       on: 'flat', off: 'grouped', defOn: false,
     },
     {
+      // 3-way (mutually-exclusive) — rendered as a small group of radio-style
+      // tickboxes. Stored value is one of the `radio` values.
       key: 'protoLeaderStyle', global: '__protoLeaderStyle', event: 'proto:leaderStyle',
-      label: 'Chip-style shift-leader assignment (flag chip on each operator row)',
-      on: 'chip', off: 'field', defOn: false,
+      def: 'field',
+      radio: [
+        { value: 'field',    label: 'Shift leader — field (dropdown below the list)' },
+        { value: 'chip',     label: 'Shift leader — chip (flag chip on each operator row)' },
+        { value: 'dropdown', label: 'Shift leader — row dropdown (role menu per operator, extensible)' },
+      ],
     },
     {
       key: 'protoExcludeManhours', global: '__protoExcludeManhours', event: 'proto:excludeManhours',
@@ -54,7 +60,9 @@
   ];
 
   function get(opt) {
-    return localStorage.getItem(opt.key) || (opt.defOn ? opt.on : opt.off);
+    const stored = localStorage.getItem(opt.key);
+    if (stored != null) return stored;
+    return opt.radio ? opt.def : (opt.defOn ? opt.on : opt.off);
   }
   function isOn(opt) {
     return get(opt) === opt.on;
@@ -75,7 +83,9 @@
   function syncInputs(opt, value) {
     if (!panelEl) return;
     panelEl.querySelectorAll('input[data-key="' + opt.key + '"]').forEach(inp => {
-      inp.checked = value === opt.on;
+      // Radio-style options carry the value on data-value; boolean ones check
+      // against `on`.
+      inp.checked = opt.radio ? (inp.dataset.value === value) : (value === opt.on);
     });
   }
 
@@ -84,12 +94,24 @@
     panel.className = 'proto-panel';
     panel.hidden = true;
 
-    const rows = OPTIONS.map(opt => `
-      <label class="proto-panel__check">
-        <input type="checkbox" data-key="${opt.key}" ${isOn(opt) ? 'checked' : ''}>
-        <span>${opt.label}</span>
-      </label>
-    `).join('');
+    const rows = OPTIONS.map(opt => {
+      if (opt.radio) {
+        const cur = get(opt);
+        // One tickbox per choice; mutually exclusive (handled in change).
+        return opt.radio.map(c => `
+          <label class="proto-panel__check proto-panel__check--radio">
+            <input type="checkbox" data-key="${opt.key}" data-value="${c.value}" ${c.value === cur ? 'checked' : ''}>
+            <span>${c.label}</span>
+          </label>
+        `).join('');
+      }
+      return `
+        <label class="proto-panel__check">
+          <input type="checkbox" data-key="${opt.key}" ${isOn(opt) ? 'checked' : ''}>
+          <span>${opt.label}</span>
+        </label>
+      `;
+    }).join('');
 
     panel.innerHTML = `
       <div class="proto-panel__title">Prototype settings</div>
@@ -102,7 +124,14 @@
       const inp = e.target;
       if (inp.tagName !== 'INPUT') return;
       const opt = OPTIONS.find(o => o.key === inp.dataset.key);
-      if (opt) set(opt, inp.checked ? opt.on : opt.off);
+      if (!opt) return;
+      if (opt.radio) {
+        // Mutually exclusive: ticking sets that value; unticking the active one
+        // falls back to the default. Then re-sync so the others reflect it.
+        set(opt, inp.checked ? inp.dataset.value : opt.def);
+      } else {
+        set(opt, inp.checked ? opt.on : opt.off);
+      }
     });
     return panel;
   }
