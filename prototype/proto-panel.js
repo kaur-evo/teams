@@ -44,7 +44,7 @@
     },
     {
       key: 'protoExcludeManhours', global: '__protoExcludeManhours', event: 'proto:excludeManhours',
-      label: 'Show "Exclude from manhours" switch on operators',
+      label: 'Show "Exclude from man-hours" switch on operators',
       on: 'on', off: 'off', defOn: false,
     },
     {

@@ -142,7 +142,7 @@ const DT_COLS = [
   { key:'avg',           label:'Average duration',     width:136, align:'right', mono:true,  unit:' min' },
   { key:'durOee',        label:'Duration (incl. OEE)', width:182, align:'right', mono:true,  iconY:true, unit:' min' },
   { key:'plannedTime',   label:'Planned time',         width:153, align:'right', mono:true,  unit:' min', neutral:true },
-  { key:'manhours',      label:'Manhours',             width:120, align:'right', mono:true,  unit:' h',   manhours:true },
+  { key:'manhours',      label:'Man-hours',            width:120, align:'right', mono:true,  unit:' h',   manhours:true },
   { key:'pct',           label:'% of planned time',   width:141, align:'right', mono:true,  unit:'%'    },
 ];
 
@@ -393,7 +393,7 @@ const OEE_TABLE_COLS = [
   { key:'oee',             label:'OEE',               et:'OEE',                  type:'metric' },
   { key:'ooe',             label:'OOE',               et:'OOE',                  type:'metric' },
   { key:'teep',            label:'TEEP',              et:'TEEP',                 type:'metric' },
-  { key:'manhours',        label:'Manhours',          et:'Inimtunnid',           type:'hours'  },
+  { key:'manhours',        label:'Man-hours',         et:'Inimtunnid',           type:'hours'  },
   { key:'operatingMin',    label:'Operating time',    et:'Tööaeg',               type:'time'   },
   { key:'plannedMin',      label:'Planned time',      et:'Planeeritud tööaeg',   type:'time'   },
   { key:'shiftMin',        label:'Shift time',        et:'Vahetuse aeg',         type:'time'   },

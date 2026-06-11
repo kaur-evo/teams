@@ -2293,7 +2293,7 @@ function renderOeeTable(cats, inners, data, outerHeader, innerHeader) {
       { label: 'Performance',  align: 'right', render: r => r.performance.toFixed(1) + '%' },
       { label: 'Quality',      align: 'right', render: r => r.quality.toFixed(1) + '%' },
       { label: 'OEE',          align: 'right', render: r => r.oee.toFixed(1) + '%' },
-      { label: 'Manhours',     align: 'right', render: r => r.manhours.toFixed(1) + ' h' },
+      { label: 'Man-hours',    align: 'right', render: r => r.manhours.toFixed(1) + ' h' },
     ],
     rows,
   });
