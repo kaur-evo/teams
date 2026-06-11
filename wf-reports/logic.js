@@ -1621,7 +1621,9 @@ const filterState = {
 const FILTER_DIMS = {
   operators: {
     label: 'Operators', singular: 'operator', grouped: true,
-    icon: '<svg width="20" height="20" viewBox="0 0 24 24" fill="#616161"><path d="M12 3 4 6v2h16V6M4 19v2h16v-2M2 10v2h20v-2M5 13v5h2v-5M11 13v5h2v-5M17 13v5h2v-5M12 4.5l4.5 1.5h-9Z"/></svg>',
+    // Operator hat (mdi account-hard-hat) — same icon used for operators /
+    // additional workforce in Shift View.
+    icon: '<svg width="20" height="20" viewBox="0 0 24 24" fill="#616161"><path d="M12 3C10.9 3 10 3.9 10 5H8C7.45 5 7 5.45 7 6V8.78C6.39 9.33 6 10.12 6 11V12H4V14H6V13H18V14H20V12H18V11C18 10.12 17.61 9.33 17 8.78V6C17 5.45 16.55 5 16 5H14C14 3.9 13.11 3 12 3M9 7H15V8.18C14.69 8.07 14.36 8 14 8H10C9.65 8 9.31 8.07 9 8.18V7M4 15V17C4 18.11 4.9 19 6 19H18C19.11 19 20 18.11 20 17V15H4Z"/></svg>',
     values: () => Object.keys(OPERATOR_DIRECTORY),
     // Group → its operators, in OPERATOR_GROUPS order.
     groupsOf: () => OPERATOR_GROUPS.map(g => ({
