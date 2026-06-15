@@ -1009,7 +1009,8 @@ function refreshTeamSummaries() {
 }
 function openTeamModal(teamId) {
   editingTeam = teamId ? teams.find(t => t.id === teamId) : null;
-  $('#teamTitle').textContent = editingTeam ? `Edit: ${editingTeam.name}` : 'New: Operator group';
+  // Heading convention (spec): edit → just the entity name; new → "New: <Entity>".
+  $('#teamTitle').textContent = editingTeam ? editingTeam.name : 'New: Operator group';
   setTeamForm(editingTeam);
   openModal('modalTeam');
 }

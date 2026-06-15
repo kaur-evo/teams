@@ -489,6 +489,14 @@ const OEE_DIMS = {
     valsOf: (b) => [b.leaderId],
     isPeople: false,
   },
+  // Time axis as an outer dimension, so Day × split-by (group / leader /
+  // operators) works through the same matrix machinery as the people dims.
+  day: {
+    header: 'Day',
+    labels: () => [...new Set(SHIFT_BLOCKS.map(b => b.day))].sort((a, b) => a - b).map(d => 'Day ' + d),
+    valsOf: (b) => ['Day ' + b.day],
+    isPeople: false,
+  },
 };
 
 // Generic nested OEE matrix: outer dimension × inner dimension. A block lands
@@ -581,6 +589,7 @@ const QTY_TABLE_COLS = [
   { key:'scrap',         label:'Scrap',          type:'qty'   },
   { key:'potential',     label:'Potential',      type:'qty'   },
   { key:'totalQty',      label:'Total quantity', type:'qty'   },
+  { key:'manhours',      label:'Man-hours',      type:'hours' },
 ];
 
 // One quantities table row per value of the chosen X-axis dimension, from a
@@ -595,12 +604,14 @@ function qtyTableRows(blocks, dimKey) {
       const bs = bucket[v];
       const r = rollupQty(bs);
       r.name = v;
+      r.manhours = dim.isPeople ? manhoursScoped(bs, dimKey, v) : blockManhours(bs);
       QTY_TABLE_COLS.filter(c => c.type === 'descr').forEach(c => { r[c.key] = descrValues(bs, c.key); });
       return r;
     });
   if (rows.length) {
     const tot = rollupQty(blocks);
     tot.name = 'Total'; tot._total = true;
+    tot.manhours = blockManhours(blocks);
     QTY_TABLE_COLS.filter(c => c.type === 'descr').forEach(c => { tot[c.key] = ''; });
     rows.push(tot);
   }
@@ -622,12 +633,22 @@ function qtyMatrixFromBlocks(blocks, outerDim, innerDim) {
       });
     });
   });
+  // Manhours scope mirrors oeeMatrixFromBlocks: prefer the people dimension
+  // so each cell's number is a real deduped headcount-time.
   const data = {};
   O.labels().forEach(ov => {
     data[ov] = {};
     I.labels().forEach(iv => {
       const bs = bucket[ov] && bucket[ov][iv];
-      data[ov][iv] = (bs && bs.length) ? rollupQty(bs) : null;
+      if (bs && bs.length) {
+        const cell = rollupQty(bs);
+        if (O.isPeople)      cell.manhours = manhoursScoped(bs, outerDim, ov);
+        else if (I.isPeople) cell.manhours = manhoursScoped(bs, innerDim, iv);
+        else                 cell.manhours = blockManhours(bs);
+        data[ov][iv] = cell;
+      } else {
+        data[ov][iv] = null;
+      }
     });
   });
   return { labels: O.labels(), innerLabels: I.labels(), data, outerHeader: O.header, innerHeader: I.header };
@@ -643,6 +664,7 @@ function qtyByDay(blocks) {
   return [...byDay.keys()].sort((a,b)=>a-b).map(day => {
     const r = rollupQty(byDay.get(day));
     r.day = day; r.name = day;
+    r.manhours = blockManhours(byDay.get(day));
     return r;
   });
 }
@@ -811,6 +833,15 @@ function aggregateBy(nameKey, baseData) {
     const os = opSet.get(k);
     row.mainManhours = [...os.main].reduce((s, nm) => s + ((OPERATOR_DIRECTORY[nm]?.hours)    || 0), 0);
     row.cmpManhours  = [...os.cmp ].reduce((s, nm) => s + ((OPERATOR_DIRECTORY[nm]?.cmpHours) || 0), 0);
+    // People fields = the distinct union across ALL bucket rows (the seed only
+    // copied the first row's values, and `leader` wasn't carried at all) — so
+    // Split by Operators / Operator group / Shift leaders works on any X-axis.
+    row.operator    = [...os.main].join(', ');
+    row.cmpOperator = [...os.cmp ].join(', ');
+    row.operatorGroupName    = deriveOperatorGroups(row.operator);
+    row.cmpOperatorGroupName = deriveOperatorGroups(row.cmpOperator);
+    row.leader    = [...os.main].filter(nm => OPERATOR_DIRECTORY[nm]?.canLead).join(', ');
+    row.cmpLeader = [...os.cmp ].filter(nm => OPERATOR_DIRECTORY[nm]?.canLead).join(', ');
     row.segments = [...segMap.get(k).entries()]
       .map(([, v]) => ({ name: v.name, group: v.group, mainDur: v.mainDur, cmpDur: v.cmpDur }))
       .sort((a, b) => b.mainDur - a.mainDur);
@@ -836,9 +867,21 @@ function mockTimeSeries(labels, cmpCount, mainCount, cmpLabels) {
   ];
   const totalW = MOCK_SEGS.reduce((s, g) => s + g.w, 0);
 
+  // Rotating crews (each led by a canLead operator) so the people splits —
+  // Operators / Operator group / Shift leaders — have real values on the
+  // synthetic time-series rows too.
+  const MOCK_CREWS = [
+    'V. Mavroeidis, M. Kostopoulou, G. Antoniou',
+    'N. Papadopoulos, E. Christodoulou, D. Ekonomou',
+    'V. Mavroeidis, P. Lambrou, S. Nikolaou',
+    'N. Papadopoulos, K. Vlachos, S. Panagiotou',
+  ];
+
   return labels.map((lbl, idx) => {
     const hasMain    = idx < nMain;
     const hasCompare = idx < nCmp;
+    const crew    = MOCK_CREWS[idx % MOCK_CREWS.length];
+    const cmpCrew = MOCK_CREWS[(idx + 1) % MOCK_CREWS.length];
     const totalMain = hasMain    ? 80  + Math.round(Math.random() * 240) : 0;
     const totalCmp  = hasCompare ? 60  + Math.round(Math.random() * 200) : 0;
     const cnt  = hasMain    ? 3  + Math.round(Math.random() * 15) : 0;
@@ -869,7 +912,10 @@ function mockTimeSeries(labels, cmpCount, mainCount, cmpLabels) {
       productGroup:'Electronics', cmpProductGroup:'Electronics',
       product:'Widget Pro', cmpProduct:'Circuit Bd.',
       productCode:'PRD-001', cmpProductCode:'PRD-004',
-      shift:'Morning', cmpShift:'Night', operator:'M. Kostopoulou', cmpOperator:'E. Christodoulou',
+      shift:'Morning', cmpShift:'Night',
+      operator: crew, cmpOperator: cmpCrew,
+      operatorGroupName: deriveOperatorGroups(crew), cmpOperatorGroupName: deriveOperatorGroups(cmpCrew),
+      leader: deriveLeader(crew), cmpLeader: deriveLeader(cmpCrew),
       loss: mainDur, cmpLoss: cmpDur, durOee: mainDur, cmpDurOee: cmpDur,
       plannedTime: 800, cmpPlannedTime: 800,
       cmpName: (cmpLabels && cmpLabels[idx]) ? cmpLabels[idx] : undefined,

@@ -33,14 +33,23 @@
     },
     {
       // 3-way (mutually-exclusive) — rendered as a small group of radio-style
-      // tickboxes. Stored value is one of the `radio` values.
+      // tickboxes. Stored value is one of the `radio` values. Chip is the
+      // spec-final UX; field/dropdown kept as reference variants.
       key: 'protoLeaderStyle', global: '__protoLeaderStyle', event: 'proto:leaderStyle',
-      def: 'field',
+      def: 'chip',
       radio: [
+        { value: 'chip',     label: 'Shift leader — chip (flag chip on each operator row) — SPEC' },
         { value: 'field',    label: 'Shift leader — field (dropdown below the list)' },
-        { value: 'chip',     label: 'Shift leader — chip (flag chip on each operator row)' },
         { value: 'dropdown', label: 'Shift leader — row dropdown (role menu per operator, extensible)' },
       ],
+    },
+    {
+      // Stands in for Settings → Stations → "Allow additional workforce on
+      // shift" (the real Stations screen is out of prototype scope). Gates the
+      // Additional workforce row in the Shift View picker.
+      key: 'protoAllowAW', global: '__protoAllowAW', event: 'proto:allowAW',
+      label: 'Station setting: "Allow additional workforce on shift"',
+      on: 'on', off: 'off', defOn: true,
     },
     {
       key: 'protoExcludeManhours', global: '__protoExcludeManhours', event: 'proto:excludeManhours',
@@ -72,6 +81,15 @@
     window[opt.global] = value;
     window.dispatchEvent(new CustomEvent(opt.event, { detail: value }));
     syncInputs(opt, value);
+  }
+
+  // Spec-finalisation reset: when defaults change (leader style → chip) bump
+  // PANEL_VERSION so stale stored choices are cleared once and everyone lands
+  // on the spec defaults.
+  const PANEL_VERSION = '2';
+  if (localStorage.getItem('protoPanelVersion') !== PANEL_VERSION) {
+    OPTIONS.forEach(opt => localStorage.removeItem(opt.key));
+    localStorage.setItem('protoPanelVersion', PANEL_VERSION);
   }
 
   // Seed globals immediately (before DOM/panel) so components reading them at

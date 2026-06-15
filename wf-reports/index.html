@@ -290,6 +290,15 @@
        Matches Figma 32059:7483 — green check-circle on selected rows,
        ENTERPRISE pill on rows the licence tier doesn't include. */
     /* ── Filter: action menu (dimension list) ── */
+    .filter-cta {
+      display:flex; align-items:center; gap:4px;
+      height:32px; padding:0 12px;
+      border:none; cursor:pointer; border-radius:4px;  /* .btn radius (--r-4) */
+      background:rgba(46,204,113,0.12);          /* .btn--secondary fill */
+      font-family:'Open Sans',sans-serif; font-size:14px; font-weight:600;
+      color:#2ecc71; text-transform:uppercase; white-space:nowrap;
+    }
+    .filter-cta:hover { background:rgba(46,204,113,0.2); }
     .action-menu {
       position:absolute; top:38px; left:0; background:white; border-radius:4px;
       box-shadow:0px 1px 5px rgba(0,0,0,0.25),0px 2px 2px rgba(0,0,0,0.12),0px 3px 1px -2px rgba(0,0,0,0.12);
@@ -345,7 +354,6 @@
     .sl-row.is-checked .sl-check { background:#2ecc71; border-color:#2ecc71; }
     .sl-check.is-on { background:#2ecc71; border-color:#2ecc71; }   /* group header (full/partial) */
     .sl-row-member { padding-left:32px; }                          /* indent operators under their group */
-    .sl-row-group { font-weight:600; }
     .sl-divider { height:1px; background:rgba(33,33,33,0.12); margin:0 12px; }
     .sl-footer {
       display:flex; align-items:center; justify-content:space-between; padding:8px 16px 16px;
@@ -416,14 +424,23 @@
       content:''; width:10px; height:2px; background:white;
     }
 
-    /* ── Data Table ── */
-    #dt-card { background:white; border-radius:4px; box-shadow:0 1px 3px rgba(0,0,0,0.12),0 1px 2px rgba(0,0,0,0.08); }
-    #dt-scroll { overflow-x:auto; }
+    /* ── Data Table ──
+       The OEE / Quantities cards reuse this chrome via the class variants
+       (`.dt-card` / `.dt-scroll`); the scroll container is what makes the
+       sticky first column + horizontal scroll work instead of stretching
+       the page. */
+    #dt-card, .dt-card { background:white; border-radius:4px; box-shadow:0 1px 3px rgba(0,0,0,0.12),0 1px 2px rgba(0,0,0,0.08); }
+    #dt-scroll, .dt-scroll { overflow-x:auto; }
     #dt-table { border-collapse:collapse; table-layout:auto; }
-    #dt-table th, #dt-table td {
+    #oee-table, #qty-table { border-collapse:collapse; table-layout:auto; }
+    #dt-table th, #dt-table td,
+    #oee-table th, #oee-table td,
+    #qty-table th, #qty-table td {
       border-top:1px solid #e0e0e0; padding:0 12px;
     }
-    #dt-table thead th { border-top:none; border-bottom:1px solid #e0e0e0; }
+    #dt-table thead th,
+    #oee-table thead th,
+    #qty-table thead th { border-top:none; border-bottom:1px solid #e0e0e0; }
     /* Fixed first column */
     .dt-fixed { position:sticky; left:0; z-index:2; border-right:1px solid #e0e0e0 !important; overflow:visible; }
     .dt-th-inner { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
@@ -653,8 +670,9 @@
 
     <!-- + FILTER CTA → opens the dimension action menu -->
     <div style="position:relative;">
-      <button id="filter-cta" onclick="toggleFilterMenu(event)"
-              style="display:flex; align-items:center; gap:4px; height:32px; padding:0 12px; border:none; background:none; cursor:pointer; border-radius:24px; font-family:'Open Sans',sans-serif; font-size:14px; font-weight:600; color:#2ecc71; text-transform:uppercase; white-space:nowrap;">
+      <!-- Secondary button style (light green fill), matching "+ GROUP" /
+           "+ OPERATOR" secondary CTAs in Settings (.btn--secondary). -->
+      <button id="filter-cta" class="filter-cta" onclick="toggleFilterMenu(event)">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="#2ecc71"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2Z"/></svg>
         Filter
       </button>
@@ -960,7 +978,7 @@
   <div id="dt-row-tip-name"></div>
 </div>
 
-<script src="data.js?v=21"></script>
-<script src="logic.js?v=43"></script>
+<script src="data.js?v=22"></script>
+<script src="logic.js?v=45"></script>
 </body>
 </html>

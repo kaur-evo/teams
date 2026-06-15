@@ -743,6 +743,14 @@
       justify-content: flex-end;
       gap: 8px;
     }
+    /* Inline save-blocked message ("Choose a shift leader") next to CANCEL. */
+    .op-leader-error-msg {
+      font-family: 'Open Sans', sans-serif;
+      font-size: 12px;
+      color: #e53935;
+      margin-right: auto;
+      align-self: center;
+    }
 
     /* Buttons */
     .op-btn {
@@ -1241,6 +1249,15 @@
       color: #212121;
     }
     .op-leaderchip.is-leader:hover { background: rgba(46, 204, 113, 0.18); }
+    /* Error state (spec): no leader chosen on save → every available chip
+       turns red until one is picked. Evocon red (#e53935) on a light tint. */
+    .op-leaderchip.is-error {
+      background: rgba(229, 57, 53, 0.08);
+      border-color: #e53935;
+      color: #e53935;
+    }
+    .op-leaderchip.is-error:hover { background: rgba(229, 57, 53, 0.14); }
+    .op-leaderchip.is-error .v-icon { color: #e53935 !important; }
     .op-leaderchip .v-icon { margin: 0; }
 
     /* Dropdown-style leader chip (flag + "Shift leader"/"-" + chevron) that
@@ -1262,6 +1279,13 @@
       border-color: #2ecc71;
     }
     .op-leaderddchip.is-leader:hover { background: rgba(46, 204, 113, 0.18); }
+    .op-leaderddchip.is-error {
+      background: rgba(229, 57, 53, 0.08);
+      border-color: #e53935;
+      color: #e53935;
+    }
+    .op-leaderddchip.is-error:hover { background: rgba(229, 57, 53, 0.14); }
+    .op-leaderddchip.is-error .v-icon { color: #e53935 !important; }
     .op-leaderddchip .v-icon { margin: 0; }
 
     /* Helpers row chip: same shape as the role chip, but with an editable
@@ -1500,6 +1524,9 @@
     .op-leader-field { display: flex; flex-direction: column; gap: 2px; flex-shrink: 0; }
     .op-leader-field.is-disabled { opacity: 0.5; }
     .op-leader-field.is-disabled .op-leader-select { cursor: not-allowed; }
+    /* Error state mirrors the chip style: red outline + caption. */
+    .op-leader-field.is-error .op-leader-select { border-color: #e53935; }
+    .op-leader-field.is-error .op-leader-caption { color: #e53935; }
     .op-leader-select {
       display: flex;
       align-items: center;

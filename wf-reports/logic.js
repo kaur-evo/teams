@@ -1667,7 +1667,9 @@ function toggleFilterMenu(event) {
     const row = document.createElement('div');
     row.className = 'action-menu-row' + (added ? ' is-added' : '');
     row.innerHTML = `${dim.icon}<span>${dim.label}</span>`;
-    if (!added) row.addEventListener('click', () => addFilter(key));
+    // stopPropagation: otherwise the click bubbles to the document handler,
+    // which closeFilterMenus()-es the selection list the instant it opens.
+    if (!added) row.addEventListener('click', (e) => { e.stopPropagation(); addFilter(key); });
     menu.appendChild(row);
   });
   menu.classList.add('open');
@@ -1700,6 +1702,7 @@ function renderActiveChips() {
     chip.innerHTML = `${dim.icon}<span style="margin:0 2px;">${chipLabel(key)}</span>`
       + `<span class="chip-x" title="Remove filter"><svg width="14" height="14" viewBox="0 0 24 24" fill="#616161"><path d="M19 6.4 17.6 5 12 10.6 6.4 5 5 6.4 10.6 12 5 17.6 6.4 19 12 13.4 17.6 19 19 17.6 13.4 12Z"/></svg></span>`;
     chip.addEventListener('click', (e) => {
+      e.stopPropagation(); // keep the document handler from closing the list
       if (e.target.closest('.chip-x')) { removeFilter(key); return; }
       openSelectionList(key, chip);
     });
@@ -1765,7 +1768,7 @@ function renderSelectionList() {
       const selN = vis.filter(m => _slDraft.has(m)).length;
       const state = selN === 0 ? 'empty' : selN === vis.length ? 'full' : 'partial';
       const headMark = state === 'full' ? check(true) : state === 'partial' ? dash : '';
-      const header = `<div class="sl-row sl-row-group" data-group="${esc(group)}"><span class="sl-check${state!=='empty'?' is-on':''}">${headMark}</span><span style="font-weight:600;">${group}</span></div>`;
+      const header = `<div class="sl-row sl-row-group" data-group="${esc(group)}"><span class="sl-check${state!=='empty'?' is-on':''}">${headMark}</span><span>${group}</span></div>`;
       const rows = vis.map(m => row(m, _slDraft.has(m), ' sl-row-member')).join('');
       return header + rows;
     }).join('');
@@ -1978,6 +1981,7 @@ function selectOeeSplit(val) {
 function oeeDimKey(label) {
   if (label === 'Operator group') return 'group';
   if (label === 'Shift leaders')  return 'leader';
+  if (label === 'Day')            return 'day';
   return 'operator'; // 'Operators' (and anything else categorical)
 }
 
@@ -1991,8 +1995,9 @@ function oeeDimKey(label) {
 // _oeeHiddenLeaders hides COMPONENT metrics (legend = metrics, like Evocon).
 function drawOeeBars(chart, width, height) {
   const split = !!oeeSplitBy;
-  // Outer dim = the OEE X-axis (Day falls back to Operators for a bar view).
-  const outerDim = oeeDimKey(oeeXAxis === 'Day' ? 'Operators' : oeeXAxis);
+  // Outer dim = the OEE X-axis. Day maps to the 'day' dimension, so a Day bar
+  // view (and Day × split) shows real per-day clusters from the blocks.
+  const outerDim = oeeDimKey(oeeXAxis);
   // Inner dim = the split-by, or a single implicit bucket when not splitting.
   const innerDim = split ? oeeDimKey(oeeSplitBy) : outerDim;
   const { data, innerLabels, outerHeader, innerHeader } =
@@ -2657,7 +2662,9 @@ function renderQtyTable(rows, firstHeader) {
     cols: QTY_TABLE_COLS.map(c => ({
       label: c.label,
       align: c.type === 'descr' ? 'left' : 'right',
-      render: r => c.type === 'descr' ? (r[c.key] || (r._total ? '' : '—')) : fmtQty(r[c.key]),
+      render: r => c.type === 'descr' ? (r[c.key] || (r._total ? '' : '—'))
+                 : c.type === 'hours' ? (r[c.key] || 0).toFixed(0) + ' h'
+                 : fmtQty(r[c.key]),
     })),
     rows,
   });
@@ -2672,10 +2679,11 @@ function renderQtySplitTable(cats, inners, data, outerHeader, innerHeader) {
   }));
   if (rows.length) {
     const tot = rollupQty(selectedBlocks());
-    rows.push({ name: 'Total', _inner: '', _total: true, ...tot });
+    rows.push({ name: 'Total', _inner: '', _total: true, ...tot,
+      manhours: blockManhours(selectedBlocks()) });
   }
   const cc = document.getElementById('qty-col-count');
-  if (cc) cc.textContent = 'Columns: 6';
+  if (cc) cc.textContent = 'Columns: 7';
   renderStyledTable({
     key: 'qty',
     firstHeader: outerHeader,
@@ -2685,6 +2693,7 @@ function renderQtySplitTable(cats, inners, data, outerHeader, innerHeader) {
       { label: 'Scrap',         align: 'right', render: r => fmtQty(r.scrap) },
       { label: 'Potential',     align: 'right', render: r => fmtQty(r.potential) },
       { label: 'Total quantity',align: 'right', render: r => fmtQty(r.totalQty) },
+      { label: 'Man-hours',     align: 'right', render: r => (r.manhours || 0).toFixed(1) + ' h' },
     ],
     rows,
   });
@@ -2707,7 +2716,7 @@ function drawQtyChart() {
   // Build the (outer, inner) cells. Day axis → one cell per day; categorical
   // axes → the matrix (self-cell when not split, split cells when split).
   let cats, innersForCat, cellOf, catLabel, outerHeader, inners;
-  if (qtyXAxis === 'Day') {
+  if (qtyXAxis === 'Day' && !split) {
     const days = qtyByDay(selectedBlocks());
     const byKey = {}; days.forEach(d => byKey[d.day] = d);
     cats = days.map(d => d.day);
@@ -2851,6 +2860,7 @@ function drawQtyChart() {
     });
     if (rows.length) {
       const tot = rollupQty(selectedBlocks()); tot.name = 'Total'; tot._total = true;
+      tot.manhours = blockManhours(selectedBlocks());
       QTY_TABLE_COLS.filter(c => c.type === 'descr').forEach(c => { tot[c.key] = ''; });
       rows.push(tot);
     }
