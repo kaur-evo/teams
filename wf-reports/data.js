@@ -131,10 +131,15 @@ const DT_COLS = [
   { key:'product',       label:'Products',             width:130, align:'left',  mono:false },
   { key:'productCode',   label:'Product code',         width:120, align:'left',  mono:false },
   { key:'shift',         label:'Shifts',               width:110, align:'left',  mono:false },
+  // People columns — fixed order: Operators → Operator group → Shift leader.
+  // (Operator role stays a separate P2 column, kept after the people block.)
   { key:'operator',          label:'Operators',         width:130, align:'left',  mono:false },
-  { key:'operatorRole',      label:'Operator role',     width:150, align:'left',  mono:false },
   { key:'operatorGroupName', label:'Operator group',    width:150, align:'left',  mono:false },
+  { key:'leader',            label:'Shift leader',      width:150, align:'left',  mono:false },
+  { key:'operatorRole',      label:'Operator role',     width:150, align:'left',  mono:false },
   // Numeric columns (right-aligned, Roboto Mono)
+  // Man-hours = first numeric column, kept next to the people context.
+  { key:'manhours',      label:'Man-hours',            width:120, align:'right', mono:true,  unit:' h',   manhours:true },
   { key:'count',         label:'Count',                width:71,  align:'right', mono:true  },
   { key:'notes',         label:'Notes',                width:70,  align:'right', mono:true,  hasNote:true, neutral:true },
   { key:'loss',          label:'Loss (primary unit)',  width:150, align:'right', mono:true,  unit:' min' },
@@ -142,7 +147,6 @@ const DT_COLS = [
   { key:'avg',           label:'Average duration',     width:136, align:'right', mono:true,  unit:' min' },
   { key:'durOee',        label:'Duration (incl. OEE)', width:182, align:'right', mono:true,  iconY:true, unit:' min' },
   { key:'plannedTime',   label:'Planned time',         width:153, align:'right', mono:true,  unit:' min', neutral:true },
-  { key:'manhours',      label:'Man-hours',            width:120, align:'right', mono:true,  unit:' h',   manhours:true },
   { key:'pct',           label:'% of planned time',   width:141, align:'right', mono:true,  unit:'%'    },
 ];
 
@@ -386,6 +390,12 @@ const OEE_TABLE_COLS = [
   { key:'lots',            label:'LOT/Batch',         et:'LOT/Partii',           type:'descr' },
   { key:'orders',          label:'Orders',            et:'Tootmistellimused',    type:'descr' },
   { key:'shifts',          label:'Shifts',            et:'Vahetused',            type:'descr' },
+  // People columns — fixed order: Operators → Operator group → Shift leader.
+  { key:'operators',       label:'Operators',         et:'Operaatorid',          type:'descr' },
+  { key:'operatorGroup',   label:'Operator group',    et:'Operaatorite grupp',   type:'descr' },
+  { key:'leader',          label:'Shift leader',      et:'Vahetuse juht',        type:'descr' },
+  // Man-hours = first numeric column, kept next to the people context.
+  { key:'manhours',        label:'Man-hours',         et:'Inimtunnid',           type:'hours'  },
   { key:'availability',    label:'Availability',      et:'Kasulik tööaeg',       type:'metric' },
   { key:'techAvailability',label:'Technical availability', et:'Tehniline valmidus', type:'metric' },
   { key:'performance',     label:'Performance',       et:'Tootmiskiirus',        type:'metric' },
@@ -393,7 +403,6 @@ const OEE_TABLE_COLS = [
   { key:'oee',             label:'OEE',               et:'OEE',                  type:'metric' },
   { key:'ooe',             label:'OOE',               et:'OOE',                  type:'metric' },
   { key:'teep',            label:'TEEP',              et:'TEEP',                 type:'metric' },
-  { key:'manhours',        label:'Man-hours',         et:'Inimtunnid',           type:'hours'  },
   { key:'operatingMin',    label:'Operating time',    et:'Tööaeg',               type:'time'   },
   { key:'plannedMin',      label:'Planned time',      et:'Planeeritud tööaeg',   type:'time'   },
   { key:'shiftMin',        label:'Shift time',        et:'Vahetuse aeg',         type:'time'   },
@@ -415,6 +424,10 @@ function descrValues(blocks, key) {
       case 'lots':          vals = b.lots || []; break;
       case 'orders':        vals = b.orders || []; break;
       case 'shifts':        vals = [b.shift || 'Day']; break;
+      // People descr columns (fixed order: Operators → Operator group → Shift leader)
+      case 'operators':     vals = b.operatorIds.slice(); break;
+      case 'operatorGroup': vals = [...new Set(b.operatorIds.map(o => OPERATOR_DIRECTORY[o]?.group || 'Operators'))]; break;
+      case 'leader':        vals = b.leaderId ? [b.leaderId] : []; break;
     }
     vals.forEach(v => v && set.add(v));
   });
@@ -585,11 +598,16 @@ const QTY_TABLE_COLS = [
   { key:'products',      label:'Products',       type:'descr' },
   { key:'productCodes',  label:'Product code',   type:'descr' },
   { key:'shifts',        label:'Shifts',         type:'descr' },
+  // People columns — fixed order: Operators → Operator group → Shift leader.
+  { key:'operators',     label:'Operators',      type:'descr' },
+  { key:'operatorGroup', label:'Operator group', type:'descr' },
+  { key:'leader',        label:'Shift leader',   type:'descr' },
+  // Man-hours = first numeric column, kept next to the people context.
+  { key:'manhours',      label:'Man-hours',      type:'hours' },
   { key:'goodQty',       label:'Good quantity',  type:'qty'   },
   { key:'scrap',         label:'Scrap',          type:'qty'   },
   { key:'potential',     label:'Potential',      type:'qty'   },
   { key:'totalQty',      label:'Total quantity', type:'qty'   },
-  { key:'manhours',      label:'Man-hours',      type:'hours' },
 ];
 
 // One quantities table row per value of the chosen X-axis dimension, from a
