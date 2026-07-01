@@ -22,9 +22,8 @@ const OperatorsPanel = {
           </div>
 
           <div class="op-body">
-            <div v-if="entries.length === 0" class="op-empty">
-              No operators or helpers assigned yet.
-            </div>
+            <!-- No empty state: when nothing is assigned the panel opens
+                 straight into the operator choice view (matches live). -->
 
             <!-- ── CLASSIC CARD ── single-row card (badges + flat name list) -->
             <template v-if="cardLayout !== 'twoRow'">
@@ -1236,9 +1235,10 @@ const OperatorsPanel = {
     }
 
     function cancelForm() {
-      currentView.value = 'overview';
       editingEntryId.value = null;
       leaderError.value = false;
+      // Nothing assigned → stay in the choice view (no empty overview).
+      currentView.value = entries.value.length === 0 ? 'add-operators' : 'overview';
     }
 
     // ── Save ──
@@ -1388,7 +1388,16 @@ const OperatorsPanel = {
     function deleteEntry(id) {
       entries.value = entries.value.filter(e => e.id !== id);
       emitSummary();
+      // Deleting the last entry leaves nothing to show — drop straight back
+      // into the choice view (no empty overview, like live).
+      if (entries.value.length === 0) openAddOperators();
     }
+
+    // When the panel opens with nothing assigned, go straight to the operator
+    // choice view instead of showing an empty overview (matches live Shift View).
+    watch(() => props.visible, (isOpen) => {
+      if (isOpen && entries.value.length === 0) openAddOperators();
+    }, { immediate: true });
 
     function loadFormFromEntry(entry, opts) {
       formSelectedOps.value = [...entry.operatorIds];
