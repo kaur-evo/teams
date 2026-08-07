@@ -1624,17 +1624,26 @@ const FILTER_DIMS = {
     // Operator hat (mdi account-hard-hat) — same icon used for operators /
     // additional workforce in Shift View.
     icon: '<svg width="20" height="20" viewBox="0 0 24 24" fill="#616161"><path d="M12 3C10.9 3 10 3.9 10 5H8C7.45 5 7 5.45 7 6V8.78C6.39 9.33 6 10.12 6 11V12H4V14H6V13H18V14H20V12H18V11C18 10.12 17.61 9.33 17 8.78V6C17 5.45 16.55 5 16 5H14C14 3.9 13.11 3 12 3M9 7H15V8.18C14.69 8.07 14.36 8 14 8H10C9.65 8 9.31 8.07 9 8.18V7M4 15V17C4 18.11 4.9 19 6 19H18C19.11 19 20 18.11 20 17V15H4Z"/></svg>',
-    values: () => Object.keys(OPERATOR_DIRECTORY),
-    // Group → its operators, in OPERATOR_GROUPS order.
+    // Unknown → Additional workforce → real operators A–Z.
+    values: () => allOperatorOptions(),
+    // Unknown / Additional workforce are pinned above the group headers as
+    // ungrouped rows — they aren't people and belong to no team.
+    pinned: () => PSEUDO_OPERATORS.slice(),
+    // Group → its operators, in OPERATOR_GROUPS order, each group A–Z.
     groupsOf: () => OPERATOR_GROUPS.map(g => ({
       group: g,
-      members: Object.keys(OPERATOR_DIRECTORY).filter(n => (OPERATOR_DIRECTORY[n]?.group || 'Operators') === g),
+      members: Object.keys(OPERATOR_DIRECTORY)
+        .filter(n => (OPERATOR_DIRECTORY[n]?.group || 'Operators') === g)
+        .sort((a, b) => a.localeCompare(b, 'en', { sensitivity: 'base' })),
     })).filter(s => s.members.length),
   },
   leaders: {
     label: 'Shift leaders', singular: 'leader',
     icon: '<svg width="20" height="20" viewBox="0 0 24 24" fill="#616161"><path d="M14.4 6 14 4H5v17h2v-7h5.6l.4 2h7V6Z"/></svg>',
-    values: () => CAN_LEAD_OPERATORS.slice(),
+    // "No leader" is pinned on top so unled production (AW-only / Unknown
+    // blocks) can be isolated — it mirrors the Shift-leader axis catch-all.
+    values: () => [OP_NO_LEADER, ...CAN_LEAD_OPERATORS],
+    pinned: () => [OP_NO_LEADER],
   },
 };
 const FILTER_ORDER = ['operators', 'leaders'];
@@ -1760,7 +1769,13 @@ function renderSelectionList() {
     `<div class="sl-row${on ? ' is-checked' : ''}${extraCls || ''}" data-val="${esc(v)}"><span class="sl-check">${check(on)}</span><span>${v}</span></div>`;
 
   // Body: grouped (group header + indented members) or a flat list.
+  // Pinned values (Unknown, Additional workforce) sit above the group headers
+  // as plain ungrouped rows, separated by a divider.
   let body;
+  const pinned = (dim.pinned ? dim.pinned() : []).filter(match);
+  const pinnedHtml = pinned.length
+    ? pinned.map(v => row(v, _slDraft.has(v))).join('') + '<div class="sl-divider"></div>'
+    : '';
   if (dim.grouped) {
     body = dim.groupsOf().map(({ group, members }) => {
       const vis = members.filter(match);
@@ -1772,8 +1787,11 @@ function renderSelectionList() {
       const rows = vis.map(m => row(m, _slDraft.has(m), ' sl-row-member')).join('');
       return header + rows;
     }).join('');
+    body = pinnedHtml + body;
   } else {
-    body = shown.map(v => row(v, _slDraft.has(v))).join('');
+    const pinnedSet = new Set(pinned);
+    body = pinnedHtml + shown.filter(v => !pinnedSet.has(v))
+      .map(v => row(v, _slDraft.has(v))).join('');
   }
 
   sl.innerHTML = `
@@ -1844,7 +1862,7 @@ function applyFilters() {
     _chartBaseData = STOP_REASONS_DATA.filter(d => {
       const names = (d.operator || '').split(',').map(s => s.trim()).filter(Boolean);
       if (opSel.size  && !names.some(n => opSel.has(n)))  return false;
-      if (leaderSel.size && !leaderSel.has(d.leader))     return false;
+      if (leaderSel.size && !leaderSel.has(d.leader || OP_NO_LEADER)) return false;
       return true;
     }).map(d => ({ ...d }));
   }
@@ -1886,8 +1904,11 @@ function selectedBlocks() {
   const leaderSel = filterState.leaders;
   const opSel     = filterState.operators;
   return SHIFT_BLOCKS.filter(b => {
-    if (leaderSel.size && !leaderSel.has(b.leaderId)) return false;
-    if (opSel.size && !b.operatorIds.some(o => opSel.has(o))) return false;
+    if (leaderSel.size && !leaderSel.has(b.leaderId || OP_NO_LEADER)) return false;
+    // Pseudo-operators participate like any other operator: selecting
+    // "Additional workforce" keeps blocks with awCount > 0, "Unknown" keeps
+    // blocks nobody was assigned to.
+    if (opSel.size && !blockOperatorValues(b).some(o => opSel.has(o))) return false;
     return true;
   });
 }

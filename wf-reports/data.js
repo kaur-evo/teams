@@ -85,6 +85,37 @@ const OPERATOR_DIRECTORY = {
 // Operators allowed to lead a shift (mirrors Settings "Allow as shift leader").
 const CAN_LEAD_OPERATORS = Object.keys(OPERATOR_DIRECTORY).filter(n => OPERATOR_DIRECTORY[n].canLead);
 
+// ── Pseudo-operators ─────────────────────────────────────────────────────────
+// Two non-person entries that behave like operators everywhere in the reports —
+// filter list, X-axis / split-by categories, table rows, descr columns:
+//
+//   Unknown              — production that ran with NO operator selected. The
+//                          catch-all so the numbers always add up to the total.
+//   Additional workforce — the per-shift AW headcount from Shift View. Not named
+//                          people, so it can never be a shift leader and has no
+//                          operator group, but it DOES contribute man-hours:
+//                          headcount × the block's planned hours.
+//
+// They are NOT in OPERATOR_DIRECTORY (which stays a directory of real people);
+// PSEUDO_OPERATORS is prepended wherever an operator list is built, in this
+// fixed order — Unknown first, then Additional workforce, then the real
+// operators alphabetically.
+const OP_UNKNOWN = 'Unknown';
+const OP_AW      = 'Additional workforce';
+// Catch-all on the Shift-leader axis: production that ran without an assigned
+// leader (AW-only or Unknown blocks). Not an operator — leader-axis only.
+const OP_NO_LEADER = 'No leader';
+const PSEUDO_OPERATORS = [OP_UNKNOWN, OP_AW];
+const isPseudoOperator = (n) => PSEUDO_OPERATORS.includes(n);
+
+// The canonical operator option list: pseudo-operators pinned to the top, real
+// people sorted alphabetically by surname (the name is already "I. Surname").
+function allOperatorOptions() {
+  const people = Object.keys(OPERATOR_DIRECTORY)
+    .sort((a, b) => a.localeCompare(b, 'en', { sensitivity: 'base' }));
+  return [...PSEUDO_OPERATORS, ...people];
+}
+
 // Per-row shift leader: which can-lead operator was leading the production that
 // this row's stop occurred under, for the main and compare periods. Lets us
 // aggregate / split by the leading supervisor (data attributes to the leader).
@@ -110,6 +141,8 @@ function deriveOperatorGroups(operatorStr) {
   if (!operatorStr) return '';
   const seen = new Set();
   operatorStr.split(',').map(s => s.trim()).filter(Boolean).forEach(n => {
+    // Pseudo-operators (Unknown / Additional workforce) belong to no group.
+    if (isPseudoOperator(n)) return;
     const entry = OPERATOR_DIRECTORY[n];
     seen.add(entry ? entry.group : 'Default');
   });
@@ -180,7 +213,7 @@ const CHART_PALETTE = ['#E01C21','#3498DB','#0066CC','#2ECC71','#F1C40F','#1ABC9
 
 const STOP_REASONS_DATA = [
   { name:'Uncommented',   group:'Uncommented', mainDur:145, cmpDur:98,  mainCount:12, cmpCount:9,  mainAvg:12, cmpAvg:11, notes:3, cmpNotes:2, mainPct:18, cmpPct:12,
-    station:'CNC-01, CNC-02, Press-01, Press-02, Assembly-01, Assembly-02', cmpStation:'CNC-01, CNC-03, Press-01, Press-03, Assembly-01, Assembly-03', stationGroup:'CNC, Press, Assembly', cmpStationGroup:'CNC, Press, Assembly', stopType:'Unplanned', location:'Hall A, Hall B, Hall C', cmpLocation:'Hall A, Hall B, Hall C', productGroup:'Electronics, Components, Assembly', cmpProductGroup:'Electronics, Components, Assembly', product:'Widget Pro, Gear Kit, Frame Set', cmpProduct:'Widget Pro, Circuit Bd., Frame Set', productCode:'PRD-001, PRD-002, PRD-003', cmpProductCode:'PRD-001, PRD-003, PRD-004', shift:'Morning, Afternoon, Night', cmpShift:'Morning, Afternoon, Night', operator:'M. Kostopoulou, G. Antoniou, E. Christodoulou, V. Mavroeidis, N. Papadopoulos', cmpOperator:'E. Christodoulou, V. Mavroeidis, M. Kostopoulou, D. Ekonomou', loss:145, cmpLoss:98,  durOee:145, cmpDurOee:98,  plannedTime:800, cmpPlannedTime:720 },
+    station:'CNC-01, CNC-02, Press-01, Press-02, Assembly-01, Assembly-02', cmpStation:'CNC-01, CNC-03, Press-01, Press-03, Assembly-01, Assembly-03', stationGroup:'CNC, Press, Assembly', cmpStationGroup:'CNC, Press, Assembly', stopType:'Unplanned', location:'Hall A, Hall B, Hall C', cmpLocation:'Hall A, Hall B, Hall C', productGroup:'Electronics, Components, Assembly', cmpProductGroup:'Electronics, Components, Assembly', product:'Widget Pro, Gear Kit, Frame Set', cmpProduct:'Widget Pro, Circuit Bd., Frame Set', productCode:'PRD-001, PRD-002, PRD-003', cmpProductCode:'PRD-001, PRD-003, PRD-004', shift:'Morning, Afternoon, Night', cmpShift:'Morning, Afternoon, Night', operator:'M. Kostopoulou, G. Antoniou, E. Christodoulou, V. Mavroeidis, N. Papadopoulos, Unknown', cmpOperator:'E. Christodoulou, V. Mavroeidis, M. Kostopoulou, D. Ekonomou, Unknown', loss:145, cmpLoss:98,  durOee:145, cmpDurOee:98,  plannedTime:800, cmpPlannedTime:720 },
   { name:'Motor failure', group:'Mechanical',  mainDur:112, cmpDur:134, mainCount:5,  cmpCount:6,  mainAvg:22, cmpAvg:22, notes:2, cmpNotes:3, mainPct:14, cmpPct:17,
     station:'CNC-01, CNC-02, Press-01, Press-02', cmpStation:'CNC-02, CNC-03, Press-01, Press-03', stationGroup:'CNC, Press', cmpStationGroup:'CNC, Press', stopType:'Unplanned', location:'Hall A, Hall B', cmpLocation:'Hall A, Hall B', productGroup:'Electronics, Components', cmpProductGroup:'Electronics, Components', product:'Widget Pro, Gear Kit', cmpProduct:'Widget Pro, Circuit Bd., Bolt Pack', productCode:'PRD-001, PRD-002', cmpProductCode:'PRD-001, PRD-004, PRD-005', shift:'Morning, Afternoon', cmpShift:'Morning, Night', operator:'M. Kostopoulou, G. Antoniou, N. Papadopoulos', cmpOperator:'M. Kostopoulou, E. Christodoulou, S. Nikolaou', loss:112, cmpLoss:134, durOee:112, cmpDurOee:134, plannedTime:800, cmpPlannedTime:850 },
   { name:'Belt broken',   group:'Mechanical',  mainDur:78,  cmpDur:52,  mainCount:3,  cmpCount:2,  mainAvg:26, cmpAvg:26, notes:1, cmpNotes:1, mainPct:10, cmpPct:6,
@@ -192,11 +225,11 @@ const STOP_REASONS_DATA = [
   { name:'Planned break', group:'Planned',     mainDur:45,  cmpDur:38,  mainCount:3,  cmpCount:3,  mainAvg:15, cmpAvg:13, notes:0, cmpNotes:0, mainPct:6,  cmpPct:5,
     station:'Assembly-01, Assembly-02, CNC-01, CNC-02, Press-01, Press-02', cmpStation:'Assembly-01, Assembly-02, Assembly-03, CNC-01, Press-01', stationGroup:'Assembly, CNC, Press', cmpStationGroup:'Assembly, CNC, Press', stopType:'Planned', location:'Hall A, Hall B, Hall C', cmpLocation:'Hall A, Hall B, Hall C', productGroup:'Assembly, Electronics, Components', cmpProductGroup:'Assembly, Electronics, Components', product:'Frame Set, Widget Pro, Gear Kit, Panel Set', cmpProduct:'Frame Set, Panel Set, Widget Pro', productCode:'PRD-003, PRD-001, PRD-002, PRD-006', cmpProductCode:'PRD-003, PRD-006, PRD-001', shift:'Morning, Afternoon, Night', cmpShift:'Morning, Afternoon, Night', operator:'V. Mavroeidis, D. Ekonomou, M. Kostopoulou, G. Antoniou, S. Nikolaou', cmpOperator:'D. Ekonomou, N. Papadopoulos, E. Christodoulou, V. Mavroeidis', loss:0,   cmpLoss:0,   durOee:0,   cmpDurOee:0,   plannedTime:750, cmpPlannedTime:750 },
   { name:'Mat. shortage', group:'Material',    mainDur:91,  cmpDur:67,  mainCount:7,  cmpCount:5,  mainAvg:13, cmpAvg:13, notes:4, cmpNotes:2, mainPct:11, cmpPct:8,
-    station:'CNC-03, CNC-04, Press-01, Press-02, Assembly-01, Assembly-02', cmpStation:'CNC-01, CNC-04, Press-02, Press-03, Assembly-01', stationGroup:'CNC, Press, Assembly', cmpStationGroup:'CNC, Press, Assembly', stopType:'Unplanned', location:'Hall A, Hall B, Hall C', cmpLocation:'Hall A, Hall B, Hall C', productGroup:'Electronics, Components, Assembly', cmpProductGroup:'Electronics, Components, Assembly', product:'Circuit Bd., Widget Pro, Gear Kit, Frame Set', cmpProduct:'Widget Pro, Circuit Bd., Gear Kit', productCode:'PRD-004, PRD-001, PRD-002, PRD-003', cmpProductCode:'PRD-001, PRD-004, PRD-002', shift:'Morning, Night', cmpShift:'Morning, Afternoon, Night', operator:'E. Christodoulou, M. Kostopoulou, S. Nikolaou, G. Antoniou, V. Mavroeidis', cmpOperator:'E. Christodoulou, V. Mavroeidis, N. Papadopoulos', loss:91,  cmpLoss:67,  durOee:91,  cmpDurOee:67,  plannedTime:700, cmpPlannedTime:630 },
+    station:'CNC-03, CNC-04, Press-01, Press-02, Assembly-01, Assembly-02', cmpStation:'CNC-01, CNC-04, Press-02, Press-03, Assembly-01', stationGroup:'CNC, Press, Assembly', cmpStationGroup:'CNC, Press, Assembly', stopType:'Unplanned', location:'Hall A, Hall B, Hall C', cmpLocation:'Hall A, Hall B, Hall C', productGroup:'Electronics, Components, Assembly', cmpProductGroup:'Electronics, Components, Assembly', product:'Circuit Bd., Widget Pro, Gear Kit, Frame Set', cmpProduct:'Widget Pro, Circuit Bd., Gear Kit', productCode:'PRD-004, PRD-001, PRD-002, PRD-003', cmpProductCode:'PRD-001, PRD-004, PRD-002', shift:'Morning, Night', cmpShift:'Morning, Afternoon, Night', operator:'E. Christodoulou, M. Kostopoulou, S. Nikolaou, G. Antoniou, V. Mavroeidis, Additional workforce', cmpOperator:'E. Christodoulou, V. Mavroeidis, N. Papadopoulos, Additional workforce', loss:91,  cmpLoss:67,  durOee:91,  cmpDurOee:67,  plannedTime:700, cmpPlannedTime:630 },
   { name:'Waiting parts', group:'Material',    mainDur:47,  cmpDur:73,  mainCount:4,  cmpCount:6,  mainAvg:12, cmpAvg:12, notes:2, cmpNotes:3, mainPct:6,  cmpPct:9,
     station:'Press-03, Press-04, Assembly-01, Assembly-02', cmpStation:'Press-03, Assembly-01, Assembly-02, Assembly-03', stationGroup:'Press, Assembly', cmpStationGroup:'Press, Assembly', stopType:'Unplanned', location:'Hall B, Hall C', cmpLocation:'Hall B, Hall C', productGroup:'Components, Assembly', cmpProductGroup:'Components, Assembly', product:'Bolt Pack, Gear Kit, Frame Set', cmpProduct:'Gear Kit, Frame Set, Panel Set', productCode:'PRD-005, PRD-002, PRD-003', cmpProductCode:'PRD-002, PRD-003, PRD-006', shift:'Morning, Afternoon', cmpShift:'Morning, Night', operator:'N. Papadopoulos, M. Kostopoulou, D. Ekonomou, V. Mavroeidis', cmpOperator:'M. Kostopoulou, D. Ekonomou, V. Mavroeidis', loss:47,  cmpLoss:73,  durOee:47,  cmpDurOee:73,  plannedTime:600, cmpPlannedTime:600 },
   { name:'Changeover',    group:'Setup',       mainDur:62,  cmpDur:55,  mainCount:4,  cmpCount:4,  mainAvg:16, cmpAvg:14, notes:0, cmpNotes:0, mainPct:8,  cmpPct:7,
-    station:'Assembly-03, Assembly-01, CNC-01, CNC-02', cmpStation:'Assembly-03, Assembly-02, CNC-01, CNC-03', stationGroup:'Assembly, CNC', cmpStationGroup:'Assembly, CNC', stopType:'Semi-planned', location:'Hall A, Hall C', cmpLocation:'Hall A, Hall C', productGroup:'Assembly, Electronics', cmpProductGroup:'Assembly, Electronics', product:'Panel Set, Frame Set, Widget Pro', cmpProduct:'Frame Set, Panel Set, Widget Pro', productCode:'PRD-006, PRD-003, PRD-001', cmpProductCode:'PRD-003, PRD-006, PRD-001', shift:'Morning, Afternoon', cmpShift:'Morning, Afternoon', operator:'D. Ekonomou, V. Mavroeidis, M. Kostopoulou, G. Antoniou', cmpOperator:'D. Ekonomou, G. Antoniou, S. Nikolaou, M. Kostopoulou, E. Christodoulou', loss:0,   cmpLoss:0,   durOee:62,  cmpDurOee:55,  plannedTime:750, cmpPlannedTime:750 },
+    station:'Assembly-03, Assembly-01, CNC-01, CNC-02', cmpStation:'Assembly-03, Assembly-02, CNC-01, CNC-03', stationGroup:'Assembly, CNC', cmpStationGroup:'Assembly, CNC', stopType:'Semi-planned', location:'Hall A, Hall C', cmpLocation:'Hall A, Hall C', productGroup:'Assembly, Electronics', cmpProductGroup:'Assembly, Electronics', product:'Panel Set, Frame Set, Widget Pro', cmpProduct:'Frame Set, Panel Set, Widget Pro', productCode:'PRD-006, PRD-003, PRD-001', cmpProductCode:'PRD-003, PRD-006, PRD-001', shift:'Morning, Afternoon', cmpShift:'Morning, Afternoon', operator:'D. Ekonomou, V. Mavroeidis, M. Kostopoulou, G. Antoniou, Additional workforce', cmpOperator:'D. Ekonomou, G. Antoniou, S. Nikolaou, M. Kostopoulou, E. Christodoulou', loss:0,   cmpLoss:0,   durOee:62,  cmpDurOee:55,  plannedTime:750, cmpPlannedTime:750 },
   { name:'Calibration',   group:'Setup',       mainDur:28,  cmpDur:19,  mainCount:2,  cmpCount:1,  mainAvg:14, cmpAvg:19, notes:1, cmpNotes:0, mainPct:4,  cmpPct:2,
     station:'CNC-04, CNC-01, CNC-02, CNC-03', cmpStation:'CNC-01, CNC-02, CNC-04', stationGroup:'CNC', cmpStationGroup:'CNC', stopType:'Planned', location:'Hall A', cmpLocation:'Hall A', productGroup:'Electronics', cmpProductGroup:'Electronics', product:'Widget Pro, Circuit Bd.', cmpProduct:'Widget Pro, Circuit Bd.', productCode:'PRD-001, PRD-004', cmpProductCode:'PRD-001, PRD-004', shift:'Morning, Night', cmpShift:'Morning, Afternoon', operator:'E. Christodoulou, G. Antoniou, M. Kostopoulou', cmpOperator:'M. Kostopoulou, E. Christodoulou', loss:0,   cmpLoss:0,   durOee:0,   cmpDurOee:0,   plannedTime:800, cmpPlannedTime:800 },
   { name:'Quality check', group:'Quality',     mainDur:56,  cmpDur:61,  mainCount:5,  cmpCount:5,  mainAvg:11, cmpAvg:12, notes:2, cmpNotes:2, mainPct:7,  cmpPct:8,
@@ -208,10 +241,10 @@ const STOP_REASONS_DATA = [
   { name:'Training',      group:'Operator',    mainDur:19,  cmpDur:24,  mainCount:2,  cmpCount:3,  mainAvg:10, cmpAvg:8,  notes:0, cmpNotes:0, mainPct:2,  cmpPct:3,
     station:'Press-01, CNC-01, Assembly-01, CNC-03', cmpStation:'Press-03, CNC-02, Assembly-02', stationGroup:'Press, CNC, Assembly', cmpStationGroup:'Press, CNC, Assembly', stopType:'Planned', location:'Hall A, Hall B, Hall C', cmpLocation:'Hall A, Hall B, Hall C', productGroup:'Components, Electronics, Assembly', cmpProductGroup:'Components, Electronics, Assembly', product:'Gear Kit, Widget Pro, Frame Set', cmpProduct:'Bolt Pack, Widget Pro, Frame Set', productCode:'PRD-002, PRD-001, PRD-003', cmpProductCode:'PRD-005, PRD-001, PRD-003', shift:'Morning, Night', cmpShift:'Afternoon, Night', operator:'S. Nikolaou, G. Antoniou, V. Mavroeidis, E. Christodoulou', cmpOperator:'N. Papadopoulos, E. Christodoulou, V. Mavroeidis, M. Kostopoulou', loss:0,   cmpLoss:0,   durOee:0,   cmpDurOee:0,   plannedTime:600, cmpPlannedTime:600 },
   { name:'Ext. factor',   group:'Other',       mainDur:15,  cmpDur:22,  mainCount:2,  cmpCount:3,  mainAvg:8,  cmpAvg:7,  notes:0, cmpNotes:0, mainPct:2,  cmpPct:3,
-    station:'Assembly-01, CNC-01, Press-01, Press-02', cmpStation:'Assembly-01, CNC-02, Press-01, Press-03', stationGroup:'Assembly, CNC, Press', cmpStationGroup:'Assembly, CNC, Press', stopType:'Unplanned', location:'Hall A, Hall B, Hall C', cmpLocation:'Hall A, Hall B, Hall C', productGroup:'Assembly, Electronics, Components', cmpProductGroup:'Assembly, Electronics, Components', product:'Frame Set, Widget Pro, Gear Kit', cmpProduct:'Frame Set, Widget Pro', productCode:'PRD-003, PRD-001, PRD-002', cmpProductCode:'PRD-003, PRD-001', shift:'Morning, Afternoon', cmpShift:'Morning, Night', operator:'V. Mavroeidis, D. Ekonomou, S. Nikolaou, M. Kostopoulou', cmpOperator:'V. Mavroeidis, E. Christodoulou, G. Antoniou', loss:15,  cmpLoss:22,  durOee:15,  cmpDurOee:22,  plannedTime:750, cmpPlannedTime:750 },
+    station:'Assembly-01, CNC-01, Press-01, Press-02', cmpStation:'Assembly-01, CNC-02, Press-01, Press-03', stationGroup:'Assembly, CNC, Press', cmpStationGroup:'Assembly, CNC, Press', stopType:'Unplanned', location:'Hall A, Hall B, Hall C', cmpLocation:'Hall A, Hall B, Hall C', productGroup:'Assembly, Electronics, Components', cmpProductGroup:'Assembly, Electronics, Components', product:'Frame Set, Widget Pro, Gear Kit', cmpProduct:'Frame Set, Widget Pro', productCode:'PRD-003, PRD-001, PRD-002', cmpProductCode:'PRD-003, PRD-001', shift:'Morning, Afternoon', cmpShift:'Morning, Night', operator:'V. Mavroeidis, D. Ekonomou, S. Nikolaou, M. Kostopoulou, Additional workforce, Unknown', cmpOperator:'V. Mavroeidis, E. Christodoulou, G. Antoniou, Unknown', loss:15,  cmpLoss:22,  durOee:15,  cmpDurOee:22,  plannedTime:750, cmpPlannedTime:750 },
   // main-only: occurred in current period, absent in compare period
   { name:'Power outage',  group:'Other',       mainDur:42,  cmpDur:0,   mainCount:1,  cmpCount:0,  mainAvg:42, cmpAvg:0,  notes:1, cmpNotes:0, mainPct:5,  cmpPct:0,
-    station:'CNC-01, Press-01, Assembly-01', cmpStation:'', stationGroup:'CNC, Press, Assembly', cmpStationGroup:'', stopType:'Unplanned', location:'Hall A, Hall B', cmpLocation:'', productGroup:'Electronics, Components', cmpProductGroup:'', product:'Widget Pro, Gear Kit', cmpProduct:'', productCode:'PRD-001, PRD-002', cmpProductCode:'', shift:'Morning', cmpShift:'', operator:'M. Kostopoulou, G. Antoniou, E. Christodoulou', cmpOperator:'', loss:42, cmpLoss:0, durOee:42, cmpDurOee:0, plannedTime:800, cmpPlannedTime:0 },
+    station:'CNC-01, Press-01, Assembly-01', cmpStation:'', stationGroup:'CNC, Press, Assembly', cmpStationGroup:'', stopType:'Unplanned', location:'Hall A, Hall B', cmpLocation:'', productGroup:'Electronics, Components', cmpProductGroup:'', product:'Widget Pro, Gear Kit', cmpProduct:'', productCode:'PRD-001, PRD-002', cmpProductCode:'', shift:'Morning', cmpShift:'', operator:'M. Kostopoulou, G. Antoniou, E. Christodoulou, Unknown', cmpOperator:'', loss:42, cmpLoss:0, durOee:42, cmpDurOee:0, plannedTime:800, cmpPlannedTime:0 },
   // compare-only: absent in current period, occurred in compare period
   { name:'Sensor error',  group:'Mechanical',  mainDur:0,   cmpDur:35,  mainCount:0,  cmpCount:2,  mainAvg:0,  cmpAvg:18, notes:0, cmpNotes:1, mainPct:0,  cmpPct:4,
     station:'', cmpStation:'CNC-02, CNC-03', stationGroup:'', cmpStationGroup:'CNC', stopType:'Unplanned', location:'', cmpLocation:'Hall A', productGroup:'', cmpProductGroup:'Electronics', product:'', cmpProduct:'Circuit Bd., Widget Pro', productCode:'', cmpProductCode:'PRD-004, PRD-001', shift:'', cmpShift:'Afternoon, Night', operator:'', cmpOperator:'E. Christodoulou, G. Antoniou', loss:0, cmpLoss:35, durOee:0, cmpDurOee:35, plannedTime:0, cmpPlannedTime:800 },
@@ -243,15 +276,29 @@ function operatorList(operatorStr) {
   if (!operatorStr) return [];
   return operatorStr.split(',').map(s => s.trim()).filter(Boolean);
 }
+// Downtime-side hours for the Additional workforce pseudo-operator. The
+// downtime rows carry operator NAMES, not headcounts, so AW gets a single
+// period figure here (the OEE / Quantities side derives real hours per block
+// from awCount — see awManhours). "Unknown" contributes 0 by definition.
+const AW_HOURS     = 96;
+const AW_CMP_HOURS = 72;
+
+// Hours for one operator-list name, pseudo-operators included.
+function pseudoAwareHours(name, cmp) {
+  if (name === OP_AW)      return cmp ? AW_CMP_HOURS : AW_HOURS;
+  if (name === OP_UNKNOWN) return 0;
+  const e = OPERATOR_DIRECTORY[name];
+  return e ? ((cmp ? e.cmpHours : e.hours) || 0) : 0;
+}
+
 function manhoursFor(operatorStr, cmp) {
-  // Σ distinct operators' hours. Unknown operators contribute 0.
+  // Σ distinct operators' hours. Unrecognised names contribute 0.
   const seen = new Set();
   let total = 0;
   operatorList(operatorStr).forEach(n => {
     if (seen.has(n)) return;
     seen.add(n);
-    const e = OPERATOR_DIRECTORY[n];
-    if (e) total += (cmp ? e.cmpHours : e.hours) || 0;
+    total += pseudoAwareHours(n, cmp);
   });
   return total;
 }
@@ -288,8 +335,12 @@ const SHIFT_LEADERS = CAN_LEAD_OPERATORS;
 // blocks by selecting a subset (filters) and rolling up — so all the views
 // reconcile with each other and with the filters.
 //
-//   leaderId      — the operator leading this block (one of CAN_LEAD_OPERATORS)
-//   operatorIds   — everyone who worked the block (includes the leader)
+//   leaderId      — the operator leading this block (one of CAN_LEAD_OPERATORS),
+//                   or '' when nobody was assigned (an Unknown block)
+//   operatorIds   — everyone who worked the block (includes the leader). Empty
+//                   means no operator was selected → the block counts as Unknown.
+//   awCount       — Additional workforce headcount on this block (0 = none).
+//                   Unnamed extra hands; contributes man-hours but never leads.
 //   plannedMin    — planned production time (denominator of availability)
 //   runMin        — operating time (green+yellow) ≤ plannedMin
 //   idealQty      — qty achievable at ideal cycle time over runMin
@@ -304,26 +355,40 @@ const SHIFT_LEADERS = CAN_LEAD_OPERATORS;
 //   Operators  — the fallback bucket (S. Nikolaou / S. Panagiotou), a couple shifts
 // so each named group shows a distinct OEE / quantity profile in the report.
 const SHIFT_BLOCKS = [
-  // day, station, leader, operators, plannedMin, runMin, idealQty, totalQty, goodQty
+  // day, station, leader, operators, plannedMin, runMin, idealQty, totalQty, goodQty, awCount
   // ── Blue Team (stronger) ─────────────────────────────────────────────────
-  blk(1, 'CNC-01',     'V. Mavroeidis', ['V. Mavroeidis','M. Kostopoulou','G. Antoniou'],  480, 320, 1000, 580, 562),
+  blk(1, 'CNC-01',     'V. Mavroeidis', ['V. Mavroeidis','M. Kostopoulou','G. Antoniou'],  480, 320, 1000, 580, 562, 2),
   blk(2, 'CNC-02',     'V. Mavroeidis', ['V. Mavroeidis','P. Lambrou','A. Dimitriou'],     480, 315, 1000, 575, 558),
-  blk(3, 'CNC-01',     'V. Mavroeidis', ['V. Mavroeidis','M. Kostopoulou','P. Lambrou'],   480, 325, 1000, 590, 572),
+  blk(3, 'CNC-01',     'V. Mavroeidis', ['V. Mavroeidis','M. Kostopoulou','P. Lambrou'],   480, 325, 1000, 590, 572, 1),
   blk(4, 'Press-01',   'V. Mavroeidis', ['V. Mavroeidis','G. Antoniou','A. Dimitriou'],    480, 305,  900, 525, 508),
-  blk(5, 'Assembly-02','V. Mavroeidis', ['V. Mavroeidis','P. Lambrou','M. Kostopoulou'],   480, 318,  850, 545, 528),
+  blk(5, 'Assembly-02','V. Mavroeidis', ['V. Mavroeidis','P. Lambrou','M. Kostopoulou'],   480, 318,  850, 545, 528, 3),
   blk(6, 'CNC-02',     'V. Mavroeidis', ['V. Mavroeidis','G. Antoniou','A. Dimitriou'],    480, 312, 1000, 568, 552),
   // ── Red Team (weaker) ────────────────────────────────────────────────────
-  blk(1, 'Press-01',   'N. Papadopoulos', ['N. Papadopoulos','E. Christodoulou','D. Ekonomou'], 480, 250, 900, 455, 428),
+  blk(1, 'Press-01',   'N. Papadopoulos', ['N. Papadopoulos','E. Christodoulou','D. Ekonomou'], 480, 250, 900, 455, 428, 1),
   blk(2, 'Press-02',   'N. Papadopoulos', ['N. Papadopoulos','K. Vlachos','D. Roussou'],         480, 240, 900, 445, 416),
-  blk(3, 'Assembly-01','N. Papadopoulos', ['N. Papadopoulos','E. Christodoulou','K. Vlachos'],   480, 255, 850, 450, 422),
+  blk(3, 'Assembly-01','N. Papadopoulos', ['N. Papadopoulos','E. Christodoulou','K. Vlachos'],   480, 255, 850, 450, 422, 2),
   blk(4, 'CNC-03',     'N. Papadopoulos', ['N. Papadopoulos','D. Ekonomou','D. Roussou'],        480, 235, 1000, 430, 402),
-  blk(5, 'Press-03',   'N. Papadopoulos', ['N. Papadopoulos','K. Vlachos','E. Christodoulou'],   480, 245, 900, 448, 420),
+  blk(5, 'Press-03',   'N. Papadopoulos', ['N. Papadopoulos','K. Vlachos','E. Christodoulou'],   480, 245, 900, 448, 420, 4),
   blk(6, 'Press-02',   'N. Papadopoulos', ['N. Papadopoulos','D. Roussou','D. Ekonomou'],        480, 238, 900, 440, 412),
   // ── Operators (fallback group): mid performance ──────────────────────────
-  blk(7, 'Warehouse',  'V. Mavroeidis',   ['S. Nikolaou','S. Panagiotou'],                 480, 280, 800, 470, 450),
+  blk(7, 'Warehouse',  'V. Mavroeidis',   ['S. Nikolaou','S. Panagiotou'],                 480, 280, 800, 470, 450, 2),
   blk(7, 'Quality Lab','N. Papadopoulos', ['S. Panagiotou','S. Nikolaou'],                 480, 270, 800, 455, 436),
+  // ── Additional-workforce-only blocks ─────────────────────────────────────
+  // A shift covered purely by extra hands — no named operator was assigned, so
+  // the block belongs to "Additional workforce" alone (and to no leader).
+  // Peak-season packing lines are the realistic case for this.
+  blk(3, 'Packing-01', '', [], 480, 290, 800, 480, 455, 5),
+  blk(6, 'Packing-01', '', [], 480, 275, 800, 462, 436, 4),
+  // ── Unknown blocks (no operator selected at all) ──────────────────────────
+  // Production ran, nobody picked operators in Shift View. These carry no
+  // leader and no AW, so they land in "Unknown" only — the catch-all bucket
+  // that makes the people rows reconcile with the overall totals.
+  blk(2, 'Assembly-01', '', [], 480, 300, 850, 500, 470),
+  blk(4, 'Warehouse',   '', [], 480, 220, 800, 390, 366),
+  blk(5, 'CNC-03',      '', [], 480, 265, 1000, 470, 442),
+  blk(7, 'Press-03',    '', [], 480, 230,  900, 415, 388),
 ];
-function blk(day, station, leaderId, operatorIds, plannedMin, runMin, idealQty, totalQty, goodQty) {
+function blk(day, station, leaderId, operatorIds, plannedMin, runMin, idealQty, totalQty, goodQty, awCount) {
   // shiftMin: scheduled shift length (≥ planned). allMin: calendar time the
   // station could run (here a full day). techStopMin: unplanned technical-stop
   // minutes inside planned time (drives Technical availability). Defaults keep
@@ -341,7 +406,26 @@ function blk(day, station, leaderId, operatorIds, plannedMin, runMin, idealQty, 
   const meta = META[fam] || { products:[], productCodes:[], lots:[], orders:[] };
   const shift = 'Day';
   return { day, station, leaderId, operatorIds, plannedMin, runMin, idealQty, totalQty, goodQty,
+           awCount: awCount || 0,
            shiftMin, allMin, techStopMin, shift, ...meta };
+}
+
+// Which pseudo-operators a block belongs to, as operator-list values:
+//   no named operators → Unknown (regardless of AW — see note below)
+//   awCount > 0        → Additional workforce
+// A block with AW but no named operators counts as Additional workforce only,
+// NOT Unknown: somebody was there, they just weren't named individuals. Unknown
+// means literally nobody was recorded.
+function blockPseudoOps(b) {
+  const out = [];
+  if (!b.operatorIds.length && !b.awCount) out.push(OP_UNKNOWN);
+  if (b.awCount > 0) out.push(OP_AW);
+  return out;
+}
+
+// Everyone on a block as operator-list values: named people + pseudo-operators.
+function blockOperatorValues(b) {
+  return [...b.operatorIds, ...blockPseudoOps(b)];
 }
 
 // OEE of a single block (components 0–100).
@@ -425,7 +509,11 @@ function descrValues(blocks, key) {
       case 'orders':        vals = b.orders || []; break;
       case 'shifts':        vals = [b.shift || 'Day']; break;
       // People descr columns (fixed order: Operators → Operator group → Shift leader)
-      case 'operators':     vals = b.operatorIds.slice(); break;
+      // Operators lists the pseudo-operators too, so a row's people cell always
+      // accounts for who was actually on the block (incl. AW / Unknown).
+      case 'operators':     vals = blockOperatorValues(b); break;
+      // Pseudo-operators have no group — an AW-only or Unknown block yields no
+      // group value at all rather than a fake one.
       case 'operatorGroup': vals = [...new Set(b.operatorIds.map(o => OPERATOR_DIRECTORY[o]?.group || 'Operators'))]; break;
       case 'leader':        vals = b.leaderId ? [b.leaderId] : []; break;
     }
@@ -435,8 +523,8 @@ function descrValues(blocks, key) {
 }
 
 // Lightweight station → group / factory lookups for the descr columns.
-const STATION_GROUP_OF = { 'CNC-01':'CNC','CNC-02':'CNC','CNC-03':'CNC','Press-01':'Press','Press-02':'Press','Press-03':'Press','Assembly-01':'Assembly','Assembly-02':'Assembly','Warehouse':'Logistics','Quality Lab':'Quality' };
-const FACTORY_OF       = { 'CNC-01':'Factory 1','CNC-02':'Factory 1','CNC-03':'Factory 1','Press-01':'Factory 1','Press-02':'Factory 1','Press-03':'Factory 1','Assembly-01':'Factory 2','Assembly-02':'Factory 2','Warehouse':'Factory 2','Quality Lab':'Factory 2' };
+const STATION_GROUP_OF = { 'CNC-01':'CNC','CNC-02':'CNC','CNC-03':'CNC','Press-01':'Press','Press-02':'Press','Press-03':'Press','Assembly-01':'Assembly','Assembly-02':'Assembly','Packing-01':'Packing','Warehouse':'Logistics','Quality Lab':'Quality' };
+const FACTORY_OF       = { 'CNC-01':'Factory 1','CNC-02':'Factory 1','CNC-03':'Factory 1','Press-01':'Factory 1','Press-02':'Factory 1','Press-03':'Factory 1','Assembly-01':'Factory 2','Assembly-02':'Factory 2','Packing-01':'Factory 2','Warehouse':'Factory 2','Quality Lab':'Factory 2' };
 
 // Build one OEE table row per value of the chosen X-axis dimension, from a
 // (filtered) block set. Each row = the dynamic first cell + the full metric +
@@ -469,13 +557,25 @@ function oeeTableRows(blocks, dimKey) {
 
 // Distinct operators across a set of blocks → total worked hours (manhours).
 // Each operator counted once; their hours = Σ block durations they were on.
+// Additional workforce adds headcount × the block's planned hours (each AW head
+// is a separate pair of hands, so there is nothing to dedup across blocks).
+// Unknown contributes nothing — no people were recorded.
 function blockManhours(blocks) {
   const perOp = new Map();
-  blocks.forEach(b => b.operatorIds.forEach(o => {
-    perOp.set(o, (perOp.get(o) || 0) + b.plannedMin / 60);
-  }));
-  let total = 0; perOp.forEach(h => total += h);
+  let aw = 0;
+  blocks.forEach(b => {
+    b.operatorIds.forEach(o => {
+      perOp.set(o, (perOp.get(o) || 0) + b.plannedMin / 60);
+    });
+    aw += awManhours(b);
+  });
+  let total = aw; perOp.forEach(h => total += h);
   return total;
+}
+
+// Man-hours contributed by the Additional workforce on one block.
+function awManhours(b) {
+  return (b.awCount || 0) * (b.plannedMin / 60);
 }
 
 // Dimension descriptors. A dim maps a block → the value(s) it belongs to on
@@ -486,20 +586,34 @@ function blockManhours(blocks) {
 const OEE_DIMS = {
   operator: {
     header: 'Operator',
-    labels: () => Object.keys(OPERATOR_DIRECTORY),
-    valsOf: (b) => b.operatorIds.slice(),
+    // Unknown → Additional workforce → real operators A–Z (see allOperatorOptions).
+    labels: () => allOperatorOptions(),
+    valsOf: (b) => blockOperatorValues(b),
     isPeople: true,
   },
   group: {
     header: 'Operator group',
-    labels: () => OPERATOR_GROUPS.slice(),
-    valsOf: (b) => [...new Set(b.operatorIds.map(o => OPERATOR_DIRECTORY[o]?.group || 'Default'))],
+    // Pseudo-operators are in no group, so blocks made up only of them land in
+    // their own catch-all buckets — without these the group rows would silently
+    // fail to add up to the Total.
+    labels: () => [OP_UNKNOWN, OP_AW, ...OPERATOR_GROUPS],
+    // A block contributes to every group its named operators belong to, AND to
+    // the "Additional workforce" bucket whenever it carried AW — so a mixed
+    // block's AW hours are attributed instead of vanishing. Blocks with nobody
+    // at all fall to "Unknown".
+    valsOf: (b) => {
+      const groups = [...new Set(b.operatorIds.map(o => OPERATOR_DIRECTORY[o]?.group || 'Default'))];
+      if (b.awCount > 0) groups.push(OP_AW);
+      return groups.length ? groups : [OP_UNKNOWN];
+    },
     isPeople: true,
   },
   leader: {
     header: 'Shift leader',
-    labels: () => SHIFT_LEADERS.slice(),
-    valsOf: (b) => [b.leaderId],
+    // "No leader" collects blocks that ran without an assigned shift leader
+    // (AW-only and Unknown blocks), so the leader rows reconcile with the Total.
+    labels: () => [...SHIFT_LEADERS, OP_NO_LEADER],
+    valsOf: (b) => [b.leaderId || OP_NO_LEADER],
     isPeople: false,
   },
   // Time axis as an outer dimension, so Day × split-by (group / leader /
@@ -553,6 +667,12 @@ function oeeMatrixFromBlocks(blocks, outerDim, innerDim) {
 // Manhours attributable to a single dimension value within a block set —
 // distinct operators that belong to that value, hours counted once.
 function manhoursScoped(blocks, dim, val) {
+  // Pseudo-operator rows (on both the operator and the group axis):
+  // "Additional workforce" = Σ headcount × block hours; "Unknown" = 0
+  // (no people were recorded on those blocks).
+  if (val === OP_AW)      return blocks.reduce((s, b) => s + awManhours(b), 0);
+  if (val === OP_UNKNOWN) return 0;
+
   const inVal = (o) => dim === 'group'
     ? ((OPERATOR_DIRECTORY[o]?.group || 'Default') === val)
     : (o === val); // 'operator'
@@ -848,9 +968,10 @@ function aggregateBy(nameKey, baseData) {
       row.cmpPct  = Math.round(row.cmpPct  / row._n);
     }
     // Operator-level deduped manhours: Σ distinct operators' hours for this key.
+    // Pseudo-operators go through the same lookup (AW_HOURS / Unknown = 0).
     const os = opSet.get(k);
-    row.mainManhours = [...os.main].reduce((s, nm) => s + ((OPERATOR_DIRECTORY[nm]?.hours)    || 0), 0);
-    row.cmpManhours  = [...os.cmp ].reduce((s, nm) => s + ((OPERATOR_DIRECTORY[nm]?.cmpHours) || 0), 0);
+    row.mainManhours = [...os.main].reduce((s, nm) => s + pseudoAwareHours(nm, false), 0);
+    row.cmpManhours  = [...os.cmp ].reduce((s, nm) => s + pseudoAwareHours(nm, true),  0);
     // People fields = the distinct union across ALL bucket rows (the seed only
     // copied the first row's values, and `leader` wasn't carried at all) — so
     // Split by Operators / Operator group / Shift leaders works on any X-axis.
