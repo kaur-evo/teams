@@ -152,8 +152,11 @@ function deriveOperatorGroups(operatorStr) {
   if (!operatorStr) return '';
   const seen = new Set();
   operatorStr.split(',').map(s => s.trim()).filter(Boolean).forEach(n => {
-    // Pseudo-operators (Unknown / Additional workforce) belong to no group.
-    if (isPseudoOperator(n)) return;
+    // Pseudo-operators are groups in their own right — Additional workforce
+    // and Unknown stand for themselves on the group dimension, exactly as on
+    // the block-derived group axis (OEE_DIMS.group). Without this they would
+    // vanish from Downtime's group-by / split-by.
+    if (isPseudoOperator(n)) { seen.add(n); return; }
     const entry = OPERATOR_DIRECTORY[n];
     seen.add(entry ? entry.group : 'Default');
   });

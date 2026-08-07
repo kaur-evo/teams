@@ -1028,7 +1028,10 @@ function drawDowntimeSplit(items) {
   const splitValSet = new Set();
   const clusters = items.map(it => {
     const raw = (it[fieldKey] || '').split(',').map(s => s.trim()).filter(Boolean);
-    const vals = raw.length ? raw : ['—'];
+    // No value on a people dimension means nobody was recorded — that is the
+    // Unknown bucket, not a nameless "—" series.
+    const vals = raw.length ? raw
+      : [fieldKey === 'leader' ? OP_NO_LEADER : OP_UNKNOWN];
     const per  = (it.mainDur || 0) / vals.length;
     const subMap = new Map();
     vals.forEach(v => { subMap.set(v, (subMap.get(v) || 0) + per); splitValSet.add(v); });
