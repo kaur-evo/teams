@@ -47,8 +47,10 @@ const OPERATOR_ROLES = [
 
 // Operator groups. Mirrors the setup prototype (mock-data.js MOCK_TEAMS):
 // two named teams (Blue / Red) plus the fallback "Operators" bucket. The
-// group dimension / filter / Split-by all read from this list.
-const OPERATOR_GROUPS = ['Blue Team', 'Red Team', 'Operators'];
+// group dimension / filter / Split-by all read from this list, sorted A–Z so
+// group ordering matches the operator list (see allGroupOptions for the
+// pinned-pseudo variant used by the axes and the filter).
+const OPERATOR_GROUPS = ['Blue Team', 'Operators', 'Red Team'];
 
 // Static directory: every operator name appearing in mock data → its role + group.
 //
@@ -114,6 +116,15 @@ function allOperatorOptions() {
   const people = Object.keys(OPERATOR_DIRECTORY)
     .sort((a, b) => a.localeCompare(b, 'en', { sensitivity: 'base' }));
   return [...PSEUDO_OPERATORS, ...people];
+}
+
+// Same rule one level up: Additional workforce and Unknown are groups in their
+// own right, so grouping / splitting by Operator group orders them exactly like
+// the operator list — pinned on top, real groups alphabetically after.
+function allGroupOptions() {
+  const groups = OPERATOR_GROUPS.slice()
+    .sort((a, b) => a.localeCompare(b, 'en', { sensitivity: 'base' }));
+  return [...PSEUDO_OPERATORS, ...groups];
 }
 
 // Per-row shift leader: which can-lead operator was leading the production that
@@ -596,7 +607,7 @@ const OEE_DIMS = {
     // Pseudo-operators are in no group, so blocks made up only of them land in
     // their own catch-all buckets — without these the group rows would silently
     // fail to add up to the Total.
-    labels: () => [OP_UNKNOWN, OP_AW, ...OPERATOR_GROUPS],
+    labels: () => allGroupOptions(),
     // A block contributes to every group its named operators belong to, AND to
     // the "Additional workforce" bucket whenever it carried AW — so a mixed
     // block's AW hours are attributed instead of vanishing. Blocks with nobody
@@ -612,7 +623,9 @@ const OEE_DIMS = {
     header: 'Shift leader',
     // "No leader" collects blocks that ran without an assigned shift leader
     // (AW-only and Unknown blocks), so the leader rows reconcile with the Total.
-    labels: () => [...SHIFT_LEADERS, OP_NO_LEADER],
+    // Pinned first and the rest A–Z, matching the operator / group axes.
+    labels: () => [OP_NO_LEADER, ...SHIFT_LEADERS.slice()
+      .sort((a, b) => a.localeCompare(b, 'en', { sensitivity: 'base' }))],
     valsOf: (b) => [b.leaderId || OP_NO_LEADER],
     isPeople: false,
   },
