@@ -1654,11 +1654,14 @@ let activeFilters = [];
 let _slDim = null;
 let _slDraft = null;
 let _slSearch = '';
+// Groups currently expanded in the selection list (collapsed by default —
+// the chevron on each group row toggles it). Keyed by group name.
+let _slOpenGroups = new Set();
 
 function closeFilterMenus() {
   document.getElementById('filter-menu')?.classList.remove('open');
   document.getElementById('selection-list')?.classList.remove('open');
-  _slDim = null; _slDraft = null; _slSearch = '';
+  _slDim = null; _slDraft = null; _slSearch = ''; _slOpenGroups = new Set();
 }
 
 // ── Action menu (+ FILTER) ──
@@ -1770,12 +1773,11 @@ function renderSelectionList() {
 
   // Body: grouped (group header + indented members) or a flat list.
   // Pinned values (Unknown, Additional workforce) sit above the group headers
-  // as plain ungrouped rows, separated by a divider.
+  // as plain top-level rows — no divider, they read as ordinary options.
   let body;
   const pinned = (dim.pinned ? dim.pinned() : []).filter(match);
-  const pinnedHtml = pinned.length
-    ? pinned.map(v => row(v, _slDraft.has(v))).join('') + '<div class="sl-divider"></div>'
-    : '';
+  const pinnedHtml = pinned.map(v => row(v, _slDraft.has(v))).join('');
+  const chevron = '<span class="sl-chevron"><svg width="18" height="18" viewBox="0 0 24 24" fill="#616161"><path d="M7.4 8.6 12 13.2l4.6-4.6L18 10l-6 6-6-6Z"/></svg></span>';
   if (dim.grouped) {
     body = dim.groupsOf().map(({ group, members }) => {
       const vis = members.filter(match);
@@ -1783,8 +1785,11 @@ function renderSelectionList() {
       const selN = vis.filter(m => _slDraft.has(m)).length;
       const state = selN === 0 ? 'empty' : selN === vis.length ? 'full' : 'partial';
       const headMark = state === 'full' ? check(true) : state === 'partial' ? dash : '';
-      const header = `<div class="sl-row sl-row-group" data-group="${esc(group)}"><span class="sl-check${state!=='empty'?' is-on':''}">${headMark}</span><span>${group}</span></div>`;
-      const rows = vis.map(m => row(m, _slDraft.has(m), ' sl-row-member')).join('');
+      // A search narrows to matching members, so expand automatically then —
+      // otherwise the hits would be hidden inside a collapsed group.
+      const open = _slOpenGroups.has(group) || !!q;
+      const header = `<div class="sl-row sl-row-group${open ? ' is-open' : ''}" data-group="${esc(group)}"><span class="sl-check${state!=='empty'?' is-on':''}">${headMark}</span><span class="sl-label">${group}</span>${chevron}</div>`;
+      const rows = open ? vis.map(m => row(m, _slDraft.has(m), ' sl-row-member')).join('') : '';
       return header + rows;
     }).join('');
     body = pinnedHtml + body;
@@ -1815,7 +1820,15 @@ function renderSelectionList() {
   sl.onclick = e => e.stopPropagation();
   const input = sl.querySelector('#sl-search-input');
   input.addEventListener('input', e => { _slSearch = e.target.value; renderSelectionList(); sl.querySelector('#sl-search-input').focus(); });
-  sl.querySelectorAll('.sl-row').forEach(r => r.addEventListener('click', () => {
+  sl.querySelectorAll('.sl-row').forEach(r => r.addEventListener('click', (ev) => {
+    // Chevron = expand/collapse only; the rest of a group row still selects
+    // every member, so the checkbox and the disclosure stay independent.
+    if (r.dataset.group != null && ev.target.closest('.sl-chevron')) {
+      const g = r.dataset.group;
+      if (_slOpenGroups.has(g)) _slOpenGroups.delete(g); else _slOpenGroups.add(g);
+      renderSelectionList();
+      return;
+    }
     if (r.dataset.all) {
       if (allChecked) shown.forEach(v => _slDraft.delete(v));
       else            shown.forEach(v => _slDraft.add(v));
