@@ -138,17 +138,8 @@ function deriveLeader(operatorStr) {
   return leader || '';
 }
 
-// Helper: derive role + group for an operator string (e.g. "M. Kostopoulou, G. Antoniou").
-// Returns deduped, comma-joined lists matching the existing data shape.
-function deriveOperatorRoles(operatorStr) {
-  if (!operatorStr) return '';
-  const seen = new Set();
-  operatorStr.split(',').map(s => s.trim()).filter(Boolean).forEach(n => {
-    const entry = OPERATOR_DIRECTORY[n];
-    if (entry) seen.add(entry.role);
-  });
-  return [...seen].join(', ');
-}
+// Helper: derive the operator groups present in an operator string
+// (e.g. "M. Kostopoulou, G. Antoniou"). Returns a deduped, comma-joined list.
 function deriveOperatorGroups(operatorStr) {
   if (!operatorStr) return '';
   const seen = new Set();
@@ -179,12 +170,10 @@ const DT_COLS = [
   { key:'product',       label:'Products',             width:130, align:'left',  mono:false },
   { key:'productCode',   label:'Product code',         width:120, align:'left',  mono:false },
   { key:'shift',         label:'Shifts',               width:110, align:'left',  mono:false },
-  // People columns — fixed order: Operators → Operator group → Shift leader.
-  // (Operator role stays a separate P2 column, kept after the people block.)
-  { key:'operator',          label:'Operators',         width:130, align:'left',  mono:false },
-  { key:'operatorGroupName', label:'Operator group',    width:150, align:'left',  mono:false },
+  // People columns — spec order: Shifts → Shift leader → Operators → Operator groups.
   { key:'leader',            label:'Shift leader',      width:150, align:'left',  mono:false },
-  { key:'operatorRole',      label:'Operator role',     width:150, align:'left',  mono:false },
+  { key:'operator',          label:'Operators',         width:130, align:'left',  mono:false },
+  { key:'operatorGroupName', label:'Operator groups',   width:150, align:'left',  mono:false },
   // Numeric columns (right-aligned, Roboto Mono)
   // Man-hours = first numeric column, kept next to the people context.
   { key:'manhours',      label:'Man-hours',            width:120, align:'right', mono:true,  unit:' h',   manhours:true },
@@ -265,15 +254,12 @@ const STOP_REASONS_DATA = [
     station:'', cmpStation:'CNC-02, CNC-03', stationGroup:'', cmpStationGroup:'CNC', stopType:'Unplanned', location:'', cmpLocation:'Hall A', productGroup:'', cmpProductGroup:'Electronics', product:'', cmpProduct:'Circuit Bd., Widget Pro', productCode:'', cmpProductCode:'PRD-004, PRD-001', shift:'', cmpShift:'Afternoon, Night', operator:'', cmpOperator:'E. Christodoulou, G. Antoniou', loss:0, cmpLoss:35, durOee:0, cmpDurOee:35, plannedTime:0, cmpPlannedTime:800 },
 ];
 
-// Derive role + group from the operator names on each row. Adds:
-//   .operatorRole    — comma-joined list of distinct roles on the main period
+// Derive the group + leader fields from the operator names on each row. Adds:
 //   .operatorGroupName — comma-joined list of distinct groups on the main period
-//   .cmpOperatorRole / .cmpOperatorGroupName — same for compare period
-// Stored as named fields so aggregateBy('operatorRole') Just Works™.
+//   .cmpOperatorGroupName — same for the compare period
+// Stored as named fields so aggregateBy('operatorGroupName') Just Works™.
 STOP_REASONS_DATA.forEach(r => {
-  r.operatorRole       = deriveOperatorRoles(r.operator);
   r.operatorGroupName  = deriveOperatorGroups(r.operator);
-  r.cmpOperatorRole    = deriveOperatorRoles(r.cmpOperator);
   r.cmpOperatorGroupName = deriveOperatorGroups(r.cmpOperator);
   r.leader             = deriveLeader(r.operator);
   r.cmpLeader          = deriveLeader(r.cmpOperator);
@@ -489,10 +475,10 @@ const OEE_TABLE_COLS = [
   { key:'lots',            label:'LOT/Batch',         et:'LOT/Partii',           type:'descr' },
   { key:'orders',          label:'Orders',            et:'Tootmistellimused',    type:'descr' },
   { key:'shifts',          label:'Shifts',            et:'Vahetused',            type:'descr' },
-  // People columns — fixed order: Operators → Operator group → Shift leader.
-  { key:'operators',       label:'Operators',         et:'Operaatorid',          type:'descr' },
-  { key:'operatorGroup',   label:'Operator group',    et:'Operaatorite grupp',   type:'descr' },
+  // People columns — spec order: Shifts → Shift leader → Operators → Operator groups.
   { key:'leader',          label:'Shift leader',      et:'Vahetuse juht',        type:'descr' },
+  { key:'operators',       label:'Operators',         et:'Operaatorid',          type:'descr' },
+  { key:'operatorGroup',   label:'Operator groups',   et:'Operaatorite grupid',  type:'descr' },
   // Man-hours = first numeric column, kept next to the people context.
   { key:'manhours',        label:'Man-hours',         et:'Inimtunnid',           type:'hours'  },
   { key:'availability',    label:'Availability',      et:'Kasulik tööaeg',       type:'metric' },
@@ -735,10 +721,10 @@ const QTY_TABLE_COLS = [
   { key:'products',      label:'Products',       type:'descr' },
   { key:'productCodes',  label:'Product code',   type:'descr' },
   { key:'shifts',        label:'Shifts',         type:'descr' },
-  // People columns — fixed order: Operators → Operator group → Shift leader.
-  { key:'operators',     label:'Operators',      type:'descr' },
-  { key:'operatorGroup', label:'Operator group', type:'descr' },
-  { key:'leader',        label:'Shift leader',   type:'descr' },
+  // People columns — spec order: Shifts → Shift leader → Operators → Operator groups.
+  { key:'leader',        label:'Shift leader',    type:'descr' },
+  { key:'operators',     label:'Operators',       type:'descr' },
+  { key:'operatorGroup', label:'Operator groups', type:'descr' },
   // Man-hours = first numeric column, kept next to the people context.
   { key:'manhours',      label:'Man-hours',      type:'hours' },
   { key:'goodQty',       label:'Good quantity',  type:'qty'   },
@@ -946,7 +932,6 @@ function aggregateBy(nameKey, baseData) {
           productCode: d.productCode, cmpProductCode: d.cmpProductCode,
           shift: d.shift, cmpShift: d.cmpShift,
           operator: d.operator, cmpOperator: d.cmpOperator,
-          operatorRole: d.operatorRole, cmpOperatorRole: d.cmpOperatorRole,
           operatorGroupName: d.operatorGroupName, cmpOperatorGroupName: d.cmpOperatorGroupName,
           loss: 0, cmpLoss: 0, durOee: 0, cmpDurOee: 0,
           plannedTime: d.plannedTime, cmpPlannedTime: d.cmpPlannedTime,

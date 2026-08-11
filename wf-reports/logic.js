@@ -798,7 +798,6 @@ function renderTable() {
       case 'location': return d.location; case 'productGroup': return d.productGroup;
       case 'product': return d.product; case 'productCode': return d.productCode;
       case 'shift': return d.shift; case 'operator': return d.operator;
-      case 'operatorRole': return d.operatorRole;
       case 'operatorGroupName': return d.operatorGroupName;
       case 'count': return d.mainCount; case 'notes': return d.notes;
       case 'loss': return d.loss; case 'dur': return d.mainDur;
@@ -816,7 +815,6 @@ function renderTable() {
       case 'location': return d.cmpLocation; case 'productGroup': return d.cmpProductGroup;
       case 'product': return d.cmpProduct; case 'productCode': return d.cmpProductCode;
       case 'shift': return d.cmpShift; case 'operator': return d.cmpOperator;
-      case 'operatorRole': return d.cmpOperatorRole;
       case 'operatorGroupName': return d.cmpOperatorGroupName;
       // Numeric columns
       case 'count': return d.cmpCount; case 'notes': return d.cmpNotes;
