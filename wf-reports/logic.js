@@ -1643,8 +1643,8 @@ const FILTER_DIMS = {
   leaders: {
     label: 'Shift leaders', singular: 'leader',
     icon: '<svg width="20" height="20" viewBox="0 0 24 24" fill="#616161"><path d="M14.4 6 14 4H5v17h2v-7h5.6l.4 2h7V6Z"/></svg>',
-    // "No leader" is pinned on top so unled production (AW-only / Unknown
-    // blocks) can be isolated — it mirrors the Shift-leader axis catch-all.
+    // "Unknown" is pinned on top so production with no assigned leader can be
+    // isolated — it mirrors the Shift-leader axis catch-all.
     values: () => [OP_NO_LEADER, ...CAN_LEAD_OPERATORS],
     pinned: () => [OP_NO_LEADER],
   },

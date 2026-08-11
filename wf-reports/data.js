@@ -105,8 +105,9 @@ const CAN_LEAD_OPERATORS = Object.keys(OPERATOR_DIRECTORY).filter(n => OPERATOR_
 const OP_UNKNOWN = 'Unknown';
 const OP_AW      = 'Additional workforce';
 // Catch-all on the Shift-leader axis: production that ran without an assigned
-// leader (AW-only or Unknown blocks). Not an operator — leader-axis only.
-const OP_NO_LEADER = 'No leader';
+// leader. Reported as "Unknown", the same label the operator axis uses for
+// "nobody was recorded" — one word for one concept across every people axis.
+const OP_NO_LEADER = OP_UNKNOWN;
 const PSEUDO_OPERATORS = [OP_UNKNOWN, OP_AW];
 const isPseudoOperator = (n) => PSEUDO_OPERATORS.includes(n);
 
@@ -624,8 +625,8 @@ const OEE_DIMS = {
   },
   leader: {
     header: 'Shift leader',
-    // "No leader" collects blocks that ran without an assigned shift leader
-    // (AW-only and Unknown blocks), so the leader rows reconcile with the Total.
+    // "Unknown" collects blocks that ran without an assigned shift leader
+    // (AW-only and unmanned blocks), so the leader rows reconcile with the Total.
     // Pinned first and the rest A–Z, matching the operator / group axes.
     labels: () => [OP_NO_LEADER, ...SHIFT_LEADERS.slice()
       .sort((a, b) => a.localeCompare(b, 'en', { sensitivity: 'base' }))],
