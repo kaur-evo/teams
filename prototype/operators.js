@@ -1261,6 +1261,133 @@ const OperatorsPanel = {
       return timeToMinutes(a) >= timeToMinutes(b) ? a : b;
     }
 
+    function minutesToTime(mins) {
+      const m = ((mins % 1440) + 1440) % 1440; // wrap overnight
+      return String(Math.floor(m / 60)).padStart(2, '0') + ':' +
+             String(m % 60).padStart(2, '0');
+    }
+
+    // Normalised [start, end) in minutes. An end at or before the start means
+    // the range crosses midnight, so push the end into the next day.
+    function entrySpan(e) {
+      const s = timeToMinutes(e.startTime);
+      let x = timeToMinutes(e.endTime);
+      if (x <= s) x += 1440;
+      return [s, x];
+    }
+
+    /**
+     * Rebuild `existing` + `incoming` into a non-overlapping, time-ordered set.
+     *
+     * Every entry is treated as a layer over the timeline. We cut at every
+     * start/end boundary and, for each resulting section, union the layers
+     * covering it. Sections nobody covers are dropped; adjacent sections with
+     * identical contents are coalesced so a non-overlapping add doesn't
+     * needlessly fragment the list.
+     *
+     * Later layers win on conflict: `incoming` is applied last, so its role
+     * picks and its shift leader override the ones already there — but only
+     * within the section it actually covers. Outside that section the earlier
+     * leader stays untouched.
+     *
+     * Additional workforce is a count, not a person, so it sums across the
+     * layers covering a section rather than overriding.
+     */
+    function splitEntries(existing, incoming) {
+      const layers = [...existing, incoming].filter(l =>
+        (l.operatorIds && l.operatorIds.length) || (l.helperCount || 0) > 0
+      );
+      if (layers.length === 0) return [];
+
+      const spans = layers.map(entrySpan);
+
+      // Cut points = every boundary, deduped and ordered.
+      const cuts = [...new Set(spans.flat())].sort((a, b) => a - b);
+
+      const sections = [];
+      for (let i = 0; i < cuts.length - 1; i++) {
+        const from = cuts[i], to = cuts[i + 1];
+        // Layers covering this whole section (boundaries are exclusive at the end).
+        const covering = layers.filter((_, idx) =>
+          spans[idx][0] <= from && spans[idx][1] >= to
+        );
+        if (covering.length === 0) continue; // gap — nobody assigned
+
+        const opIds = [];
+        const roles = {};
+        let helperCount = 0;
+        let leaderIds = [];
+
+        for (const l of covering) {
+          (l.operatorIds || []).forEach(id => {
+            if (!opIds.includes(id)) opIds.push(id);
+          });
+          // Later layer's role picks replace earlier ones for the same operator.
+          Object.entries(l.roles || {}).forEach(([id, r]) => {
+            roles[id] = Array.isArray(r) ? [...r] : (r ? [r] : []);
+          });
+          helperCount += (l.helperCount || 0);
+          // Single leader per section: the last covering layer that names one wins.
+          const ids = Array.isArray(l.leaderIds) && l.leaderIds.length
+            ? l.leaderIds
+            : (l.leaderId != null ? [l.leaderId] : []);
+          if (ids.length) leaderIds = [...ids];
+        }
+
+        // A leader who isn't on shift in this section can't lead it.
+        leaderIds = leaderIds.filter(id => opIds.includes(id));
+
+        sections.push({
+          operatorIds: opIds,
+          roles,
+          leaderIds,
+          leaderId: leaderIds[0] ?? null,
+          helperCount,
+          _from: from,
+          _to: to,
+        });
+      }
+
+      // Coalesce neighbours that describe the same team, so adding a
+      // non-overlapping block doesn't split an untouched entry in two.
+      const sameTeam = (a, b) =>
+        a.helperCount === b.helperCount &&
+        a.leaderId === b.leaderId &&
+        a.operatorIds.length === b.operatorIds.length &&
+        a.operatorIds.every(id => b.operatorIds.includes(id)) &&
+        a.operatorIds.every(id =>
+          JSON.stringify([...(a.roles[id] || [])].sort()) ===
+          JSON.stringify([...(b.roles[id] || [])].sort()));
+
+      const merged = [];
+      for (const s of sections) {
+        const prev = merged[merged.length - 1];
+        if (prev && prev._to === s._from && sameTeam(prev, s)) {
+          prev._to = s._to;
+        } else {
+          merged.push(s);
+        }
+      }
+
+      // Reuse existing entry ids where the time range is unchanged, so Vue
+      // keys stay stable and untouched cards don't visually re-mount.
+      const freeIds = existing.map(e => ({ id: e.id, span: entrySpan(e) }));
+      return merged.map(s => {
+        const hit = freeIds.findIndex(f => f.span[0] === s._from && f.span[1] === s._to);
+        const id = hit >= 0 ? freeIds.splice(hit, 1)[0].id : _nextId++;
+        return {
+          id,
+          operatorIds: s.operatorIds,
+          roles: s.roles,
+          leaderIds: s.leaderIds,
+          leaderId: s.leaderId,
+          helperCount: s.helperCount,
+          startTime: minutesToTime(s._from),
+          endTime: minutesToTime(s._to),
+        };
+      });
+    }
+
     function saveOperators() {
       const hasOps = formSelectedOps.value.length > 0;
       // Only honour helperCount when the helpers checkbox is on. This makes
@@ -1284,93 +1411,34 @@ const OperatorsPanel = {
         newRoles[id] = Array.isArray(v) ? [...v] : (v ? [v] : []);
       });
 
-      // Editing: update the entry in place; helperCount = the new form value (may be 0).
+      const submission = {
+        operatorIds: [...formSelectedOps.value],
+        roles: newRoles,
+        leaderIds: [...formLeaderIds.value],
+        leaderId: formLeaderId.value, // back-compat: primary leader
+        helperCount: hasHelpers ? formHelperCount.value : 0,
+        startTime: formStartTime.value,
+        endTime: formEndTime.value,
+      };
+
+      // Editing: drop the old version and re-apply the edited one as a layer.
+      // Widening an entry's time range can push it over a neighbour, so edits
+      // go through the same splitting path as new entries rather than writing
+      // in place — otherwise the edit could recreate an overlap.
       if (editingEntryId.value) {
-        const entry = entries.value.find(e => e.id === editingEntryId.value);
-        if (entry) {
-          entry.operatorIds = [...formSelectedOps.value];
-          entry.roles = newRoles;
-          entry.leaderIds = [...formLeaderIds.value];
-          entry.leaderId = formLeaderId.value; // back-compat: primary leader
-          entry.startTime = formStartTime.value;
-          entry.endTime = formEndTime.value;
-          entry.helperCount = hasHelpers ? formHelperCount.value : 0;
-        }
+        const others = entries.value.filter(e => e.id !== editingEntryId.value);
+        entries.value = splitEntries(others, submission);
         editingEntryId.value = null;
         currentView.value = 'overview';
         emitSummary();
         return;
       }
 
-      // New entry — merge into any overlapping entries (operator-only, helper-only,
-      // or mixed all use the same logic). Touching ends (e.g. 06:00–14:00 and
-      // 14:00–22:00) stay distinct because rangesOverlap is strict (<).
-      const overlapping = entries.value.filter(e =>
-        rangesOverlap(e.startTime, e.endTime, formStartTime.value, formEndTime.value)
-      );
-
-      // Helper: merge two role lists (string[]) into a union with no dups.
-      const mergeRoleLists = (a, b) => {
-        const set = new Set([...(Array.isArray(a) ? a : (a ? [a] : [])),
-                             ...(Array.isArray(b) ? b : (b ? [b] : []))]);
-        return [...set];
-      };
-
-      if (overlapping.length > 0) {
-        const base = overlapping[0];
-        const allOpIds = new Set(base.operatorIds);
-        const mergedRoles = {};
-        Object.entries(base.roles || {}).forEach(([id, r]) => {
-          mergedRoles[id] = Array.isArray(r) ? [...r] : (r ? [r] : []);
-        });
-        let mergedHelpers = base.helperCount || 0;
-        let start = base.startTime, end = base.endTime;
-        // Absorb additional overlapping entries
-        for (let i = 1; i < overlapping.length; i++) {
-          const e = overlapping[i];
-          e.operatorIds.forEach(id => allOpIds.add(id));
-          Object.entries(e.roles || {}).forEach(([id, r]) => {
-            mergedRoles[id] = mergeRoleLists(mergedRoles[id], r);
-          });
-          mergedHelpers += (e.helperCount || 0);
-          start = minTime(start, e.startTime);
-          end   = maxTime(end,   e.endTime);
-        }
-        // Absorb the new submission — new role values override existing ones
-        // for that operator (the user's latest pick wins on conflict).
-        formSelectedOps.value.forEach(id => allOpIds.add(id));
-        Object.entries(newRoles).forEach(([id, r]) => {
-          mergedRoles[id] = [...r]; // copy current picks verbatim
-        });
-        if (hasHelpers) mergedHelpers += formHelperCount.value;
-        start = minTime(start, formStartTime.value);
-        end   = maxTime(end,   formEndTime.value);
-        base.operatorIds = [...allOpIds];
-        base.roles = mergedRoles;
-        // New pick wins; otherwise keep whatever the base entry had.
-        if (formLeaderIds.value.length) {
-          base.leaderIds = [...formLeaderIds.value];
-          base.leaderId  = formLeaderId.value;
-        }
-        base.helperCount = mergedHelpers;
-        base.startTime = start;
-        base.endTime = end;
-        if (overlapping.length > 1) {
-          const removeIds = new Set(overlapping.slice(1).map(e => e.id));
-          entries.value = entries.value.filter(e => !removeIds.has(e.id));
-        }
-      } else {
-        entries.value.push({
-          id: _nextId++,
-          operatorIds: [...formSelectedOps.value],
-          roles: newRoles,
-          leaderIds: [...formLeaderIds.value],
-          leaderId: formLeaderId.value, // back-compat: primary leader
-          helperCount: hasHelpers ? formHelperCount.value : 0,
-          startTime: formStartTime.value,
-          endTime: formEndTime.value,
-        });
-      }
+      // New entry — split the timeline at every boundary instead of merging.
+      // Adding C 13:00–14:00 on top of A+B 12:00–16:00 yields three sections:
+      // 12–13 (A,B) · 13–14 (A,B,C) · 14–16 (A,B). The new submission is just
+      // one more layer; `splitEntries` rebuilds the whole non-overlapping set.
+      entries.value = splitEntries(entries.value, submission);
 
       editingEntryId.value = null;
       currentView.value = 'overview';
