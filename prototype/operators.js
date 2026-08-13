@@ -212,7 +212,7 @@ const OperatorsPanel = {
                        leading operator's row. Green/filled when this op is the
                        chosen shift leader. -->
                   <button v-if="leaderStyle === 'chip' && canSetLeader(op)" type="button"
-                          class="op-leaderchip" :class="{ 'is-leader': isLeader(op.id), 'is-error': leaderError }"
+                          class="op-leaderchip" :class="{ 'is-leader': isLeader(op.id) }"
                           @click.stop="toggleRowLeader(op)"
                           :aria-pressed="isLeader(op.id)"
                           :title="isLeader(op.id) ? 'Shift leader' : 'Set as shift leader'">
@@ -223,7 +223,7 @@ const OperatorsPanel = {
                        chevron) opening a single-select menu. Extensible to more
                        roles later (currently Shift leader / -). -->
                   <div v-if="leaderStyle === 'dropdown' && canSetLeader(op)" class="op-tag-area" @click.stop>
-                    <button class="op-leaderddchip" :class="{ 'is-leader': isLeader(op.id), 'is-error': leaderError }" @click="openLeaderDD(op.id, $event)">
+                    <button class="op-leaderddchip" :class="{ 'is-leader': isLeader(op.id) }" @click="openLeaderDD(op.id, $event)">
                       <v-icon size="18" :color="isLeader(op.id) ? '#2ecc71' : '#757575'">mdi-flag</v-icon>
                       <span>{{ isLeader(op.id) ? 'Shift leader' : '-' }}</span>
                       <v-icon size="18" color="#757575">mdi-menu-down</v-icon>
@@ -311,7 +311,7 @@ const OperatorsPanel = {
                     </span>
                   </label>
                   <button v-if="leaderStyle === 'chip' && canSetLeader(op)" type="button"
-                          class="op-leaderchip" :class="{ 'is-leader': isLeader(op.id), 'is-error': leaderError }"
+                          class="op-leaderchip" :class="{ 'is-leader': isLeader(op.id) }"
                           @click.stop="toggleRowLeader(op)"
                           :aria-pressed="isLeader(op.id)"
                           :title="isLeader(op.id) ? 'Shift leader' : 'Set as shift leader'">
@@ -319,7 +319,7 @@ const OperatorsPanel = {
                     <span>Leader</span>
                   </button>
                   <div v-if="leaderStyle === 'dropdown' && canSetLeader(op)" class="op-tag-area" @click.stop>
-                    <button class="op-leaderddchip" :class="{ 'is-leader': isLeader(op.id), 'is-error': leaderError }" @click="openLeaderDD(op.id, $event)">
+                    <button class="op-leaderddchip" :class="{ 'is-leader': isLeader(op.id) }" @click="openLeaderDD(op.id, $event)">
                       <v-icon size="18" :color="isLeader(op.id) ? '#2ecc71' : '#757575'">mdi-flag</v-icon>
                       <span>{{ isLeader(op.id) ? 'Shift leader' : '-' }}</span>
                       <v-icon size="18" color="#757575">mdi-menu-down</v-icon>
@@ -409,7 +409,7 @@ const OperatorsPanel = {
                  dropdown lists operators who can lead AND are checked into the
                  shift — so the operator list populates what's pickable. Disabled
                  (0.5 opacity) with a hover tooltip until ≥1 eligible is selected. -->
-            <div v-if="rolesMode === 'leader' && anyCanLead && leaderStyle === 'field'" class="op-leader-field" :class="{ 'is-disabled': !leaderEnabled, 'is-error': leaderError }"
+            <div v-if="rolesMode === 'leader' && anyCanLead && leaderStyle === 'field'" class="op-leader-field" :class="{ 'is-disabled': !leaderEnabled }"
                  @mouseenter="!leaderEnabled && showTooltip($event, 'No leading operators selected')"
                  @mouseleave="hideTooltip">
               <button type="button" class="op-leader-select" :disabled="!leaderEnabled" @click.stop="toggleLeaderDropdown">
@@ -454,7 +454,6 @@ const OperatorsPanel = {
           </div>
 
           <div class="op-footer op-footer-right-only">
-            <span v-if="leaderError" class="op-leader-error-msg">Choose a shift leader</span>
             <button class="op-btn op-btn-text" @click="cancelForm">CANCEL</button>
             <button class="op-btn op-btn-save" :disabled="formSelectedOps.length === 0 && !helpersOn" @click="saveOperators">SAVE</button>
           </div>
@@ -726,8 +725,6 @@ const OperatorsPanel = {
     // Spec: a team must have a shift leader (when leader-capable operators
     // exist). Saving without one flips this on → error state on all available
     // leader chips / the leader field. Cleared the moment a leader is picked.
-    const leaderError = ref(false);
-    watch(formLeaderIds, (ids) => { if (ids.length) leaderError.value = false; });
     const leaderDropdownOpen = ref(false);
     const leaderDropdownPos = ref({ top: 0, left: 0 });
     let _leaderAnchorEl = null;
@@ -1219,7 +1216,6 @@ const OperatorsPanel = {
       helpersOn.value = false;
       adjustRolesOn.value = false;
       formLeaderIds.value = [];
-      leaderError.value = false;
       leaderDropdownOpen.value = false;
       searchQuery.value = '';
       editingEntryId.value = null;
@@ -1236,7 +1232,6 @@ const OperatorsPanel = {
 
     function cancelForm() {
       editingEntryId.value = null;
-      leaderError.value = false;
       // Nothing assigned → stay in the choice view (no empty overview).
       currentView.value = entries.value.length === 0 ? 'add-operators' : 'overview';
     }
@@ -1395,13 +1390,9 @@ const OperatorsPanel = {
       const hasHelpers = helpersOn.value && formHelperCount.value && formHelperCount.value > 0;
       if (!hasOps && !hasHelpers) return;
 
-      // Spec ‼️: one shift leader must be chosen per time slot ("team").
-      // Only enforced when leader chips are shown at all — i.e. somebody on
-      // the station can lead. Block the save and error the chips until set.
-      if (rolesMode.value === 'leader' && hasOps && anyCanLead.value && formLeaderIds.value.length === 0) {
-        leaderError.value = true;
-        return;
-      }
+      // Shift leader is OPTIONAL (testing feedback, 2026-08): a slot may be
+      // saved with no leader. At most one leader per slot is still enforced —
+      // by the picker itself, which replaces rather than appends.
 
       // Snapshot the form-level role map for the operators being saved.
       // Each entry.roles[id] is always a string[] (may be empty).
@@ -1481,7 +1472,6 @@ const OperatorsPanel = {
       formLeaderIds.value = Array.isArray(entry.leaderIds)
         ? [...entry.leaderIds]
         : (entry.leaderId != null ? [entry.leaderId] : []);
-      leaderError.value = false;
       leaderDropdownOpen.value = false;
       // Wipe + restore per-operator roles as string[] (multi-tag model).
       Object.keys(formOperatorRoles).forEach(k => delete formOperatorRoles[k]);
@@ -1665,7 +1655,6 @@ const OperatorsPanel = {
       leaderFieldLabel,
       leaderCaption,
       leaderStyle,
-      leaderError,
       allowAW,
       canSetLeader,
       toggleRowLeader,
