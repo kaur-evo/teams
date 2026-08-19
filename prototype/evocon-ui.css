@@ -650,6 +650,14 @@ svg { color: var(--solid-grey-600); }
   color: var(--text-heading);
   margin-left: 4px;
 }
+/* Member count beside the group name — secondary weight so the name leads. */
+.team-group__count {
+  font-size: 16px;
+  line-height: 24px;
+  font-weight: 400;
+  color: var(--solid-grey-600);
+  margin-left: 4px;
+}
 .team-group__caret {
   width: 24px; height: 24px;
   display: inline-flex; align-items: center; justify-content: center;

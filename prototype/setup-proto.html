@@ -290,6 +290,19 @@
           <div class="dropdown" id="teamTagsMenu" data-anchor="#teamTagsTrigger"></div>
         </div>
       </div>
+      <div class="field-row">
+        <div class="field" style="position:relative;">
+          <button type="button" class="field__select is-empty" id="teamFactoriesTrigger">
+            <span class="field__select-text">Factories</span>
+            <span class="field__select-caret" data-icn="menu-down"></span>
+          </button>
+          <div class="field__bottom">
+            <span class="field__hint">Factories</span>
+          </div>
+          <div class="dropdown" id="teamFactoriesMenu" data-anchor="#teamFactoriesTrigger"></div>
+        </div>
+        <div class="field"></div>
+      </div>
     </div>
     <div class="modal__footer">
       <div></div>
@@ -420,6 +433,12 @@ function teamFactoryName(teamObj) {
   return `${names[0]} + ${names.length - 1} more`;
 }
 
+// Members currently assigned to an operator group. Shown in parentheses beside
+// the group name so the picker/list conveys group size at a glance.
+function teamMemberCount(teamId) {
+  return operators.filter(op => op.teamId === teamId).length;
+}
+
 // ─── List view rendering ───
 // Tags are plain comma-separated text. Role is its own column.
 function renderTagsCell(op) {
@@ -483,6 +502,7 @@ function renderTeams(expandTeamId) {
               <span data-icn="edit"></span>
             </button>
             <span class="team-group__name">${escapeHtml(team.name)}</span>
+            <span class="team-group__count">(${members.length})</span>
           </div>
           <span class="team-group__caret" data-icn="menu-down"></span>
         </div>
@@ -831,7 +851,7 @@ bindDropdown('#opTeamTrigger', '#opTeamMenu', () => {
   const rows = teams.map(t => `
     <div class="dropdown__row ${sel === t.id ? 'is-selected' : ''}" data-value="${t.id}">
       ${radioCheckMarker(sel === t.id)}
-      <span style="flex:1;">${escapeHtml(t.name)}</span>
+      <span style="flex:1;">${escapeHtml(t.name)} <span style="color:var(--solid-grey-600);">(${teamMemberCount(t.id)})</span></span>
     </div>
   `).join('');
   return `<div class="dropdown__rows">${rows}</div>`;
@@ -997,6 +1017,8 @@ function setTeamForm(team) {
   $('#teamName').value = team?.name || '';
   $('#teamNameCount').textContent = $('#teamName').value.length;
   window.__teamTags = [...(team?.tags || [])];
+  // A global group has no explicit factories — an empty selection IS "All".
+  window.__teamFactories = team?.isGlobal ? [] : [...(team?.factoryIds || [])];
   refreshTeamSummaries();
 }
 function refreshTeamSummaries() {
@@ -1006,6 +1028,16 @@ function refreshTeamSummaries() {
   $('.field__select-text', tTrig).textContent = tags.length
     ? (tags.length === 1 ? tags[0] : `${tags[0]} + ${tags.length - 1} more`)
     : 'Tags';
+
+  // Factories — no selection means the group is available in every factory,
+  // so "All factories" is a real value here, not a placeholder.
+  const fTrig = $('#teamFactoriesTrigger');
+  const facts = window.__teamFactories || [];
+  const names = facts.map(id => factoryById(id)?.name).filter(Boolean);
+  fTrig.classList.remove('is-empty');
+  $('.field__select-text', fTrig).textContent = names.length === 0
+    ? 'All factories'
+    : (names.length === 1 ? names[0] : `${names[0]} + ${names.length - 1} more`);
 }
 function openTeamModal(teamId) {
   editingTeam = teamId ? teams.find(t => t.id === teamId) : null;
@@ -1019,7 +1051,13 @@ $('#teamName').addEventListener('input', e => $('#teamNameCount').textContent = 
 $('#teamSave').addEventListener('click', () => {
   const name = $('#teamName').value.trim();
   if (!name) { $('#teamName').focus(); return; }
-  const data = { name, tags: [...(window.__teamTags || [])] };
+  const factoryIds = [...(window.__teamFactories || [])];
+  const data = {
+    name,
+    tags: [...(window.__teamTags || [])],
+    factoryIds,
+    isGlobal: factoryIds.length === 0,
+  };
   const isNew = !editingTeam;
   if (editingTeam) {
     Object.assign(editingTeam, data);
@@ -1033,6 +1071,26 @@ $('#teamSave').addEventListener('click', () => {
   closeAllModals();
   // Brand-new team: jump to Teams view so the user sees their new row in the list.
   if (isNew) setView('teams');
+});
+
+// Factories dropdown (multi-select). Selecting none leaves the group global —
+// available in every factory — which is how `teamFactoryName` reads it too.
+bindDropdown('#teamFactoriesTrigger', '#teamFactoriesMenu', () => {
+  const sel = window.__teamFactories || [];
+  const rows = FACTORIES.map(f => `
+    <div class="dropdown__row ${sel.includes(f.id) ? 'is-checked' : ''}" data-value="${f.id}">
+      ${checkboxMarker(sel.includes(f.id))}
+      <span style="flex:1;">${escapeHtml(f.name)}</span>
+    </div>
+  `).join('');
+  return `<div class="dropdown__rows">${rows}</div>`;
+});
+$('#teamFactoriesTrigger').addEventListener('click', () => {
+  window.__currentMultiSelect = () => {
+    window.__teamFactories = $$('#teamFactoriesMenu .dropdown__row.is-checked')
+      .map(r => Number(r.dataset.value));
+    refreshTeamSummaries();
+  };
 });
 
 // Tags dropdown (multi-select) — same MOCK_TAGS source as the operator modal.

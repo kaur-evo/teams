@@ -184,6 +184,7 @@ const OperatorsPanel = {
                     <v-icon v-else-if="isTeamPartiallySelected(team.id)" size="18" color="white">mdi-minus</v-icon>
                   </span>
                   <span class="op-team-label">{{ team.name }}</span>
+                  <span class="op-team-count">({{ getFilteredTeamOperators(team.id).length }})</span>
                   <span style="margin-left:auto;display:flex;align-items:center;">
                     <v-icon size="24" color="#757575" :style="{ transform: collapsedTeams.has(team.id) ? 'rotate(0deg)' : 'rotate(180deg)', transition: 'transform 0.2s' }">mdi-chevron-down</v-icon>
                   </span>
