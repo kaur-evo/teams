@@ -1,7 +1,7 @@
 // Shared mock data for operators & teams prototypes
 // Used by: setup-proto.html, index.html
 
-const DATA_VERSION = 21; // bump to wipe stale localStorage
+const DATA_VERSION = 22; // bump to wipe stale localStorage
 
 // Tags are setup-only descriptive labels (not used in Shift View role pick).
 const MOCK_TAGS = ['Night-shift', 'Trainer', 'Newcomer', 'Bilingual'];
@@ -21,6 +21,34 @@ const MOCK_FACTORIES = [
   { id: 3, name: 'Casablanca Production' },
 ];
 
+// Station groups. Product rule (Settings → Stations): a station group belongs
+// to exactly ONE factory, and every station sits in exactly one group. This is
+// the only link between a station and a factory — which makes it the only way
+// to tell which factory an operator works in, since operators carry stations
+// and never a factory of their own.
+const MOCK_STATION_GROUPS = [
+  { id: 1, name: 'Athens Lines',       factoryId: 1, stations: ['Filling Line 1', 'Filling Line 2'] },
+  { id: 2, name: 'Warsaw Packaging',   factoryId: 2, stations: ['Packaging A', 'Packaging B'] },
+  { id: 3, name: 'Casablanca Support', factoryId: 3, stations: ['Warehouse', 'Quality Lab'] },
+];
+
+// station name → factory id, via the station's group.
+function factoryOfStation(stationName) {
+  const g = MOCK_STATION_GROUPS.find(sg => sg.stations.includes(stationName));
+  return g ? g.factoryId : null;
+}
+
+// The factories an operator works in — derived from their assigned stations.
+// An operator assigned stations in two groups genuinely spans two factories.
+function factoriesOfOperator(op) {
+  const ids = new Set();
+  (op?.stations || []).forEach(st => {
+    const f = factoryOfStation(st);
+    if (f != null) ids.add(f);
+  });
+  return [...ids].sort((a, b) => a - b);
+}
+
 // Operator groups. "Operators" is the mandatory fallback bucket for operators
 // who don't fit into any named group. Always present.
 // Teams (operator groups). `isGlobal: true` → visible across all factories
@@ -39,21 +67,22 @@ const MOCK_TEAMS = [
 // leader (canLead) plus members; the remaining two sit in the fallback
 // "Operators" group. `canLead` (Leader mode) drives the leader-select demo.
 const MOCK_OPERATORS = [
-  // Blue Team
-  { id: 1,  firstName: 'Vasilis',  lastName: 'Mavroeidis',   role: null, tags: ['Night-shift'], teamId: 2, factoryId: 1, canLead: true, stations: ['Filling Line 1', 'Filling Line 2', 'Packaging A', 'Packaging B'] },
-  { id: 3,  firstName: 'Maria',    lastName: 'Kostopoulou',  role: null, tags: [],              teamId: 2, factoryId: 1,                stations: ['Filling Line 1', 'Packaging A', 'Packaging B'] },
-  { id: 4,  firstName: 'Giorgos',  lastName: 'Antoniou',     role: null, tags: [],              teamId: 2, factoryId: 2,                stations: ['Packaging A', 'Packaging B', 'Warehouse'] },
-  { id: 9,  firstName: 'Petros',   lastName: 'Lambrou',      role: null, tags: [],              teamId: 2, factoryId: 2,                stations: ['Filling Line 1', 'Filling Line 2', 'Packaging A'] },
-  { id: 10, firstName: 'Anna',     lastName: 'Dimitriou',    role: null, tags: ['Newcomer'],    teamId: 2, factoryId: 2,                stations: ['Packaging A', 'Packaging B'] },
-  // Red Team
-  { id: 2,  firstName: 'Nikos',    lastName: 'Papadopoulos', role: null, tags: ['Trainer'],     teamId: 3, factoryId: 2, canLead: true, stations: ['Filling Line 1', 'Filling Line 2', 'Warehouse'] },
-  { id: 5,  firstName: 'Elena',    lastName: 'Christodoulou',role: null, tags: ['Newcomer'],    teamId: 3, factoryId: 2,                stations: ['Filling Line 2', 'Packaging A', 'Quality Lab'] },
-  { id: 6,  firstName: 'Dimitris', lastName: 'Ekonomou',     role: null, tags: [],              teamId: 3, factoryId: 2,                stations: ['Packaging A', 'Packaging B', 'Warehouse'] },
-  { id: 11, firstName: 'Kostas',   lastName: 'Vlachos',      role: null, tags: [],              teamId: 3, factoryId: 2,                stations: ['Filling Line 2', 'Warehouse', 'Packaging B'] },
-  { id: 12, firstName: 'Despina',  lastName: 'Roussou',      role: null, tags: ['Night-shift'], teamId: 3, factoryId: 2,                stations: ['Packaging A', 'Quality Lab'] },
-  // Operators (fallback group)
-  { id: 7,  firstName: 'Stavros',  lastName: 'Nikolaou',     role: null, tags: [],              teamId: 1, factoryId: 1,                stations: ['Filling Line 1', 'Warehouse', 'Quality Lab'] },
-  { id: 8,  firstName: 'Sofia',    lastName: 'Panagiotou',   role: null, tags: ['Night-shift'], teamId: 1, factoryId: 3,                stations: ['Quality Lab', 'Packaging B'] },
+  // Blue Team — spans Athens Lines (factory 1) and Warsaw Packaging (factory 2),
+  // which is why the group is scoped to both.
+  { id: 1,  firstName: 'Vasilis',  lastName: 'Mavroeidis',   role: null, tags: ['Night-shift'], teamId: 2, canLead: true, stations: ['Filling Line 1', 'Filling Line 2'] },
+  { id: 3,  firstName: 'Maria',    lastName: 'Kostopoulou',  role: null, tags: [],              teamId: 2,                stations: ['Filling Line 1'] },
+  { id: 9,  firstName: 'Petros',   lastName: 'Lambrou',      role: null, tags: [],              teamId: 2,                stations: ['Filling Line 1', 'Filling Line 2'] },
+  { id: 4,  firstName: 'Giorgos',  lastName: 'Antoniou',     role: null, tags: [],              teamId: 2,                stations: ['Packaging A', 'Packaging B'] },
+  { id: 10, firstName: 'Anna',     lastName: 'Dimitriou',    role: null, tags: ['Newcomer'],    teamId: 2,                stations: ['Packaging A', 'Packaging B'] },
+  // Red Team — Warsaw Packaging only (factory 2).
+  { id: 2,  firstName: 'Nikos',    lastName: 'Papadopoulos', role: null, tags: ['Trainer'],     teamId: 3, canLead: true, stations: ['Packaging A', 'Packaging B'] },
+  { id: 5,  firstName: 'Elena',    lastName: 'Christodoulou',role: null, tags: ['Newcomer'],    teamId: 3,                stations: ['Packaging A'] },
+  { id: 6,  firstName: 'Dimitris', lastName: 'Ekonomou',     role: null, tags: [],              teamId: 3,                stations: ['Packaging B'] },
+  { id: 11, firstName: 'Kostas',   lastName: 'Vlachos',      role: null, tags: [],              teamId: 3,                stations: ['Packaging A', 'Packaging B'] },
+  { id: 12, firstName: 'Despina',  lastName: 'Roussou',      role: null, tags: ['Night-shift'], teamId: 3,                stations: ['Packaging A'] },
+  // Operators (fallback group) — Casablanca Support (factory 3).
+  { id: 7,  firstName: 'Stavros',  lastName: 'Nikolaou',     role: null, tags: [],              teamId: 1,                stations: ['Warehouse', 'Quality Lab'] },
+  { id: 8,  firstName: 'Sofia',    lastName: 'Panagiotou',   role: null, tags: ['Night-shift'], teamId: 1,                stations: ['Quality Lab'] },
 ];
 
 // Per-station feature toggles. Off by default — Spiros constraint: "must be optional".

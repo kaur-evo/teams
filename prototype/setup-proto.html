@@ -463,10 +463,10 @@ function renderGroupCell(op) {
 function renderList() {
   const body = $('#listBody');
   body.innerHTML = operators.map(op => {
-    // The operator's own factory — not the group's scope. The group may span
-    // several factories; this is the one this person actually works in, and it
-    // is what decides whether a group may drop a factory.
-    const factoryName = factoryById(op.factoryId)?.name || '-';
+    // The operator's factories are DERIVED: station → station group → factory.
+    // Operators never carry a factory of their own (Settings → Operators is
+    // name + stations only), so this is the only correct way to get it.
+    const factoryName = operatorFactoryLabel(op);
     return `
       <tr data-op-id="${op.id}">
         <td class="td-bold">${escapeHtml(op.firstName)}</td>
@@ -1133,13 +1133,21 @@ $('#teamSave').addEventListener('click', () => {
   if (isNew) setView('teams');
 });
 
-// Members of a group whose own factory is not in `factoryIds`. Non-empty means
-// the proposed factory scope would strand them.
+// Label for the factories an operator works in, derived via their stations.
+function operatorFactoryLabel(op) {
+  const names = factoriesOfOperator(op).map(id => factoryById(id)?.name).filter(Boolean);
+  if (names.length === 0) return '-';
+  if (names.length === 1) return names[0];
+  return `${names[0]} + ${names.length - 1} more`;
+}
+
+// Members of a group who work in a factory the proposed scope does not cover.
+// Non-empty means that scope would strand them: they would sit in a group that
+// no longer reaches the factory their stations belong to.
 function operatorsOutsideFactories(teamId, factoryIds) {
   return operators.filter(op =>
     op.teamId === teamId &&
-    op.factoryId != null &&
-    !factoryIds.includes(op.factoryId)
+    factoriesOfOperator(op).some(fid => !factoryIds.includes(fid))
   );
 }
 
