@@ -268,29 +268,17 @@
 <div class="modal-overlay" id="modalTeam">
   <div class="modal modal--narrow">
     <div class="modal__header">
-      <div class="modal__title" id="teamTitle">New: Operator group</div>
+      <div class="modal__title" id="teamTitle">New: Group</div>
     </div>
     <div class="modal__body">
       <div class="field-row">
         <div class="field">
-          <input class="field__input" id="teamName" placeholder="Operator group name" maxlength="100">
+          <input class="field__input" id="teamName" placeholder="Group name" maxlength="100">
           <div class="field__bottom">
-            <span class="field__hint">Operator group name</span>
+            <span class="field__hint">Group name</span>
             <span class="field__counter"><span id="teamNameCount">0</span> / 100</span>
           </div>
         </div>
-        <div class="field" style="position:relative;">
-          <button type="button" class="field__select is-empty" id="teamTagsTrigger">
-            <span class="field__select-text">Tags</span>
-            <span class="field__select-caret" data-icn="menu-down"></span>
-          </button>
-          <div class="field__bottom">
-            <span class="field__hint">Tags (Optional)</span>
-          </div>
-          <div class="dropdown" id="teamTagsMenu" data-anchor="#teamTagsTrigger"></div>
-        </div>
-      </div>
-      <div class="field-row">
         <div class="field" style="position:relative;">
           <button type="button" class="field__select is-empty" id="teamFactoriesTrigger">
             <span class="field__select-text">Factories</span>
@@ -301,11 +289,25 @@
           </div>
           <div class="dropdown" id="teamFactoriesMenu" data-anchor="#teamFactoriesTrigger"></div>
         </div>
+      </div>
+      <div class="field-row">
+        <div class="field" style="position:relative;">
+          <button type="button" class="field__select is-empty" id="teamTagsTrigger">
+            <span class="field__select-text">Tags</span>
+            <span class="field__select-caret" data-icn="menu-down"></span>
+          </button>
+          <div class="field__bottom">
+            <span class="field__hint">Tags (Optional)</span>
+          </div>
+          <div class="dropdown" id="teamTagsMenu" data-anchor="#teamTagsTrigger"></div>
+        </div>
         <div class="field"></div>
       </div>
     </div>
     <div class="modal__footer">
-      <div></div>
+      <div class="modal__footer-left">
+        <button class="btn btn--danger" id="teamDelete" style="display:none;"><span class="btn__text">Delete</span></button>
+      </div>
       <div class="modal__footer-right">
         <button class="btn btn--cancel" data-close><span class="btn__text">Cancel</span></button>
         <button class="btn btn--primary" id="teamSave"><span class="btn__text">Save</span></button>
@@ -461,13 +463,15 @@ function renderGroupCell(op) {
 function renderList() {
   const body = $('#listBody');
   body.innerHTML = operators.map(op => {
-    const team = teamById(op.teamId);
-    const factoryName = team ? teamFactoryName(team) : '';
+    // The operator's own factory — not the group's scope. The group may span
+    // several factories; this is the one this person actually works in, and it
+    // is what decides whether a group may drop a factory.
+    const factoryName = factoryById(op.factoryId)?.name || '-';
     return `
       <tr data-op-id="${op.id}">
         <td class="td-bold">${escapeHtml(op.firstName)}</td>
         <td class="td-bold">${escapeHtml(op.lastName)}</td>
-        <td>${escapeHtml(factoryName || 'All')}</td>
+        <td>${escapeHtml(factoryName)}</td>
         <td>${renderGroupCell(op)}</td>
         <td>${renderRoleCell(op)}</td>
         <td>${renderTagsCell(op)}</td>
@@ -503,6 +507,7 @@ function renderTeams(expandTeamId) {
             </button>
             <span class="team-group__name">${escapeHtml(team.name)}</span>
             <span class="team-group__count">(${members.length})</span>
+            <span class="team-group__scope">${escapeHtml(teamFactoryName(team) || '-')}</span>
           </div>
           <span class="team-group__caret" data-icn="menu-down"></span>
         </div>
@@ -607,6 +612,7 @@ function bindDropdown(triggerSel, menuSel, render) {
   const trigger = $(triggerSel);
   const menu    = $(menuSel);
   if (!trigger || !menu) return;
+  menu.__render = render; // kept so redrawDropdown() can refresh in place
   trigger.addEventListener('click', e => {
     e.stopPropagation();
     const wasOpen = menu.classList.contains('is-open');
@@ -619,6 +625,16 @@ function bindDropdown(triggerSel, menuSel, render) {
       wireDropdownMenu(menu);
     }
   });
+}
+
+// Re-render an open dropdown in place. Needed when picking one row changes how
+// other rows should look — e.g. "Select all" reflecting the individual boxes.
+function redrawDropdown(menuSel) {
+  const menu = $(menuSel);
+  if (!menu || !menu.__render || !menu.classList.contains('is-open')) return;
+  menu.innerHTML = menu.__render();
+  hydrateIcons(menu);
+  wireDropdownMenu(menu);
 }
 
 // Reposition open dropdowns on scroll/resize.
@@ -1012,13 +1028,42 @@ function evoHideTooltip() {
   if (_evoTooltipEl) { _evoTooltipEl.remove(); _evoTooltipEl = null; }
 }
 
-// ─── Team modal (operator group) — Name + Tags only ───
+// ─── Snackbar ───
+// Used for rules that block an action outright, so the user gets a reason
+// rather than a control that silently does nothing.
+function showSnack(message) {
+  let host = document.querySelector('.snackbar-host');
+  if (!host) {
+    host = document.createElement('div');
+    host.className = 'snackbar-host';
+    document.body.appendChild(host);
+  }
+  const el = document.createElement('div');
+  el.className = 'snackbar';
+  el.innerHTML = `
+    <span data-icn="alert-circle" data-size="24" data-tint="red"></span>
+    <span class="snackbar__text">${escapeHtml(message)}</span>
+    <button class="snackbar__close" aria-label="Dismiss">
+      <span data-icn="close-circle" data-size="24"></span>
+    </button>
+  `;
+  host.appendChild(el);
+  hydrateIcons(el);
+  const dismiss = () => el.remove();
+  el.querySelector('.snackbar__close').addEventListener('click', dismiss);
+  setTimeout(dismiss, 6000);
+}
+
+// ─── Team modal (operator group) ───
 function setTeamForm(team) {
   $('#teamName').value = team?.name || '';
   $('#teamNameCount').textContent = $('#teamName').value.length;
   window.__teamTags = [...(team?.tags || [])];
-  // A global group has no explicit factories — an empty selection IS "All".
-  window.__teamFactories = team?.isGlobal ? [] : [...(team?.factoryIds || [])];
+  // Factories are an explicit list. A global group covers every factory, so it
+  // seeds as all-selected rather than as an empty box.
+  window.__teamFactories = team?.isGlobal
+    ? FACTORIES.map(f => f.id)
+    : [...(team?.factoryIds || [])];
   refreshTeamSummaries();
 }
 function refreshTeamSummaries() {
@@ -1029,20 +1074,23 @@ function refreshTeamSummaries() {
     ? (tags.length === 1 ? tags[0] : `${tags[0]} + ${tags.length - 1} more`)
     : 'Tags';
 
-  // Factories — no selection means the group is available in every factory,
-  // so "All factories" is a real value here, not a placeholder.
+  // Factories — "All factories" only when every factory is ticked; an empty
+  // selection is a genuinely empty field, not a shorthand for all.
   const fTrig = $('#teamFactoriesTrigger');
   const facts = window.__teamFactories || [];
   const names = facts.map(id => factoryById(id)?.name).filter(Boolean);
-  fTrig.classList.remove('is-empty');
-  $('.field__select-text', fTrig).textContent = names.length === 0
-    ? 'All factories'
-    : (names.length === 1 ? names[0] : `${names[0]} + ${names.length - 1} more`);
+  fTrig.classList.toggle('is-empty', names.length === 0);
+  $('.field__select-text', fTrig).textContent =
+    names.length === 0 ? 'Factories'
+    : names.length === FACTORIES.length ? 'All factories'
+    : names.length === 1 ? names[0]
+    : `${names[0]} + ${names.length - 1} more`;
 }
 function openTeamModal(teamId) {
   editingTeam = teamId ? teams.find(t => t.id === teamId) : null;
   // Heading convention (spec): edit → just the entity name; new → "New: <Entity>".
-  $('#teamTitle').textContent = editingTeam ? editingTeam.name : 'New: Operator group';
+  $('#teamTitle').textContent = editingTeam ? editingTeam.name : 'New: Group';
+  $('#teamDelete').style.display = editingTeam ? '' : 'none';
   setTeamForm(editingTeam);
   openModal('modalTeam');
 }
@@ -1052,11 +1100,23 @@ $('#teamSave').addEventListener('click', () => {
   const name = $('#teamName').value.trim();
   if (!name) { $('#teamName').focus(); return; }
   const factoryIds = [...(window.__teamFactories || [])];
+
+  // A group may only cover factories its members actually work in. Dropping a
+  // factory that someone in the group belongs to would leave them attached to a
+  // group that no longer reaches them, so the save is blocked instead.
+  if (editingTeam) {
+    const orphaned = operatorsOutsideFactories(editingTeam.id, factoryIds);
+    if (orphaned.length > 0) {
+      showSnack('Operators must be removed from the group first');
+      return;
+    }
+  }
+
   const data = {
     name,
     tags: [...(window.__teamTags || [])],
     factoryIds,
-    isGlobal: factoryIds.length === 0,
+    isGlobal: factoryIds.length === FACTORIES.length,
   };
   const isNew = !editingTeam;
   if (editingTeam) {
@@ -1073,23 +1133,71 @@ $('#teamSave').addEventListener('click', () => {
   if (isNew) setView('teams');
 });
 
-// Factories dropdown (multi-select). Selecting none leaves the group global —
-// available in every factory — which is how `teamFactoryName` reads it too.
+// Members of a group whose own factory is not in `factoryIds`. Non-empty means
+// the proposed factory scope would strand them.
+function operatorsOutsideFactories(teamId, factoryIds) {
+  return operators.filter(op =>
+    op.teamId === teamId &&
+    op.factoryId != null &&
+    !factoryIds.includes(op.factoryId)
+  );
+}
+
+// Deleting a group is only allowed once it is empty — otherwise its members
+// would be left pointing at a group that no longer exists.
+$('#teamDelete').addEventListener('click', () => {
+  if (!editingTeam) return;
+  if (teamMemberCount(editingTeam.id) > 0) {
+    showSnack('Cannot delete groups that contain items');
+    return;
+  }
+  teams = teams.filter(t => t.id !== editingTeam.id);
+  persist();
+  renderList();
+  renderTeams();
+  closeAllModals();
+});
+
+// Factories dropdown (multi-select) with a "Select all" control row.
 bindDropdown('#teamFactoriesTrigger', '#teamFactoriesMenu', () => {
   const sel = window.__teamFactories || [];
+  const allOn = FACTORIES.length > 0 && sel.length === FACTORIES.length;
   const rows = FACTORIES.map(f => `
     <div class="dropdown__row ${sel.includes(f.id) ? 'is-checked' : ''}" data-value="${f.id}">
       ${checkboxMarker(sel.includes(f.id))}
       <span style="flex:1;">${escapeHtml(f.name)}</span>
     </div>
   `).join('');
-  return `<div class="dropdown__rows">${rows}</div>`;
+  return `<div class="dropdown__rows">
+    <div class="dropdown__row ${allOn ? 'is-checked' : ''}" data-value="__all">
+      ${checkboxMarker(allOn)}
+      <span style="flex:1;">Select all</span>
+    </div>
+    <div class="dropdown__divider"></div>
+    ${rows}
+  </div>`;
 });
+// "Select all" is a control row, not a factory: clicking it sets or clears the
+// whole list, so it needs its own handler rather than the generic collector.
 $('#teamFactoriesTrigger').addEventListener('click', () => {
   window.__currentMultiSelect = () => {
-    window.__teamFactories = $$('#teamFactoriesMenu .dropdown__row.is-checked')
-      .map(r => Number(r.dataset.value));
+    const rows = $$('#teamFactoriesMenu .dropdown__row');
+    const allRow = rows.find(r => r.dataset.value === '__all');
+    const factRows = rows.filter(r => r.dataset.value !== '__all');
+    const before = window.__teamFactories || [];
+    const allWasOn = before.length === FACTORIES.length;
+    if (allRow && allRow.classList.contains('is-checked') !== allWasOn) {
+      // The "Select all" row itself was toggled.
+      window.__teamFactories = allRow.classList.contains('is-checked')
+        ? FACTORIES.map(f => f.id)
+        : [];
+    } else {
+      window.__teamFactories = factRows
+        .filter(r => r.classList.contains('is-checked'))
+        .map(r => Number(r.dataset.value));
+    }
     refreshTeamSummaries();
+    redrawDropdown('#teamFactoriesMenu');
   };
 });
 

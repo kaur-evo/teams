@@ -658,6 +658,13 @@ svg { color: var(--solid-grey-600); }
   color: var(--solid-grey-600);
   margin-left: 4px;
 }
+/* Factory scope of the group, trailing the name + count. */
+.team-group__scope {
+  font-size: 12px;
+  line-height: 20px;
+  color: var(--solid-grey-600);
+  margin-left: 12px;
+}
 .team-group__caret {
   width: 24px; height: 24px;
   display: inline-flex; align-items: center; justify-content: center;
@@ -1149,3 +1156,56 @@ img.role-card__star { width: 16px; height: 16px; }
 }
 .op-switch.is-on { background: #2ecc71; }
 .op-switch.is-on .op-switch-knob { transform: translateX(20px); }
+
+/* Separates a control row ("Select all") from the values below it. */
+.dropdown__divider {
+  height: 1px;
+  background: var(--solid-grey-200);
+  margin: 4px 0;
+}
+
+/* ── Snackbar ────────────────────────────────────────────────────────────────
+   Blocking-rule feedback (e.g. "Cannot delete groups that contain items").
+   Stacks bottom-centre; each one dismisses on its own or via the close icon. */
+.snackbar-host {
+  position: fixed;
+  left: 50%;
+  bottom: 24px;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 4000;
+  pointer-events: none;
+}
+.snackbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 56px;
+  padding: 8px 12px 8px 16px;
+  border-radius: 4px;
+  background: var(--solid-red-200);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.16);
+  pointer-events: auto;
+  animation: snackbar-in 0.16s ease-out;
+}
+.snackbar__text {
+  font-family: 'Open Sans', sans-serif;
+  font-size: 16px;
+  line-height: 24px;
+  color: var(--solid-grey-900);
+  flex: 1;
+}
+.snackbar__close {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  width: 24px; height: 24px;
+  display: inline-flex; align-items: center; justify-content: center;
+  cursor: pointer;
+}
+@keyframes snackbar-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: none; }
+}
