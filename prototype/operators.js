@@ -1286,8 +1286,11 @@ const OperatorsPanel = {
      * within the section it actually covers. Outside that section the earlier
      * leader stays untouched.
      *
-     * Additional workforce is a count, not a person, so it sums across the
-     * layers covering a section rather than overriding.
+     * Additional workforce is a single quantity per section, not a set of
+     * identities, so the last layer that states it wins, exactly like the
+     * shift leader. An operator registers what is actually on the floor for
+     * that stretch of time rather than a delta on top of what came before,
+     * which also makes saving the same entry twice a no-op.
      */
     function splitEntries(existing, incoming) {
       const layers = [...existing, incoming].filter(l =>
@@ -1322,7 +1325,10 @@ const OperatorsPanel = {
           Object.entries(l.roles || {}).forEach(([id, r]) => {
             roles[id] = Array.isArray(r) ? [...r] : (r ? [r] : []);
           });
-          helperCount += (l.helperCount || 0);
+          // Additional workforce is one quantity per slot, not a set of
+          // people, so a later layer restates it rather than adding to it.
+          // Layers that make no claim (null) leave the current value alone.
+          if (l.helperCount != null) helperCount = l.helperCount;
           // Single leader per section: the last covering layer that names one wins.
           const ids = Array.isArray(l.leaderIds) && l.leaderIds.length
             ? l.leaderIds
@@ -1408,7 +1414,10 @@ const OperatorsPanel = {
         roles: newRoles,
         leaderIds: [...formLeaderIds.value],
         leaderId: formLeaderId.value, // back-compat: primary leader
-        helperCount: hasHelpers ? formHelperCount.value : 0,
+        // null means "this entry makes no claim about additional workforce",
+        // which is different from claiming zero. An operator-only entry must
+        // not wipe the AW already recorded for the time it covers.
+        helperCount: helpersOn.value ? (formHelperCount.value || 0) : null,
         startTime: formStartTime.value,
         endTime: formEndTime.value,
       };
