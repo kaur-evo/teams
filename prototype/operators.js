@@ -537,6 +537,11 @@ const OperatorsPanel = {
     // Station setting "Allow additional workforce on shift" — gates the
     // Additional workforce row in the picker (proto-panel stands in for the
     // real Stations screen).
+    // Variant B: overlapping additional-workforce counts add up instead of the
+    // later one stating the reality for that stretch. Off by default.
+    const awMerge = ref(window.__protoAWMerge === 'on');
+    window.addEventListener('proto:awMerge', (e) => { awMerge.value = e.detail === 'on'; });
+
     const allowAW = ref(window.__protoAllowAW !== 'off');
     window.addEventListener('proto:allowAW', (e) => {
       allowAW.value = e.detail !== 'off';
@@ -1328,7 +1333,10 @@ const OperatorsPanel = {
           // Additional workforce is one quantity per slot, not a set of
           // people, so a later layer restates it rather than adding to it.
           // Layers that make no claim (null) leave the current value alone.
-          if (l.helperCount != null) helperCount = l.helperCount;
+          // Under the merge variant the stated counts add up instead.
+          if (l.helperCount != null) {
+            helperCount = awMerge.value ? helperCount + l.helperCount : l.helperCount;
+          }
           // Single leader per section: the last covering layer that names one wins.
           const ids = Array.isArray(l.leaderIds) && l.leaderIds.length
             ? l.leaderIds

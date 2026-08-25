@@ -66,6 +66,17 @@
       label: 'Allow multiple shift leaders (multi-select / multiple chips)',
       on: 'on', off: 'off', defOn: false,
     },
+    {
+      // How an overlapping entry's additional-workforce count combines with
+      // what is already recorded for that stretch of time.
+      //   off (default) — the new count states the reality for that stretch and
+      //                   replaces what was there. 5 people 12:00-17:00 plus 3
+      //                   entered for 13:00-14:00 gives 3 for that hour.
+      //   on            — the counts add up, giving 8 for that hour.
+      key: 'protoAWMerge', global: '__protoAWMerge', event: 'proto:awMerge',
+      label: 'Additional workforce adds up on overlap (instead of restating it)',
+      on: 'on', off: 'off', defOn: false,
+    },
   ];
 
   function get(opt) {
