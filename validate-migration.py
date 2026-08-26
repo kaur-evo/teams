@@ -1,7 +1,7 @@
 """Independently re-derives the migration from the source and checks the
 workbook against it. Written to disagree with the builder, not to mirror it:
 every expected value here is recomputed from the CSV rather than imported."""
-import csv, collections, sys, re
+import csv, collections, sys, re, statistics
 from openpyxl import load_workbook
 
 SRC='operators_data_202608141724-noname.csv'; XL='operator-group-migration.xlsx'
@@ -31,7 +31,7 @@ for (t,oid),v in src.items():
     exp[(t,oid)]={'stations':st,'factories':fa,'group':', '.join(fa) if st else ''}
 
 wb=load_workbook(XL, read_only=True)
-check('Workbook has exactly 3 sheets', wb.sheetnames==['Operators','Groups','Summary'], wb.sheetnames)
+check('Workbook has exactly 2 sheets', wb.sheetnames==['Operators','Groups'], wb.sheetnames)
 
 # ---- sheet 1 ----
 ws=wb['Operators']; rows=list(ws.values); head=list(rows[0]); body=rows[1:]
@@ -107,32 +107,48 @@ check('tenantGroups is consistent within each tenant',
 check('tenantGroups rows per tenant match its stated total',
       all(sum(1 for r in gbody if r[0]==t)==pt_want[t] for t in pt_want))
 
-# ---- sheet 3 ----
-s=dict()
-for r in wb['Summary'].values:
-    if r[0] and r[1] not in (None,''): s[r[0]]=r[1]
-def num(label): return s.get(label)
-check('Summary: source row count', num('Operator rows in source')==len(src), num('Operator rows in source'))
-check('Summary: operators receiving a group',
-      num('Operators receiving a group')==sum(1 for r in body if r[5]))
-check('Summary: groups to create', num('Groups to create')==len(want))
-check('Summary: tenants receiving groups',
-      num('Tenants receiving groups')==len(set(t for t,_ in want)))
-check('Summary: total without a group',
-      num('Total without a group')==sum(1 for r in body if not r[5]))
-check('Summary: no-group parts add up',
-      (num('  had no stations in the source') or 0)+(num('  emptied by the Yara change') or 0)
-      ==num('Total without a group'))
-check('Summary: yara operators touched',
-      num('Operators touched')==sum(1 for k,v in src.items()
-                                    if k[0]=='yara' and DROP_FACTORY in v['factories']))
-check('Summary: yara groups after', num('Yara groups after')==sum(1 for t,_ in want if t=='yara'))
+# ---- figures published to Notion ----
+# The summary lives in Notion (Shaping Teams & Operators -> Migration of
+# operator groups -> Migration output) rather than in the workbook. Restating
+# it here means a change in the data fails this script instead of quietly
+# leaving the page wrong.
 pt=collections.Counter(t for t,_ in want)
-check('Summary: max groups per tenant', num('Maximum')==max(pt.values()), num('Maximum'))
-check('Summary: tenants with exactly 1 group',
-      num('Tenants with exactly 1 group')==sum(1 for v in pt.values() if v==1))
-check('Summary: average groups per tenant',
-      abs(num('Average')-sum(pt.values())/len(pt))<0.01, num('Average'))
+gv=sorted(pt.values())
+grouped_n=sum(1 for r in body if r[5])
+combo_n=sum(1 for (_,g) in want if ',' in g)
+yara_touched=sum(1 for k,v in src.items() if k[0]=='yara' and DROP_FACTORY in v['factories'])
+yara_stations=sum(1 for k,v in src.items() if k[0]=='yara'
+                  for st in v['stations'] if st.startswith(DROP_PREFIX))
+emptied=sum(1 for k,v in src.items() if k[0]=='yara' and v['stations']
+            and not [s for s in v['stations'] if not s.startswith(DROP_PREFIX)])
+longest=max(want, key=lambda k: len(k[1]))
+
+NOTION={
+ 'Operator rows in source': (22900, len(src)),
+ 'Tenants in source': (624, len(set(t for t,_ in src))),
+ 'Yara operators touched': (300, yara_touched),
+ 'Yara station assignments removed': (900, yara_stations),
+ 'Yara groups after': (44, sum(1 for t,_ in want if t=='yara')),
+ 'Left with no stations by the Yara change': (23, emptied),
+ 'Operators receiving a group': (22181, grouped_n),
+ 'Groups to create': (1025, len(want)),
+ 'Tenants receiving groups': (623, len(pt)),
+ 'Single-factory group names': (961, len(want)-combo_n),
+ 'Combination group names': (64, combo_n),
+ 'Median groups per tenant': (1, int(statistics.median(gv))),
+ 'Tenants with exactly 1 group': (514, sum(1 for v in gv if v==1)),
+ 'Tenants with more than 10 groups': (8, sum(1 for v in gv if v>10)),
+ 'Largest tenant group count': (44, max(gv)),
+ 'Groups holding a single operator': (100, sum(1 for v in want.values() if v==1)),
+ 'Total operators skipped': (719, len(body)-grouped_n),
+ 'Had no stations in the source': (696, sum(1 for v in src.values() if not v['stations'])),
+ 'Tenants named "Default"': (187, sum(1 for (_,g) in want if g=='Default')),
+ 'Longest group name length': (99, len(longest[1])),
+}
+for label,(published,actual) in NOTION.items():
+    check(f'Notion figure: {label}', published==actual, f'page says {published}, data says {actual}')
+avg=round(sum(gv)/len(gv),2)
+check('Notion figure: average groups per tenant', avg==1.65, f'page says 1.65, data says {avg}')
 
 print('\n' + (f'{len(fails)} FAILED: '+', '.join(fails) if fails else 'All checks passed.'))
 sys.exit(1 if fails else 0)

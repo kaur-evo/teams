@@ -53,68 +53,14 @@ ws2.append(['tenantName','tenantGroups','operatorGroup','operators'])
 for (t,g),n in sorted(counts.items(), key=lambda x:(x[0][0],-x[1],x[0][1])):
     ws2.append([t,per_tenant[t],g,n])
 
-ws3=wb.create_sheet('Summary'); ws3.append(['Item','Value','Notes'])
-S=lambda t: ws3.append([t,'',''])
-A=lambda a,b,c='': ws3.append([a,b,c])
+# The summary lives in Notion (Shaping Teams & Operators -> Migration of
+# operator groups -> Migration output) so there is one place to read it.
 
-S('SOURCE')
-A('Source file', SRC)
-A('Operator rows in source', len(raw))
-A('Tenants in source', len(set(r['tenantName'] for r in raw)))
-
-S('RULE APPLIED')
-A('Group name', 'the factories the operator works in, comma-separated, alphabetical',
-  'Factory comes from station -> station group -> factory. One group per operator.')
-A('Separator', 'comma + space', '122 factory names contain a hyphen, so a hyphen would be unreadable. No factory name contains a comma.')
-
-S('YARA CHANGE')
-A('Reason','IT-Agribios has no operators actually on shift','Its stations are removed from Yara operators before grouping.')
-A('Operators touched', yara_touched)
-A('Station assignments removed', yara_stations_removed, 'Stations IT-AGR-SB1, IT-AGR-SB2, IT-AGR-SB3')
-A('Prefix rule check','exact, 0 mismatches','No operator had the factory without an IT-AGR- station, or the reverse.')
-A('Yara groups before', 63)
-A('Yara groups after', per_tenant.get('yara',0))
-A('Operators left with no stations by this change', emptied, 'They had only IT-Agribios stations. No group is created for them.')
-
-S('OPERATORS WITHOUT A GROUP')
-A('Total without a group', len(recs)-len(grouped))
-A('  had no stations in the source', already_empty, 'Largest: marsmtm 370, cocacolahbc 48, yiotis 41')
-A('  emptied by the Yara change', emptied)
-A('Handling','left blank, no group created','Column operatorGroup is empty and the note says why. They are not on the Groups sheet.')
-
-S('RESULT')
-A('Operators receiving a group', len(grouped))
-A('Groups to create', len(counts))
-A('Tenants receiving groups', len(per_tenant))
-A('  single-factory group names', len(counts)-len(combo))
-A('  combination group names', len(combo), 'Operator works across several factories')
-
-S('GROUPS PER TENANT')
-A('Average', round(sum(gv)/len(gv),2))
-A('Median', int(statistics.median(gv)))
-A('Minimum', min(gv))
-A('Maximum', max(gv), max(per_tenant, key=per_tenant.get))
-A('Tenants with exactly 1 group', sum(1 for v in gv if v==1), f'{round(100*sum(1 for v in gv if v==1)/len(gv))}% of tenants')
-A('Tenants with more than 10 groups', sum(1 for v in gv if v>10))
-A('Groups holding a single operator', sum(1 for v in counts.values() if v==1))
-
-S('LARGEST TENANTS BY GROUP COUNT')
-for t,n in per_tenant.most_common(10): A(f'  {t}', n)
-
-S('NAMING WATCH-OUTS')
-A('Tenants whose group is named "Default"', sum(1 for (t,g) in counts if g=='Default'),
-  'That is the name of their only factory. Decided: keep it, no special-casing.')
-longest=max(counts, key=lambda k: len(k[1]))
-A('Longest group name', len(longest[1]), f'{longest[0]}: {longest[1]}')
-
-for sheet,widths in ((ws,[18,12,60,40,12,42,32]),(ws2,[24,14,46,12]),(ws3,[46,58,86])):
+for sheet,widths in ((ws,[18,12,60,40,12,42,32]),(ws2,[24,14,46,12])):
     sheet.freeze_panes='A2'
     for i,w in enumerate(widths,1): sheet.column_dimensions[get_column_letter(i)].width=w
     for c in sheet[1]: c.font=Font(bold=True)
 ws.auto_filter.ref=ws.dimensions; ws2.auto_filter.ref=ws2.dimensions
-for row in ws3.iter_rows(min_row=2,max_col=1):
-    c=row[0]
-    if c.value and c.value.isupper(): c.font=Font(bold=True)
 wb.save(OUT)
 print(f"Operators {len(recs)} | Groups {len(counts)} | Tenants {len(per_tenant)} | ilma grupita {len(recs)-len(grouped)}")
 print(f"Yara: {yara_touched} operaatorit, {yara_stations_removed} jaamaseost eemaldatud, {emptied} jäi tühjaks, grupid 63 -> {per_tenant.get('yara',0)}")
