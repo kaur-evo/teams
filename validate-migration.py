@@ -4,7 +4,11 @@ every expected value here is recomputed from the CSV rather than imported."""
 import csv, collections, sys, re, statistics
 from openpyxl import load_workbook
 
-SRC='operators_data_202608141724-noname.csv'; XL='operator-group-migration.xlsx'
+SRC='operators_data_202608141724-noname.csv'
+# Validate the file named on the command line, otherwise the newest export.
+import glob, os
+XL=sys.argv[1] if len(sys.argv)>1 else max(
+    glob.glob('operator-group-migration-*.xlsx'), key=os.path.getmtime)
 DROP_PREFIX='IT-AGR-'; DROP_FACTORY='IT-Agribios'
 fails=[]
 def check(name, ok, detail=''):
@@ -30,6 +34,7 @@ for (t,oid),v in src.items():
     fa=sorted(set(fa))
     exp[(t,oid)]={'stations':st,'factories':fa,'group':', '.join(fa) if st else ''}
 
+print(f'validating: {XL}\n')
 wb=load_workbook(XL, read_only=True)
 check('Workbook has exactly 2 sheets', wb.sheetnames==['Operators','Groups'], wb.sheetnames)
 
@@ -168,6 +173,24 @@ NOTION['Yara: combinations containing IT-Agribios']=(40, sum(1 for g in _combo i
 NOTION['Yara: fallback names already standalone']=(18, len(_fallback & _solo))
 NOTION['Yara: fallback names that are new']=(22, len(_fallback - _solo))
 NOTION['Yara: standalone IT-Agribios group operators']=(23, _before.get(DROP_FACTORY, 0))
+
+# Claims made in prose on the page that no numeric check covered yet.
+allf={f for v in src.values() for f in v['factories']}
+NOTION['Prose: factory names containing a hyphen']=(122, sum(1 for f in allf if '-' in f))
+NOTION['Prose: factory names containing a comma']=(0, sum(1 for f in allf if ',' in f))
+NOTION['Prose: distinct factory names']=(790, len(allf))
+
+top=collections.Counter(t for t,_ in want).most_common(10)
+NOTION['Prose: largest tenants list']=(
+    'yara 44, bostik 35, jw 18, barrus 15, matrixpack 14, cocacolamaroc 12, '
+    'hplush 12, corinth 12, thrace 10, yarabig 9',
+    ', '.join(f'{t} {n}' for t,n in top))
+
+nost=collections.Counter(k[0] for k,v in src.items() if not v['stations']).most_common(3)
+NOTION['Prose: largest no-station tenants']=(
+    'marsmtm 370, cocacolahbc 48, yiotis 41',
+    ', '.join(f'{t} {n}' for t,n in nost))
+NOTION['Prose: longest group name tenant']=('steelcurtainconsulting', longest[0])
 
 for label,(published,actual) in NOTION.items():
     check(f'Notion figure: {label}', published==actual, f'page says {published}, data says {actual}')

@@ -1,9 +1,13 @@
-import csv, collections, statistics
+import csv, collections, statistics, datetime, sys
 from openpyxl import Workbook
 from openpyxl.styles import Font, Alignment
 from openpyxl.utils import get_column_letter
 
-SRC='operators_data_202608141724-noname.csv'; OUT='operator-group-migration.xlsx'
+SRC='operators_data_202608141724-noname.csv'
+# Stamped with the export time and never overwritten, so earlier exports stay
+# around to diff against.
+STAMP=datetime.datetime.now().strftime('%Y%m%d-%H%M')
+OUT=f'operator-group-migration-{STAMP}.xlsx'
 DROP_PREFIX='IT-AGR-'; DROP_FACTORY='IT-Agribios'
 
 raw=[]
@@ -62,5 +66,6 @@ for sheet,widths in ((ws,[18,12,60,40,12,42,32]),(ws2,[24,14,46,12])):
     for c in sheet[1]: c.font=Font(bold=True)
 ws.auto_filter.ref=ws.dimensions; ws2.auto_filter.ref=ws2.dimensions
 wb.save(OUT)
+print(f"kirjutatud: {OUT}")
 print(f"Operators {len(recs)} | Groups {len(counts)} | Tenants {len(per_tenant)} | ilma grupita {len(recs)-len(grouped)}")
 print(f"Yara: {yara_touched} operaatorit, {yara_stations_removed} jaamaseost eemaldatud, {emptied} jäi tühjaks, grupid 63 -> {per_tenant.get('yara',0)}")
