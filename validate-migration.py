@@ -150,7 +150,25 @@ NOTION={
  'Table: worst tenant yara': (44, pt['yara']),
  'Table: groups holding a single operator': (100, sum(1 for v in want.values() if v==1)),
  'Table: combination group names': (64, combo_n),
+ # The Yara narrative, which was wrong twice before and is worth pinning down.
+ 'Yara: combination groups before': (40, None),
+ 'Yara: combinations containing IT-Agribios': (40, None),
+ 'Yara: fallback names already standalone': (18, None),
+ 'Yara: fallback names that are new': (22, None),
+ 'Yara: standalone IT-Agribios group operators': (23, None),
 }
+# The yara figures need the pre-change picture, so they are derived here.
+_y=[k for k in src if k[0]=='yara']
+_before=collections.Counter(', '.join(sorted(set(src[k]['factories']))) for k in _y)
+_solo={g for g in _before if ',' not in g}
+_combo=[g for g in _before if ',' in g]
+_fallback={', '.join(sorted(set(g.split(', '))-{DROP_FACTORY})) for g in _combo if DROP_FACTORY in g}
+NOTION['Yara: combination groups before']=(40, len(_combo))
+NOTION['Yara: combinations containing IT-Agribios']=(40, sum(1 for g in _combo if DROP_FACTORY in g))
+NOTION['Yara: fallback names already standalone']=(18, len(_fallback & _solo))
+NOTION['Yara: fallback names that are new']=(22, len(_fallback - _solo))
+NOTION['Yara: standalone IT-Agribios group operators']=(23, _before.get(DROP_FACTORY, 0))
+
 for label,(published,actual) in NOTION.items():
     check(f'Notion figure: {label}', published==actual, f'page says {published}, data says {actual}')
 avg=round(sum(gv)/len(gv),2)
