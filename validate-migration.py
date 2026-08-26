@@ -81,9 +81,10 @@ check('Non-yara stations untouched', diff==0, f'{diff} changed')
 
 # ---- sheet 2 ----
 ws2=wb['Groups']; g=list(ws2.values); ghead=list(g[0]); gbody=g[1:]
-check('Groups header as expected', ghead==['tenantName','operatorGroup','operators'], ghead)
+check('Groups header as expected',
+      ghead==['tenantName','tenantGroups','operatorGroup','operators'], ghead)
 want=collections.Counter((r[0],r[5]) for r in body if r[5])
-got={(r[0],r[1]):r[2] for r in gbody}
+got={(r[0],r[2]):r[3] for r in gbody}
 check('No duplicate tenant+group rows', len(gbody)==len(got), f'{len(gbody)-len(got)} duplicates')
 check('Groups sheet lists every distinct group', set(got)==set(want),
       f'missing {len(set(want)-set(got))}, extra {len(set(got)-set(want))}')
@@ -93,7 +94,18 @@ check('Operator counts per group are correct',
 check('Group operator counts sum to grouped operators',
       sum(got.values())==sum(1 for r in body if r[5]),
       f'{sum(got.values())} vs {sum(1 for r in body if r[5])}')
-check('No blank group name on Groups sheet', all(r[1] for r in gbody))
+check('No blank group name on Groups sheet', all(r[2] for r in gbody))
+
+# tenantGroups repeats a per-tenant total, so it has to equal that tenant's
+# real number of groups on every row it appears on.
+pt_want=collections.Counter(t for t,_ in want)
+bad_tg=[(r[0],r[1]) for r in gbody if r[1]!=pt_want[r[0]]]
+check('tenantGroups equals the tenant group count on every row',
+      not bad_tg, str(bad_tg[:3]))
+check('tenantGroups is consistent within each tenant',
+      all(len({r[1] for r in gbody if r[0]==t})==1 for t in pt_want))
+check('tenantGroups rows per tenant match its stated total',
+      all(sum(1 for r in gbody if r[0]==t)==pt_want[t] for t in pt_want))
 
 # ---- sheet 3 ----
 s=dict()

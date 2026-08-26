@@ -46,8 +46,12 @@ cols=['tenantName','operatorId','stations','factories','factoryCount','operatorG
 ws.append(cols)
 for r in recs: ws.append([r[c] for c in cols])
 
-ws2=wb.create_sheet('Groups'); ws2.append(['tenantName','operatorGroup','operators'])
-for (t,g),n in sorted(counts.items(), key=lambda x:(x[0][0],-x[1],x[0][1])): ws2.append([t,g,n])
+ws2=wb.create_sheet('Groups')
+ws2.append(['tenantName','tenantGroups','operatorGroup','operators'])
+# tenantGroups repeats the tenant's total on every one of its rows, so a single
+# row tells you both the group and how big a change this tenant is getting.
+for (t,g),n in sorted(counts.items(), key=lambda x:(x[0][0],-x[1],x[0][1])):
+    ws2.append([t,per_tenant[t],g,n])
 
 ws3=wb.create_sheet('Summary'); ws3.append(['Item','Value','Notes'])
 S=lambda t: ws3.append([t,'',''])
@@ -103,7 +107,7 @@ A('Tenants whose group is named "Default"', sum(1 for (t,g) in counts if g=='Def
 longest=max(counts, key=lambda k: len(k[1]))
 A('Longest group name', len(longest[1]), f'{longest[0]}: {longest[1]}')
 
-for sheet,widths in ((ws,[18,12,60,40,12,42,32]),(ws2,[24,46,12]),(ws3,[46,58,86])):
+for sheet,widths in ((ws,[18,12,60,40,12,42,32]),(ws2,[24,14,46,12]),(ws3,[46,58,86])):
     sheet.freeze_panes='A2'
     for i,w in enumerate(widths,1): sheet.column_dimensions[get_column_letter(i)].width=w
     for c in sheet[1]: c.font=Font(bold=True)
