@@ -144,6 +144,12 @@ NOTION={
  'Had no stations in the source': (696, sum(1 for v in src.values() if not v['stations'])),
  'Tenants named "Default"': (187, sum(1 for (_,g) in want if g=='Default')),
  'Longest group name length': (99, len(longest[1])),
+ # The comparison table at the top of the section on the same page.
+ 'Table: groups created': (1025, len(want)),
+ 'Table: operator-group links': (22181, grouped_n),
+ 'Table: worst tenant yara': (44, pt['yara']),
+ 'Table: groups holding a single operator': (100, sum(1 for v in want.values() if v==1)),
+ 'Table: combination group names': (64, combo_n),
 }
 for label,(published,actual) in NOTION.items():
     check(f'Notion figure: {label}', published==actual, f'page says {published}, data says {actual}')
