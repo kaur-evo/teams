@@ -83,11 +83,11 @@ const OperatorsPanel = {
                       --><span>{{ part.name }}</span>
                     </template><!--
                     Additional workforce listed as the last item when present.
-                    --><template v-if="entry.helperCount > 0">, <span>Additional workforce</span></template>
+                    --><template v-if="entry.helperCount > 0">, <span>Additional workforce ({{ entry.helperCount }})</span></template>
                   </span>
                 </div>
                 <div v-else-if="entry.helperCount > 0" class="op-card-alt-row">
-                  <span class="op-card-alt-names">Additional workforce</span>
+                  <span class="op-card-alt-names">Additional workforce ({{ entry.helperCount }})</span>
                 </div>
 
                 <!-- Labels row (Figma 32124:11673): inline caption icon-labels —
