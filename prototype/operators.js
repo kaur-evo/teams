@@ -165,7 +165,7 @@ const OperatorsPanel = {
              14px rows with a left checkbox + name (and a 12px caption line
              showing the operator's role when toggle is OFF, or a role chip
              on the right when the toggle is ON). Helpers row matches the
-             same checkbox shape with an inline "N people" chip. Footer holds
+             same checkbox shape with an inline count chip. Footer holds
              a toggle "Adjust operator roles" + Start/End time inputs. -->
         <template v-if="currentView === 'add-operators'">
           <!-- Header matches the saved card (Figma 32124:11673): centered
@@ -395,7 +395,6 @@ const OperatorsPanel = {
                                v-model.number="formHelperCount"
                                @focus="helpersOn = true; if (!formHelperCount) formHelperCount = 1"
                                class="op-helpers-chip-input" />
-                        <span>people</span>
                       </span>
                     </span>
                   </span>
@@ -1247,8 +1246,12 @@ const OperatorsPanel = {
 
     function cancelForm() {
       editingEntryId.value = null;
-      // Nothing assigned → stay in the choice view (no empty overview).
-      currentView.value = entries.value.length === 0 ? 'add-operators' : 'overview';
+      // Nothing assigned → close the panel. There is no overview to fall back
+      // to (the watcher opened the choice view for exactly that reason), and
+      // re-entering the view the user is already looking at makes CANCEL read
+      // as a dead button.
+      if (entries.value.length === 0) { emit('close'); return; }
+      currentView.value = 'overview';
     }
 
     // ── Save ──
@@ -1528,9 +1531,14 @@ const OperatorsPanel = {
     }
 
     function handleOverlayClick() {
-      if (currentView.value === 'overview') {
-        emit('close');
-      }
+      if (currentView.value === 'overview') { emit('close'); return; }
+      // Otherwise the click is swallowed, so a stray one cannot discard a
+      // half-finished selection. The exception is the choice view opened onto
+      // an empty shift with nothing picked yet: nothing to lose, and no
+      // overview behind it to return to.
+      if (entries.value.length === 0
+          && formSelectedOps.value.length === 0
+          && !helpersOn.value) emit('close');
     }
 
     // ── Tooltip ──
