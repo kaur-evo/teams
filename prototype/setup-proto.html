@@ -108,7 +108,7 @@
             <th><span class="th-inner">Factories</span></th>
             <th><span class="th-inner">Operator group</span></th>
             <th><span class="th-inner">Shift leader</span></th>
-            <th>
+            <th class="is-tags">
               <span class="th-inner">
                 <span data-icn="tags" data-size="16"></span>
                 Tags
@@ -191,7 +191,7 @@
         </div>
       </div>
       <!-- Row 3: Tags | Role (Role hidden in leader mode → Tags sits alone) -->
-      <div class="field-row">
+      <div class="field-row" id="opTagsRoleRow">
         <div class="field fld-tags" style="position:relative;">
           <button type="button" class="field__select is-empty" id="opTagsTrigger">
             <span class="field__select-text">Tags</span>
@@ -290,7 +290,7 @@
           <div class="dropdown" id="teamFactoriesMenu" data-anchor="#teamFactoriesTrigger"></div>
         </div>
       </div>
-      <div class="field-row">
+      <div class="field-row" id="teamTagsRow">
         <div class="field" style="position:relative;">
           <button type="button" class="field__select is-empty" id="teamTagsTrigger">
             <span class="field__select-text">Tags</span>
@@ -411,6 +411,8 @@ const TEAM_COLOR_PALETTE = [
 // ─── Helpers ───
 const $  = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
+// Tags on/off comes from the H-key prototype panel (proto-panel.js).
+const tagsOn = () => window.__protoTags !== 'off';
 const escapeHtml = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const teamById = id => teams.find(t => t.id === id);
 const factoryById = id => FACTORIES.find(f => f.id === id);
@@ -474,7 +476,7 @@ function renderList() {
         <td>${escapeHtml(factoryName)}</td>
         <td>${renderGroupCell(op)}</td>
         <td>${renderRoleCell(op)}</td>
-        <td>${renderTagsCell(op)}</td>
+        ${tagsOn() ? `<td>${renderTagsCell(op)}</td>` : ''}
         <td>${escapeHtml((op.stations || []).join(', '))}</td>
         <td>No</td>
         <td></td>
@@ -515,7 +517,7 @@ function renderTeams(expandTeamId) {
           <table class="table teams">
             <colgroup>
               <col class="tg-first"><col class="tg-last"><col class="tg-stat">
-              <col class="tg-role"><col class="tg-tags"><col class="tg-pass">
+              <col class="tg-role">${tagsOn() ? '<col class="tg-tags">' : ''}<col class="tg-pass">
             </colgroup>
             <thead>
               <tr>
@@ -523,7 +525,7 @@ function renderTeams(expandTeamId) {
                 <th><span class="th-inner">Last name</span></th>
                 <th><span class="th-inner">Stations</span></th>
                 <th><span class="th-inner">Shift leader</span></th>
-                <th><span class="th-inner">Tags</span></th>
+                ${tagsOn() ? '<th><span class="th-inner">Tags</span></th>' : ''}
                 <th><span class="th-inner">Passcode</span></th>
               </tr>
             </thead>
@@ -534,7 +536,7 @@ function renderTeams(expandTeamId) {
                   <td>${escapeHtml(op.lastName)}</td>
                   <td>${escapeHtml((op.stations || []).join(', '))}</td>
                   <td>${renderRoleCell(op)}</td>
-                  <td>${renderTagsCell(op)}</td>
+                  ${tagsOn() ? `<td>${renderTagsCell(op)}</td>` : ''}
                   <td>No</td>
                 </tr>
               `).join('')}
@@ -771,11 +773,14 @@ function refreshOperatorSummaries() {
     emSw.setAttribute('aria-checked', String(!!window.__opExcludeManhours));
   }
 
-  // Tags
+  // Tags — absent from the DOM when the feature is switched off, but the
+  // operator's own tags stay in window.__opTags so saving preserves them.
   const gTrig = $('#opTagsTrigger');
   const tags = window.__opTags || [];
-  gTrig.classList.toggle('is-empty', tags.length === 0);
-  $('.field__select-text', gTrig).textContent = tags.length ? (tags.length === 1 ? tags[0] : `${tags[0]} + ${tags.length - 1} more`) : 'Tags';
+  if (gTrig) {
+    gTrig.classList.toggle('is-empty', tags.length === 0);
+    $('.field__select-text', gTrig).textContent = tags.length ? (tags.length === 1 ? tags[0] : `${tags[0]} + ${tags.length - 1} more`) : 'Tags';
+  }
 }
 
 function openOperatorModal(opId) {
@@ -1069,10 +1074,12 @@ function setTeamForm(team) {
 function refreshTeamSummaries() {
   const tTrig = $('#teamTagsTrigger');
   const tags = window.__teamTags || [];
-  tTrig.classList.toggle('is-empty', tags.length === 0);
-  $('.field__select-text', tTrig).textContent = tags.length
-    ? (tags.length === 1 ? tags[0] : `${tags[0]} + ${tags.length - 1} more`)
-    : 'Tags';
+  if (tTrig) {
+    tTrig.classList.toggle('is-empty', tags.length === 0);
+    $('.field__select-text', tTrig).textContent = tags.length
+      ? (tags.length === 1 ? tags[0] : `${tags[0]} + ${tags.length - 1} more`)
+      : 'Tags';
+  }
 
   // Factories — "All factories" only when every factory is ticked; an empty
   // selection is a genuinely empty field, not a shorthand for all.
@@ -1231,7 +1238,30 @@ $('#teamTagsTrigger').addEventListener('click', () => {
 $('#toggleList').addEventListener('click',  () => setView('list'));
 $('#toggleTeams').addEventListener('click', () => setView('teams'));
 
+// ─── Tags feature switch (proto-panel, H-key) ───
+// The rendered views just ask tagsOn(). The static pieces — the list table's
+// column and header, the operator modal's field, the group modal's whole row —
+// are lifted out of the DOM instead of hidden, so each <colgroup> keeps lining
+// up with the cells actually rendered. A comment node holds the place and the
+// element itself is kept, listeners and all, for when tags come back.
+const TAG_PARTS = ['col.c-tags', 'th.is-tags', '.modal--operator .fld-tags', '#teamTagsRow']
+  .map(sel => $(sel)).filter(Boolean)
+  .map(el => ({ el, slot: document.createComment('tags') }));
+
+function applyTagsSetting() {
+  const on = tagsOn();
+  TAG_PARTS.forEach(({ el, slot }) => {
+    if (on && slot.isConnected) slot.replaceWith(el);
+    else if (!on && el.isConnected) el.replaceWith(slot);
+  });
+  // That row pairs Tags with the default-role field, and leader mode already
+  // hides the role field — so with tags gone the row is an empty band.
+  const row = $('#opTagsRoleRow');
+  if (row) row.style.display = (!on && isLeaderRolesMode()) ? 'none' : '';
+}
+
 // ─── Initial render ───
+applyTagsSetting();
 renderList();
 renderTeams();
 setView('list');
@@ -1239,8 +1269,9 @@ setView('list');
 // Prototype settings (proto-panel.js, H-key) can change while this page is
 // open. Re-render the affected views + any open operator modal so the Role
 // field, list cells, and dropdowns reflect the new tier / roles mode live.
-['proto:tier', 'proto:rolesMode', 'proto:excludeManhours'].forEach(evt => {
+['proto:tier', 'proto:rolesMode', 'proto:excludeManhours', 'proto:tags'].forEach(evt => {
   window.addEventListener(evt, () => {
+    applyTagsSetting();
     renderList();
     renderTeams();
     closeAllDropdowns();

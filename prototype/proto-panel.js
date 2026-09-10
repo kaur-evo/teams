@@ -67,6 +67,15 @@
       on: 'on', off: 'off', defOn: false,
     },
     {
+      // Tags are still an open question, so the panel can take them out of the
+      // page entirely: both table columns, both modal fields, and the
+      // dropdowns behind them. Off answers "what does this look like without
+      // tags at all", which is cheaper to look at than to argue about.
+      key: 'protoTags', global: '__protoTags', event: 'proto:tags',
+      label: 'Tags on operators and operator groups',
+      on: 'on', off: 'off', defOn: true,
+    },
+    {
       // How an overlapping entry's additional-workforce count combines with
       // what is already recorded for that stretch of time.
       //   off (default) — the new count states the reality for that stretch and
