@@ -1484,6 +1484,7 @@ function selectY2(option) {
   if (newY2 === currentY2) return;
   currentY2 = newY2;
   document.getElementById('y2axis-btn').textContent = '2nd Y-axis: ' + (currentY2 || '–') + ' ▾';
+  setChipActive('y2axis-btn', currentY2);
   buildY2Dropdown();
   redrawChart(currentXAxis);
 }
@@ -1529,6 +1530,7 @@ function selectXAxis(option) {
   if (downtimeSplitBy === option) {
     downtimeSplitBy = null;
     document.getElementById('splitby-btn').innerHTML = 'Split by: – &nbsp;▾';
+    setChipActive('splitby-btn', false);
   }
   redrawChart(option);
   document.querySelectorAll('.xaxis-opt').forEach(el => {
@@ -1551,6 +1553,13 @@ function buildXAxisDropdown() {
       dd.appendChild(el);
     }
   });
+}
+
+// A chart-control chip turns green once it carries a selection. Only "Split
+// by" and the 2nd Y-axis have an empty state to turn it off again — X-axis,
+// Y-axis, chart type and the date range always hold a value, so those stay on.
+function setChipActive(id, on) {
+  document.getElementById(id)?.classList.toggle('active', !!on);
 }
 
 // The three people dimensions, in the order the spec lists them everywhere
@@ -1590,6 +1599,7 @@ function selectSplit(val) {
   downtimeSplitBy = val;
   document.getElementById('splitby-dropdown').classList.remove('open');
   document.getElementById('splitby-btn').innerHTML = 'Split by: ' + (val || '–') + ' &nbsp;▾';
+  setChipActive('splitby-btn', val);
   // Re-render through the normal pipeline (split mode reshapes the items).
   const items = getAxisData(currentXAxis, _chartBaseData);
   if (!TIME_AXES.has(currentXAxis)) items.sort((a, b) => b.mainDur - a.mainDur);
@@ -1995,6 +2005,7 @@ function selectOeeXAxis(opt) {
   if (oeeSplitBy === opt) {
     oeeSplitBy = null;
     document.getElementById('oee-splitby-btn').textContent = 'Split by: – ▾';
+    setChipActive('oee-splitby-btn', false);
   }
   _oeePage = 0; _tblPage.oee = 0;
   document.getElementById('oee-xaxis-dropdown').classList.remove('open');
@@ -2026,6 +2037,7 @@ function selectOeeSplit(val) {
   _oeePage = 0; _tblPage.oee = 0;
   document.getElementById('oee-splitby-dropdown').classList.remove('open');
   document.getElementById('oee-splitby-btn').textContent = 'Split by: ' + (val || '–') + ' ▾';
+  setChipActive('oee-splitby-btn', val);
   drawOeeChart();
 }
 
@@ -2652,6 +2664,7 @@ function selectQtyXAxis(opt) {
   if (qtySplitBy === opt) {
     qtySplitBy = null;
     document.getElementById('qty-splitby-btn').innerHTML = 'Split by: – &nbsp;▾';
+    setChipActive('qty-splitby-btn', false);
   }
   _qtyPage = 0; _tblPage.qty = 0;
   document.getElementById('qty-xaxis-dropdown').classList.remove('open');
@@ -2680,6 +2693,7 @@ function selectQtySplit(val) {
   _qtyPage = 0; _tblPage.qty = 0;
   document.getElementById('qty-splitby-dropdown').classList.remove('open');
   document.getElementById('qty-splitby-btn').innerHTML = 'Split by: ' + (val || '–') + ' &nbsp;▾';
+  setChipActive('qty-splitby-btn', val);
   drawQtyChart();
 }
 
