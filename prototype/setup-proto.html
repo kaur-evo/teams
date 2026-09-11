@@ -436,8 +436,10 @@ function renderTagsCell(op) {
   return tags.map(t => escapeHtml(t)).join(', ');
 }
 // Shift leader cell — "Yes" when canLead, "-" otherwise.
+// Spec: the Shift leader column reads "Yes" or "No" — a dash would read as
+// "not applicable", and every operator has an answer to this one.
 function renderRoleCell(op) {
-  return op.canLead ? 'Yes' : '-';
+  return op.canLead ? 'Yes' : 'No';
 }
 // Group cell shows just the group name — color dots were removed (operator
 // groups no longer carry a color; see the group modal).
