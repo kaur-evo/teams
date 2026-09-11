@@ -73,7 +73,7 @@
       // tags at all", which is cheaper to look at than to argue about.
       key: 'protoTags', global: '__protoTags', event: 'proto:tags',
       label: 'Tags on operators and operator groups',
-      on: 'on', off: 'off', defOn: true,
+      on: 'on', off: 'off', defOn: false,
     },
     {
       // How an overlapping entry's additional-workforce count combines with
@@ -103,10 +103,10 @@
     syncInputs(opt, value);
   }
 
-  // Spec-finalisation reset: when defaults change (leader style → chip) bump
-  // PANEL_VERSION so stale stored choices are cleared once and everyone lands
-  // on the spec defaults.
-  const PANEL_VERSION = '2';
+  // Spec-finalisation reset: when defaults change (leader style → chip, then
+  // tags off) bump PANEL_VERSION so stale stored choices are cleared once and
+  // everyone lands on the spec defaults.
+  const PANEL_VERSION = '3';
   if (localStorage.getItem('protoPanelVersion') !== PANEL_VERSION) {
     OPTIONS.forEach(opt => localStorage.removeItem(opt.key));
     localStorage.setItem('protoPanelVersion', PANEL_VERSION);
