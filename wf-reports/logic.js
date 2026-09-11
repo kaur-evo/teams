@@ -1483,7 +1483,7 @@ function selectY2(option) {
   const newY2 = option === '–' ? null : option;
   if (newY2 === currentY2) return;
   currentY2 = newY2;
-  document.getElementById('y2axis-btn').textContent = '2nd Y-axis: ' + (currentY2 || '–') + ' ▾';
+  setChipLabel('y2axis-btn', '2nd Y-axis: ' + (currentY2 || '–'));
   setChipActive('y2axis-btn', currentY2);
   buildY2Dropdown();
   redrawChart(currentXAxis);
@@ -1514,7 +1514,7 @@ function redrawChart(xAxis) {
   drawChartWith(items);
   // updateChartCompare is set fresh inside drawChartWith; restore compare state
   if (wasCompareOn) updateChartCompare(true);
-  document.getElementById('xaxis-btn').textContent = 'X-axis: ' + xAxis + ' ▾';
+  setChipLabel('xaxis-btn', 'X-axis: ' + xAxis);
 }
 
 function toggleXAxisDropdown(event) {
@@ -1529,7 +1529,7 @@ function selectXAxis(option) {
   // split rather than asking a category to split by itself.
   if (downtimeSplitBy === option) {
     downtimeSplitBy = null;
-    document.getElementById('splitby-btn').innerHTML = 'Split by: – &nbsp;▾';
+    setChipLabel('splitby-btn', 'Split by: –');
     setChipActive('splitby-btn', false);
   }
   redrawChart(option);
@@ -1553,6 +1553,38 @@ function buildXAxisDropdown() {
       dd.appendChild(el);
     }
   });
+}
+
+// Chart-control chips are built from the text they ship with: that becomes the
+// label node, with the control's icon before it and a caret after — so redrawing
+// a value never wipes the glyphs. Icons are the real ones (../prototype/icn):
+// three-bar axis marks, the 2nd-Y curve with its green axis, a cog.
+const CHART_CHIPS = {
+  'dt-yaxis-btn':    'yAxis',  'y2axis-btn':       'y2Axis',
+  'xaxis-btn':       'xAxis',  'splitby-btn':      'xAxis',
+  'oee-xaxis-btn':   'xAxis',  'oee-splitby-btn':  'xAxis',
+  'qty-yaxis-btn':   'yAxis',  'qty-xaxis-btn':    'xAxis',
+  'oee-charttype-btn': 'lineChart',
+  'qty-splitby-btn': 'xAxis',
+};
+function decorateChartChips() {
+  Object.entries(CHART_CHIPS).forEach(([id, name]) => {
+    const el = document.getElementById(id);
+    if (!el || el.querySelector('.chip-label')) return;
+    const text = el.textContent.replace(/[\u25be\s\u00a0]+$/, '').trim();
+    el.innerHTML = icn(name) + `<span class="chip-label">${text}</span>` + icn('caret');
+  });
+  ['dt-cog', 'oee-cog', 'qty-cog'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el && !el.innerHTML.trim()) el.innerHTML = icn('cog', 24, '#757575');
+  });
+}
+
+// Writes a control chip's value without disturbing its icon or caret.
+function setChipLabel(id, text) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  (el.querySelector('.chip-label') || el).textContent = text;
 }
 
 // A chart-control chip turns green once it carries a selection. Only "Split
@@ -1598,7 +1630,7 @@ function toggleSplitDropdown(event) {
 function selectSplit(val) {
   downtimeSplitBy = val;
   document.getElementById('splitby-dropdown').classList.remove('open');
-  document.getElementById('splitby-btn').innerHTML = 'Split by: ' + (val || '–') + ' &nbsp;▾';
+  setChipLabel('splitby-btn', 'Split by: ' + (val || '–'));
   setChipActive('splitby-btn', val);
   // Re-render through the normal pipeline (split mode reshapes the items).
   const items = getAxisData(currentXAxis, _chartBaseData);
@@ -1647,9 +1679,7 @@ const filterState = {
 const FILTER_DIMS = {
   operators: {
     label: 'Operators', singular: 'operator', grouped: true,
-    // Evocon's operators icon (icn/"operators (account-hard-hat).svg") — the
-    // same glyph the real Action menu shows against "Operators".
-    icon: '<svg width="20" height="20" viewBox="0 0 24 24" fill="#616161"><path d="M12 15C7.58 15 4 16.79 4 19V21H20V19C20 16.79 16.42 15 12 15ZM8 9.00001C8 10.0609 8.42143 11.0783 9.17157 11.8284C9.92172 12.5786 10.9391 13 12 13C13.0609 13 14.0783 12.5786 14.8284 11.8284C15.5786 11.0783 16 10.0609 16 9.00001H8ZM11.5 2.00001C11.2 2.00001 11 2.21001 11 2.50001V5.50001H10V3.00001C10 3.00001 7.75 3.86001 7.75 6.75001C7.75 6.75001 7 6.89001 7 8.00001H17C16.95 6.89001 16.25 6.75001 16.25 6.75001C16.25 3.86001 14 3.00001 14 3.00001V5.50001H13V2.50001C13 2.21001 12.81 2.00001 12.5 2.00001H11.5Z"/></svg>',
+    icon: icn('operators', 20),
     // Unknown → Additional workforce → real operators A–Z.
     values: () => allOperatorOptions(),
     // Unknown / Additional workforce are pinned above the group headers as
@@ -1665,8 +1695,7 @@ const FILTER_DIMS = {
   },
   leaders: {
     label: 'Shift leaders', singular: 'leader',
-    // Evocon's flag icon (icn/"what's new (flag).svg"), as in the Action menu.
-    icon: '<svg width="20" height="20" viewBox="0 0 24 24" fill="#616161"><path d="M14.4 6L14 4H5V21H7V14H12.6L13 16H20V6H14.4Z"/></svg>',
+    icon: icn('leaders', 20),
     // "Unknown" is pinned on top so production with no assigned leader can be
     // isolated — it mirrors the Shift-leader axis catch-all.
     values: () => [OP_NO_LEADER, ...CAN_LEAD_OPERATORS],
@@ -1674,6 +1703,27 @@ const FILTER_DIMS = {
   },
 };
 const FILTER_ORDER = ['operators', 'leaders'];
+
+// What the live filter menu offers, per report and in its order. Only the two
+// people dimensions are wired to data — the rest are listed because the menu is
+// where a reviewer looks to see where Shift leaders sits among the dimensions
+// that already exist, and a two-item menu reads as a different product.
+// Decorative rows do nothing when clicked.
+const MENU_DECOR = {
+  productGroups: ['Product groups',      'group'],
+  products:      ['Products',            'products'],
+  orders:        ['Orders',              'products'],
+  lots:          ['LOT/Batch',           'products'],
+  shifts:        ['Shifts',              'shifts'],
+  stopTypes:     ['Stop types',          'stops'],
+  speedLoss:     ['Speed loss reasons',  'speedLoss'],
+  machineLoc:    ['Machine locations',   'machineLoc'],
+};
+const FILTER_MENU = {
+  downtime:   ['productGroups','products','orders','lots','operators','leaders','shifts','stopTypes','machineLoc'],
+  oee:        ['productGroups','products','orders','lots','operators','leaders','shifts','speedLoss','machineLoc'],
+  quantities: ['productGroups','products','orders','lots','operators','leaders','shifts'],
+};
 
 // Which dimensions are currently shown as chips (in the order added).
 let activeFilters = [];
@@ -1700,10 +1750,17 @@ function toggleFilterMenu(event) {
   document.getElementById('selection-list').classList.remove('open');
   if (wasOpen) return;
   menu.innerHTML = '';
-  FILTER_ORDER.forEach(key => {
-    const dim = FILTER_DIMS[key];
-    const added = activeFilters.includes(key);
+  (FILTER_MENU[currentReport] || FILTER_MENU.downtime).forEach(key => {
     const row = document.createElement('div');
+    const dim = FILTER_DIMS[key];
+    if (!dim) {                                    // decorative dimension
+      const [label, iconName] = MENU_DECOR[key];
+      row.className = 'action-menu-row is-inert';
+      row.innerHTML = `${icn(iconName, 20)}<span>${label}</span>`;
+      menu.appendChild(row);
+      return;
+    }
+    const added = activeFilters.includes(key);
     row.className = 'action-menu-row' + (added ? ' is-added' : '');
     row.innerHTML = `${dim.icon}<span>${dim.label}</span>`;
     // stopPropagation: otherwise the click bubbles to the document handler,
@@ -1932,6 +1989,13 @@ function switchReport(type) {
   document.getElementById('oee-chart-section').style.display       = type === 'oee'      ? '' : 'none';
   document.getElementById('qty-chart-section').style.display       = type === 'quantities' ? '' : 'none';
 
+  // Quantities has nothing to say about stops, so the live bar drops those two
+  // standing chips there.
+  ['chip-stop-groups', 'chip-stops'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = type === 'quantities' ? 'none' : '';
+  });
+
   if (type === 'oee') drawOeeChart();
   else if (type === 'quantities') drawQtyChart();
 }
@@ -1964,7 +2028,7 @@ function toggleOeeChartTypeDropdown(event) {
   document.querySelectorAll('.xaxis-dropdown, .filter-dropdown').forEach(el => el.classList.remove('open'));
   if (wasOpen) return;
   dd.innerHTML = '';
-  [{ val:'line', label:'~ Line chart' }, { val:'bar', label:'Bar chart' }].forEach(opt => {
+  [{ val:'line', label:'Line chart' }, { val:'bar', label:'Bar chart' }].forEach(opt => {
     const el = document.createElement('div');
     el.className = 'xaxis-opt' + (oeeChartType === opt.val ? ' selected' : '');
     el.textContent = opt.label;
@@ -1978,7 +2042,7 @@ function selectOeeChartType(val, label) {
   oeeChartType = val;
   _oeePage = 0; _tblPage.oee = 0;
   document.getElementById('oee-charttype-dropdown').classList.remove('open');
-  document.getElementById('oee-charttype-btn').innerHTML = label + ' &nbsp;▾';
+  setChipLabel('oee-charttype-btn', label);
   drawOeeChart();
 }
 
@@ -2004,12 +2068,12 @@ function selectOeeXAxis(opt) {
   oeeXAxis = opt;
   if (oeeSplitBy === opt) {
     oeeSplitBy = null;
-    document.getElementById('oee-splitby-btn').textContent = 'Split by: – ▾';
+    setChipLabel('oee-splitby-btn', 'Split by: –');
     setChipActive('oee-splitby-btn', false);
   }
   _oeePage = 0; _tblPage.oee = 0;
   document.getElementById('oee-xaxis-dropdown').classList.remove('open');
-  document.getElementById('oee-xaxis-btn').textContent = 'X-axis: ' + opt + ' ▾';
+  setChipLabel('oee-xaxis-btn', 'X-axis: ' + opt);
   drawOeeChart();
 }
 
@@ -2036,7 +2100,7 @@ function selectOeeSplit(val) {
   _oeeHiddenLeaders = new Set();
   _oeePage = 0; _tblPage.oee = 0;
   document.getElementById('oee-splitby-dropdown').classList.remove('open');
-  document.getElementById('oee-splitby-btn').textContent = 'Split by: ' + (val || '–') + ' ▾';
+  setChipLabel('oee-splitby-btn', 'Split by: ' + (val || '–'));
   setChipActive('oee-splitby-btn', val);
   drawOeeChart();
 }
@@ -2663,12 +2727,12 @@ function selectQtyXAxis(opt) {
   qtyXAxis = opt;
   if (qtySplitBy === opt) {
     qtySplitBy = null;
-    document.getElementById('qty-splitby-btn').innerHTML = 'Split by: – &nbsp;▾';
+    setChipLabel('qty-splitby-btn', 'Split by: –');
     setChipActive('qty-splitby-btn', false);
   }
   _qtyPage = 0; _tblPage.qty = 0;
   document.getElementById('qty-xaxis-dropdown').classList.remove('open');
-  document.getElementById('qty-xaxis-btn').innerHTML = 'X-axis: ' + opt + ' &nbsp;▾';
+  setChipLabel('qty-xaxis-btn', 'X-axis: ' + opt);
   drawQtyChart();
 }
 
@@ -2692,7 +2756,7 @@ function selectQtySplit(val) {
   qtySplitBy = val;
   _qtyPage = 0; _tblPage.qty = 0;
   document.getElementById('qty-splitby-dropdown').classList.remove('open');
-  document.getElementById('qty-splitby-btn').innerHTML = 'Split by: ' + (val || '–') + ' &nbsp;▾';
+  setChipLabel('qty-splitby-btn', 'Split by: ' + (val || '–'));
   setChipActive('qty-splitby-btn', val);
   drawQtyChart();
 }
@@ -2940,6 +3004,7 @@ function drawQtyChart() {
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 
+decorateChartChips();      // icon + label + caret, before anything writes a value
 setDisplayMonths(rangeStart, rangeEnd);
 selectChipByPreset('last7');
 renderCalendars();
