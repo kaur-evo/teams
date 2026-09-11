@@ -74,11 +74,12 @@ OEE and Quantities both derive **everything about operators / groups / leaders f
 
 - **Name sync:** `OPERATOR_DIRECTORY` mirrors the setup prototype's 8 operators (`mock-data.js` MOCK_OPERATORS) in short form — `V. Mavroeidis`, `N. Papadopoulos` (the two `canLead`), `M. Kostopoulou`, etc., all in the single **`Operators`** group. Moving setup → reports shows familiar names. 1:1 by last name.
 - **Pseudo-operators** — `Unknown` (`OP_UNKNOWN`) and `Additional workforce` (`OP_AW`) behave like operators everywhere: filter list, X-axis/split-by categories, table rows, `operators` descr column. They are NOT in `OPERATOR_DIRECTORY`; `allOperatorOptions()` pins them above the real people (Unknown → AW → operators A–Z) and the filter list renders them ungrouped above the group headers (`pinned()` in `FILTER_DIMS`).
-  - A block belongs to **AW** when `awCount > 0` (even if it also has named operators) and to **Unknown** only when it has neither operators nor AW — see `blockPseudoOps` / `blockOperatorValues`.
+  - A block belongs to **AW** when `awCount > 0` (even if it also has named operators) and to **Unknown** whenever it carries no named operator — an AW-only shift reports as both, per spec ("when only add. workforce is chosen, Unknown is also displayed, since no actual operator was selected"). See `blockPseudoOps` / `blockOperatorValues`.
   - **Man-hours:** AW = `awCount × plannedMin/60` per block (`awManhours`); Unknown = 0. The downtime side has no headcounts, so AW uses flat `AW_HOURS` / `AW_CMP_HOURS` via `pseudoAwareHours`.
-  - **Reconciliation:** every people axis sums to its Total. AW/Unknown have no group, so the group axis gets its own `Unknown` + `Additional workforce` buckets; the leader axis gets `No leader` (`OP_NO_LEADER`, also pinned in the Shift-leaders filter) for unled blocks.
+  - **Reconciliation:** every people axis sums to its Total. AW/Unknown have no group, so the group axis gets its own `Unknown` + `Additional workforce` buckets; the leader axis gets `Unknown` (`OP_NO_LEADER`, an alias of `OP_UNKNOWN`, also pinned in the Shift-leaders filter) for unled blocks.
 - **`OEE_DIMS`** {operator, group, leader} maps a block → its value(s) per dimension. `oeeDimKey(label)` turns an axis/split label into a key. `oeeMatrixFromBlocks` / `qtyMatrixFromBlocks` build the outer×inner cell grid.
 - **`selectedBlocks()`** applies the operator + leader filter chips to `SHIFT_BLOCKS`.
+- **Axes map** — `splitOptionsFor(xAxis)` builds all three Split-by dropdowns and leaves out the dimension already on the X-axis: the spec's matrix has no diagonal (Operators × Operators and so on are "-"). `selectXAxis` / `selectOeeXAxis` / `selectQtyXAxis` drop the split when the axis moves onto it.
 
 ### OEE report
 

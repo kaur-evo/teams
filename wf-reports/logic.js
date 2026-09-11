@@ -8,13 +8,13 @@
 
 let _chartBaseData = [];           // working copy of STOP_REASONS_DATA; stays at stop-reason level
 let currentXAxis   = 'Stop reasons';
-let downtimeSplitBy = null;        // null = off, or 'Shift leaders' | 'Operator group' | 'Operators'
+let downtimeSplitBy = null;        // null = off, or 'Shift leaders' | 'Operators' | 'Operator groups'
 let _dtColLabel    = 'Stop reasons';
 let currentY2      = null;         // null = off, or one of the Y2_METRICS keys
 let _dtFixedWidth  = 200;          // first column width, px — resizable via drag
 let currentReport  = 'downtime';   // 'downtime' | 'oee'
-let oeeSplitBy     = null;         // null = off, or a split label ('Shift leaders' | 'Operators' | 'Operator group')
-let oeeXAxis       = 'Day';        // OEE chart X-axis: 'Day' | 'Operators' | 'Operator group'
+let oeeSplitBy     = null;         // null = off, or a split label ('Shift leaders' | 'Operators' | 'Operator groups')
+let oeeXAxis       = 'Day';        // OEE chart X-axis: 'Day' | 'Operators' | 'Operator groups'
 let oeeChartType   = 'line';       // 'line' | 'bar' — user toggle. Line is only
                                    // drawn for the Day (time) axis with no split;
                                    // categorical axes / split always render bars.
@@ -23,7 +23,7 @@ let _oeePage       = 0;            // current page of category clusters (split m
 const OEE_CATS_PER_PAGE = 3;       // categories per page (matches real Evocon density)
 
 // Quantities report state (mirrors the OEE controls).
-let qtyXAxis       = 'Day';        // 'Day' | 'Operators' | 'Operator group' | 'Shift leaders'
+let qtyXAxis       = 'Day';        // 'Day' | 'Operators' | 'Operator groups' | 'Shift leaders'
 let qtySplitBy     = null;         // null = off, or a split label
 let _qtyHidden     = new Set();    // segments toggled off via the legend
 let _qtyPage       = 0;            // current page of category clusters
@@ -1524,6 +1524,12 @@ function toggleXAxisDropdown(event) {
 function selectXAxis(option) {
   document.getElementById('xaxis-dropdown').classList.remove('open');
   if (option === currentXAxis) return;
+  // No diagonal in the axes map: moving X onto the split dimension drops the
+  // split rather than asking a category to split by itself.
+  if (downtimeSplitBy === option) {
+    downtimeSplitBy = null;
+    document.getElementById('splitby-btn').innerHTML = 'Split by: – &nbsp;▾';
+  }
   redrawChart(option);
   document.querySelectorAll('.xaxis-opt').forEach(el => {
     el.classList.toggle('selected', el.dataset.val === option);
@@ -1547,7 +1553,19 @@ function buildXAxisDropdown() {
   });
 }
 
-// ── Downtime "Split by" dropdown (Shift leaders / Operator group / Operators) ─
+// The three people dimensions, in the order the spec lists them everywhere
+// (filters, table columns): Shift leader → Operators → Operator groups.
+const PEOPLE_SPLITS = ['Shift leaders', 'Operators', 'Operator groups'];
+
+// Axes map: a dimension already on the X-axis is not offered as a split — the
+// matrix diagonal is "-" for Operators, Operator groups and Shift leaders.
+// Every other pairing stays available.
+function splitOptionsFor(xAxis) {
+  return [{ val: null, label: '\u2013' }]
+    .concat(PEOPLE_SPLITS.filter(d => d !== xAxis).map(d => ({ val: d, label: d })));
+}
+
+// ── Downtime "Split by" dropdown (Shift leaders / Operators / Operator groups) ─
 // Splits each X-axis category into grouped sub-bars by a people dimension, the
 // way Evocon's "Split by" turns a single series into clustered bars. Stacking by
 // stop group is the no-split default; in split mode each sub-bar is a total.
@@ -1558,10 +1576,7 @@ function toggleSplitDropdown(event) {
   document.querySelectorAll('.xaxis-dropdown').forEach(el => el.classList.remove('open'));
   if (wasOpen) return;
   dd.innerHTML = '';
-  [{ val: null, label: '–' },
-   { val: 'Shift leaders',  label: 'Shift leaders' },
-   { val: 'Operator group', label: 'Operator group' },
-   { val: 'Operators',      label: 'Operators' }].forEach(opt => {
+  splitOptionsFor(currentXAxis).forEach(opt => {
     const el = document.createElement('div');
     el.className = 'xaxis-opt' + (downtimeSplitBy === opt.val ? ' selected' : '');
     el.textContent = opt.label;
@@ -1584,7 +1599,7 @@ function selectSplit(val) {
 // The row field that carries each split dimension's value(s) (comma-joined).
 function splitFieldKey(splitLabel) {
   if (splitLabel === 'Shift leaders')  return 'leader';
-  if (splitLabel === 'Operator group') return 'operatorGroupName';
+  if (splitLabel === 'Operator groups') return 'operatorGroupName';
   return 'operator'; // 'Operators'
 }
 
@@ -1622,9 +1637,9 @@ const filterState = {
 const FILTER_DIMS = {
   operators: {
     label: 'Operators', singular: 'operator', grouped: true,
-    // Operator hat (mdi account-hard-hat) — same icon used for operators /
-    // additional workforce in Shift View.
-    icon: '<svg width="20" height="20" viewBox="0 0 24 24" fill="#616161"><path d="M12 3C10.9 3 10 3.9 10 5H8C7.45 5 7 5.45 7 6V8.78C6.39 9.33 6 10.12 6 11V12H4V14H6V13H18V14H20V12H18V11C18 10.12 17.61 9.33 17 8.78V6C17 5.45 16.55 5 16 5H14C14 3.9 13.11 3 12 3M9 7H15V8.18C14.69 8.07 14.36 8 14 8H10C9.65 8 9.31 8.07 9 8.18V7M4 15V17C4 18.11 4.9 19 6 19H18C19.11 19 20 18.11 20 17V15H4Z"/></svg>',
+    // Evocon's operators icon (icn/"operators (account-hard-hat).svg") — the
+    // same glyph the real Action menu shows against "Operators".
+    icon: '<svg width="20" height="20" viewBox="0 0 24 24" fill="#616161"><path d="M12 15C7.58 15 4 16.79 4 19V21H20V19C20 16.79 16.42 15 12 15ZM8 9.00001C8 10.0609 8.42143 11.0783 9.17157 11.8284C9.92172 12.5786 10.9391 13 12 13C13.0609 13 14.0783 12.5786 14.8284 11.8284C15.5786 11.0783 16 10.0609 16 9.00001H8ZM11.5 2.00001C11.2 2.00001 11 2.21001 11 2.50001V5.50001H10V3.00001C10 3.00001 7.75 3.86001 7.75 6.75001C7.75 6.75001 7 6.89001 7 8.00001H17C16.95 6.89001 16.25 6.75001 16.25 6.75001C16.25 3.86001 14 3.00001 14 3.00001V5.50001H13V2.50001C13 2.21001 12.81 2.00001 12.5 2.00001H11.5Z"/></svg>',
     // Unknown → Additional workforce → real operators A–Z.
     values: () => allOperatorOptions(),
     // Unknown / Additional workforce are pinned above the group headers as
@@ -1640,7 +1655,8 @@ const FILTER_DIMS = {
   },
   leaders: {
     label: 'Shift leaders', singular: 'leader',
-    icon: '<svg width="20" height="20" viewBox="0 0 24 24" fill="#616161"><path d="M14.4 6 14 4H5v17h2v-7h5.6l.4 2h7V6Z"/></svg>',
+    // Evocon's flag icon (icn/"what's new (flag).svg"), as in the Action menu.
+    icon: '<svg width="20" height="20" viewBox="0 0 24 24" fill="#616161"><path d="M14.4 6L14 4H5V21H7V14H12.6L13 16H20V6H14.4Z"/></svg>',
     // "Unknown" is pinned on top so production with no assigned leader can be
     // isolated — it mirrors the Shift-leader axis catch-all.
     values: () => [OP_NO_LEADER, ...CAN_LEAD_OPERATORS],
@@ -1713,7 +1729,7 @@ function renderActiveChips() {
     const chip = document.createElement('div');
     chip.className = 'active-chip' + (filterState[key].size ? ' has-sel' : '');
     chip.innerHTML = `${dim.icon}<span style="margin:0 2px;">${chipLabel(key)}</span>`
-      + `<span class="chip-x" title="Remove filter"><svg width="14" height="14" viewBox="0 0 24 24" fill="#616161"><path d="M19 6.4 17.6 5 12 10.6 6.4 5 5 6.4 10.6 12 5 17.6 6.4 19 12 13.4 17.6 19 19 17.6 13.4 12Z"/></svg></span>`;
+      + `<span class="chip-x" title="Remove filter"><svg width="14" height="14" viewBox="0 0 24 24" fill="#616161"><path d="M19 6.41L17.59 5L12 10.59L6.41 5L5 6.41L10.59 12L5 17.59L6.41 19L12 13.41L17.59 19L19 17.59L13.41 12L19 6.41Z"/></svg></span>`;
     chip.addEventListener('click', (e) => {
       e.stopPropagation(); // keep the document handler from closing the list
       if (e.target.closest('.chip-x')) { removeFilter(key); return; }
@@ -1778,7 +1794,7 @@ function renderSelectionList() {
   let body;
   const pinned = (dim.pinned ? dim.pinned() : []).filter(match);
   const pinnedHtml = pinned.map(v => row(v, _slDraft.has(v))).join('');
-  const chevron = '<span class="sl-chevron"><svg width="18" height="18" viewBox="0 0 24 24" fill="#616161"><path d="M7.4 8.6 12 13.2l4.6-4.6L18 10l-6 6-6-6Z"/></svg></span>';
+  const chevron = '<span class="sl-chevron"><svg width="18" height="18" viewBox="0 0 24 24" fill="#616161"><path d="M7 10L12 15L17 10H7Z"/></svg></span>';
   if (dim.grouped) {
     body = dim.groupsOf().map(({ group, members }) => {
       const vis = members.filter(match);
@@ -1802,7 +1818,7 @@ function renderSelectionList() {
 
   sl.innerHTML = `
     <div class="sl-search"><div class="sl-search-inner">
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="#2ecc71"><path d="M9.5 3a6.5 6.5 0 0 1 5.2 10.4l5 5-1.4 1.4-5-5A6.5 6.5 0 1 1 9.5 3m0 2a4.5 4.5 0 1 0 0 9 4.5 4.5 0 0 0 0-9Z"/></svg>
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="#2ecc71"><path d="M14.71 14H15.5L20.49 19L19 20.49L14 15.5V14.71L13.73 14.43C12.59 15.41 11.11 16 9.5 16C5.91 16 3 13.09 3 9.5C3 5.91 5.91 3 9.5 3C13.09 3 16 5.91 16 9.5C16 11.11 15.41 12.59 14.43 13.73L14.71 14ZM5 9.5C5 11.99 7.01 14 9.5 14C11.99 14 14 11.99 14 9.5C14 7.01 11.99 5 9.5 5C7.01 5 5 7.01 5 9.5Z"/></svg>
       <input type="text" placeholder="Search" id="sl-search-input" value="${esc(_slSearch)}">
     </div></div>
     <div class="sl-rows">
@@ -1811,7 +1827,7 @@ function renderSelectionList() {
       ${body}
     </div>
     <div class="sl-footer">
-      <span class="sl-trash" id="sl-trash" title="Clear"><svg width="20" height="20" viewBox="0 0 24 24" fill="#616161"><path d="M9 3v1H4v2h16V4h-5V3H9M6 7v13a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1V7H6Z"/></svg></span>
+      <span class="sl-trash" id="sl-trash" title="Clear"><svg width="20" height="20" viewBox="0 0 24 24" fill="#616161"><path d="M15.5 4H19V6H5V4H8.5L9.5 3H14.5L15.5 4ZM8 21C6.9 21 6 20.1 6 19V7H18V19C18 20.1 17.1 21 16 21H8Z"/></svg></span>
       <div class="sl-footer-right">
         <button class="sl-btn sl-btn-cancel" id="sl-cancel">Cancel</button>
         <button class="sl-btn sl-btn-apply"  id="sl-apply">Apply</button>
@@ -1964,7 +1980,7 @@ function toggleOeeXAxisDropdown(event) {
   document.querySelectorAll('.xaxis-dropdown, .filter-dropdown').forEach(el => el.classList.remove('open'));
   if (wasOpen) return;
   dd.innerHTML = '';
-  ['Day', 'Operators', 'Operator group', 'Shift leaders'].forEach(opt => {
+  ['Day', 'Operators', 'Operator groups', 'Shift leaders'].forEach(opt => {
     const el = document.createElement('div');
     el.className = 'xaxis-opt' + (oeeXAxis === opt ? ' selected' : '');
     el.textContent = opt;
@@ -1976,6 +1992,10 @@ function toggleOeeXAxisDropdown(event) {
 
 function selectOeeXAxis(opt) {
   oeeXAxis = opt;
+  if (oeeSplitBy === opt) {
+    oeeSplitBy = null;
+    document.getElementById('oee-splitby-btn').textContent = 'Split by: – ▾';
+  }
   _oeePage = 0; _tblPage.oee = 0;
   document.getElementById('oee-xaxis-dropdown').classList.remove('open');
   document.getElementById('oee-xaxis-btn').textContent = 'X-axis: ' + opt + ' ▾';
@@ -1990,10 +2010,7 @@ function toggleOeeSplitDropdown(event) {
   document.querySelectorAll('.xaxis-dropdown, .filter-dropdown').forEach(el => el.classList.remove('open'));
   if (wasOpen) return;
   dd.innerHTML = '';
-  [{ val: null, label: '–' },
-   { val: 'Shift leaders', label: 'Shift leaders' },
-   { val: 'Operators', label: 'Operators' },
-   { val: 'Operator group', label: 'Operator group' }].forEach(opt => {
+  splitOptionsFor(oeeXAxis).forEach(opt => {
     const el = document.createElement('div');
     el.className = 'xaxis-opt' + (oeeSplitBy === opt.val ? ' selected' : '');
     el.textContent = opt.label;
@@ -2014,7 +2031,7 @@ function selectOeeSplit(val) {
 
 // Map an OEE axis/split label → a dimension key for the matrix builder.
 function oeeDimKey(label) {
-  if (label === 'Operator group') return 'group';
+  if (label === 'Operator groups') return 'group';
   if (label === 'Shift leaders')  return 'leader';
   if (label === 'Day')            return 'day';
   return 'operator'; // 'Operators' (and anything else categorical)
@@ -2621,7 +2638,7 @@ function toggleQtyXAxisDropdown(event) {
   document.querySelectorAll('.xaxis-dropdown, .filter-dropdown').forEach(el => el.classList.remove('open'));
   if (wasOpen) return;
   dd.innerHTML = '';
-  ['Day', 'Operators', 'Operator group', 'Shift leaders'].forEach(opt => {
+  ['Day', 'Operators', 'Operator groups', 'Shift leaders'].forEach(opt => {
     const el = document.createElement('div');
     el.className = 'xaxis-opt' + (qtyXAxis === opt ? ' selected' : '');
     el.textContent = opt;
@@ -2632,6 +2649,10 @@ function toggleQtyXAxisDropdown(event) {
 }
 function selectQtyXAxis(opt) {
   qtyXAxis = opt;
+  if (qtySplitBy === opt) {
+    qtySplitBy = null;
+    document.getElementById('qty-splitby-btn').innerHTML = 'Split by: – &nbsp;▾';
+  }
   _qtyPage = 0; _tblPage.qty = 0;
   document.getElementById('qty-xaxis-dropdown').classList.remove('open');
   document.getElementById('qty-xaxis-btn').innerHTML = 'X-axis: ' + opt + ' &nbsp;▾';
@@ -2645,10 +2666,7 @@ function toggleQtySplitDropdown(event) {
   document.querySelectorAll('.xaxis-dropdown, .filter-dropdown').forEach(el => el.classList.remove('open'));
   if (wasOpen) return;
   dd.innerHTML = '';
-  [{ val: null, label: '–' },
-   { val: 'Shift leaders', label: 'Shift leaders' },
-   { val: 'Operators', label: 'Operators' },
-   { val: 'Operator group', label: 'Operator group' }].forEach(opt => {
+  splitOptionsFor(qtyXAxis).forEach(opt => {
     const el = document.createElement('div');
     el.className = 'xaxis-opt' + (qtySplitBy === opt.val ? ' selected' : '');
     el.textContent = opt.label;

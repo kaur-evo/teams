@@ -321,6 +321,9 @@
       font-family:'Open Sans',sans-serif; font-size:14px; color:#212121; white-space:nowrap;
     }
     .active-chip:hover { background:#e0e0e0; }
+    /* Standing chips are decoration only — no hover affordance, no pointer. */
+    .active-chip.is-static { cursor:default; }
+    .active-chip.is-static:hover { background:#eee; }
     .active-chip.has-sel { background:rgba(46,204,113,0.12); border-color:#2ecc71; }
     .active-chip .chip-x { display:inline-flex; padding:2px; border-radius:50%; }
     .active-chip .chip-x:hover { background:rgba(0,0,0,0.1); }
@@ -666,9 +669,11 @@
       </div>
     </div>
 
-    <!-- Decorative static filters (match the live filter bar) -->
-    <button class="filter-chip">Factories: All &nbsp;▾</button>
-    <button class="filter-chip">Stations: All &nbsp;▾</button>
+    <!-- Standing filters, decorative. Same chip component as the added ones
+         (Evocon .chip: grey pill, dimension icon, caret) so the bar reads as
+         one row rather than two kinds of control. -->
+    <div class="active-chip is-static"><svg width="18" height="18" viewBox="0 0 24 24" fill="#616161"><path d="M12 7H22V21H2V3H12V7ZM4 19H6V17H4V19ZM6 15H4V13H6V15ZM4 11H6V9H4V11ZM6 7H4V5H6V7ZM8 19H10V17H8V19ZM10 15H8V13H10V15ZM8 11H10V9H8V11ZM10 7H8V5H10V7ZM20 19V9H12V11H14V13H12V15H14V17H12V19H20ZM18 11H16V13H18V11ZM16 15H18V17H16V15Z"/></svg><span style="margin:0 2px;">Factories: All</span><svg width="18" height="18" viewBox="0 0 24 24" fill="#616161"><path d="M7 10L12 15L17 10H7Z"/></svg></div>
+    <div class="active-chip is-static"><svg width="18" height="18" viewBox="0 0 24 24" fill="#616161"><path d="M3 2H21C22.1 2 23 2.9 23 4V16C23 17.1 22.1 18 21 18H14V20H16V22H8V20H10V18H3C1.9 18 1 17.1 1 16V4C1 2.9 1.9 2 3 2ZM3 16H21V4H3V16Z"/></svg><span style="margin:0 2px;">Stations: All</span><svg width="18" height="18" viewBox="0 0 24 24" fill="#616161"><path d="M7 10L12 15L17 10H7Z"/></svg></div>
 
     <!-- Active filter chips (added via + FILTER) render here -->
     <div id="active-filters" style="display:flex; align-items:center; gap:7px;"></div>

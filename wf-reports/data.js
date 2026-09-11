@@ -24,7 +24,7 @@ const PRESET_LABELS = {
 
 const XAXIS_OPTIONS = [
   'Stop reasons', 'Stop groups', 'Machine locations', 'Stations',
-  'Station groups', 'Factories', 'Operators', 'Operator group', 'Shift leaders',
+  'Station groups', 'Factories', 'Operators', 'Operator groups', 'Shift leaders',
   'Products', 'Product code', 'Orders', 'LOT/Batch', 'Product groups', 'Shifts',
   '──',
   'Day', 'Day of the week', 'Week', 'Month', 'Quarter', 'Year'
@@ -419,7 +419,12 @@ function blk(day, station, leaderId, operatorIds, plannedMin, runMin, idealQty, 
 // means literally nobody was recorded.
 function blockPseudoOps(b) {
   const out = [];
-  if (!b.operatorIds.length && !b.awCount) out.push(OP_UNKNOWN);
+  // No named operator on the block → "Unknown", whether or not additional
+  // workforce was recorded. Spec: when only additional workforce is chosen for
+  // a shift, Unknown is reported as well, because no actual operator was
+  // selected — not every customer uses AW and the behaviour has to hold either
+  // way. Unknown carries no man-hours, so the people axes still reconcile.
+  if (!b.operatorIds.length) out.push(OP_UNKNOWN);
   if (b.awCount > 0) out.push(OP_AW);
   return out;
 }
@@ -586,14 +591,14 @@ function awManhours(b) {
 //   leader   → the single shift leader of the block
 const OEE_DIMS = {
   operator: {
-    header: 'Operator',
+    header: 'Operators',
     // Unknown → Additional workforce → real operators A–Z (see allOperatorOptions).
     labels: () => allOperatorOptions(),
     valsOf: (b) => blockOperatorValues(b),
     isPeople: true,
   },
   group: {
-    header: 'Operator group',
+    header: 'Operator groups',
     // Pseudo-operators are in no group, so blocks made up only of them land in
     // their own catch-all buckets — without these the group rows would silently
     // fail to add up to the Total.
@@ -603,7 +608,7 @@ const OEE_DIMS = {
     // block's AW hours are attributed instead of vanishing. Blocks with nobody
     // at all fall to "Unknown".
     valsOf: (b) => {
-      const groups = [...new Set(b.operatorIds.map(o => OPERATOR_DIRECTORY[o]?.group || 'Default'))];
+      const groups = [...new Set(b.operatorIds.map(o => OPERATOR_DIRECTORY[o]?.group || 'Operators'))];
       if (b.awCount > 0) groups.push(OP_AW);
       return groups.length ? groups : [OP_UNKNOWN];
     },
@@ -1133,7 +1138,7 @@ function getAxisData(xAxis, baseData) {
     case 'Station groups':   return aggregateBy('stationGroup', baseData);
     case 'Factories':        return mockTimeSeries(['Factory A','Factory B','Factory C']);
     case 'Operators':        return aggregateBy('operator',          baseData);
-    case 'Operator group':   return aggregateBy('operatorGroupName',  baseData);
+    case 'Operator groups':  return aggregateBy('operatorGroupName',  baseData);
     // One bar per leading supervisor. Rows with no leader are dropped (a leader
     // X-axis only makes sense for shifts that had one).
     case 'Shift leaders':    return aggregateBy('leader', baseData.filter(d => d.leader));
