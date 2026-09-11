@@ -650,20 +650,14 @@ svg { color: var(--solid-grey-600); }
   color: var(--text-heading);
   margin-left: 4px;
 }
-/* Member count beside the group name — secondary weight so the name leads. */
+/* Member count beside the group name — same type as the name, so the two read
+   as one label. */
 .team-group__count {
   font-size: 16px;
   line-height: 24px;
-  font-weight: 400;
-  color: var(--solid-grey-600);
+  font-weight: 600;
+  color: var(--text-heading);
   margin-left: 4px;
-}
-/* Factory scope of the group, trailing the name + count. */
-.team-group__scope {
-  font-size: 12px;
-  line-height: 20px;
-  color: var(--solid-grey-600);
-  margin-left: 12px;
 }
 .team-group__caret {
   width: 24px; height: 24px;
@@ -671,6 +665,18 @@ svg { color: var(--solid-grey-600); }
   color: var(--solid-grey-700);
 }
 .team-group__body { display: none; padding: 0 8px 8px; }
+.tg-cell-drag {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.tg-drag {
+  width: 24px; height: 24px;
+  display: inline-flex; align-items: center; justify-content: center;
+  color: var(--solid-grey-400);
+  cursor: grab;
+  flex-shrink: 0;
+}
 .team-group.is-open .team-group__body { display: block; }
 .team-group__body .table th:first-child {
   border-right: none;

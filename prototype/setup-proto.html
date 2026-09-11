@@ -422,21 +422,6 @@ function persist() {
   SharedData.saveOperators(operators);
 }
 
-// Human-readable factory scope for an operator group:
-//   global   → "All"
-//   1 fact   → "Athens Plant"
-//   2+ facts → "Athens Plant + 2 more"
-//   empty    → "—"
-function teamFactoryName(teamObj) {
-  if (!teamObj) return '';
-  if (teamObj.isGlobal) return 'All';
-  const ids = teamObj.factoryIds || [];
-  const names = ids.map(id => factoryById(id)?.name).filter(Boolean);
-  if (names.length === 0) return '';
-  if (names.length === 1) return names[0];
-  return `${names[0]} + ${names.length - 1} more`;
-}
-
 // Members currently assigned to an operator group. Shown in parentheses beside
 // the group name so the picker/list conveys group size at a glance.
 function teamMemberCount(teamId) {
@@ -509,7 +494,6 @@ function renderTeams(expandTeamId) {
             </button>
             <span class="team-group__name">${escapeHtml(team.name)}</span>
             <span class="team-group__count">(${members.length})</span>
-            <span class="team-group__scope">${escapeHtml(teamFactoryName(team) || '-')}</span>
           </div>
           <span class="team-group__caret" data-icn="menu-down"></span>
         </div>
@@ -532,7 +516,10 @@ function renderTeams(expandTeamId) {
             <tbody>
               ${members.map(op => `
                 <tr data-op-id="${op.id}">
-                  <td>${escapeHtml(op.firstName)}</td>
+                  <td><span class="tg-cell-drag">
+                    <span class="tg-drag" data-icn="drag-vertical" aria-hidden="true"></span>
+                    ${escapeHtml(op.firstName)}
+                  </span></td>
                   <td>${escapeHtml(op.lastName)}</td>
                   <td>${escapeHtml((op.stations || []).join(', '))}</td>
                   <td>${renderRoleCell(op)}</td>
