@@ -128,33 +128,6 @@ function allGroupOptions() {
   return [...PSEUDO_OPERATORS, ...groups];
 }
 
-// Per-row shift leader: which can-lead operator was leading the production that
-// this row's stop occurred under, for the main and compare periods. Lets us
-// aggregate / split by the leading supervisor (data attributes to the leader).
-function deriveLeader(operatorStr) {
-  if (!operatorStr) return '';
-  const names = operatorStr.split(',').map(s => s.trim()).filter(Boolean);
-  const leader = names.find(n => OPERATOR_DIRECTORY[n] && OPERATOR_DIRECTORY[n].canLead);
-  return leader || '';
-}
-
-// Helper: derive the operator groups present in an operator string
-// (e.g. "M. Kostopoulou, G. Antoniou"). Returns a deduped, comma-joined list.
-function deriveOperatorGroups(operatorStr) {
-  if (!operatorStr) return '';
-  const seen = new Set();
-  operatorStr.split(',').map(s => s.trim()).filter(Boolean).forEach(n => {
-    // Pseudo-operators are groups in their own right — Additional workforce
-    // and Unknown stand for themselves on the group dimension, exactly as on
-    // the block-derived group axis (OEE_DIMS.group). Without this they would
-    // vanish from Downtime's group-by / split-by.
-    if (isPseudoOperator(n)) { seen.add(n); return; }
-    const entry = OPERATOR_DIRECTORY[n];
-    seen.add(entry ? entry.group : 'Default');
-  });
-  return [...seen].join(', ');
-}
-
 // ── Table column definitions ──────────────────────────────────────────────────
 
 const DT_PER_PAGE = 10;
@@ -179,7 +152,8 @@ const DT_COLS = [
   { key:'manhours',      label:'Man-hours',            width:120, align:'right', mono:true,  unit:' h',   manhours:true },
   { key:'count',         label:'Count',                width:71,  align:'right', mono:true  },
   { key:'notes',         label:'Notes',                width:70,  align:'right', mono:true,  hasNote:true, neutral:true },
-  { key:'loss',          label:'Loss (primary unit)',  width:150, align:'right', mono:true,  unit:' min' },
+  // Units not produced during the stops (primary unit), not minutes.
+  { key:'loss',          label:'Loss (primary unit)',  width:150, align:'right', mono:true },
   { key:'dur',           label:'Duration (All)',       width:133, align:'right', mono:true,  iconY:true, unit:' min' },
   { key:'avg',           label:'Average duration',     width:136, align:'right', mono:true,  unit:' min' },
   { key:'durOee',        label:'Duration (incl. OEE)', width:182, align:'right', mono:true,  iconY:true, unit:' min' },
@@ -246,115 +220,6 @@ const STOP_GROUP_COLORS = {
 };
 const CHART_PALETTE = ['#E01C21','#3498DB','#0066CC','#2ECC71','#F1C40F','#1ABC9C','#A7D129','#FA8072','#9B59B6','#E67E22','#27AE60','#D35400'];
 
-// ── Mock dataset ──────────────────────────────────────────────────────────────
-// 15 stop-reason rows. Each row carries values for both the main period
-// (mainDur, mainCount, …) and the compare period (cmpDur, cmpCount, …).
-
-const STOP_REASONS_DATA = [
-  { name:'Uncommented',   group:'Uncommented', mainDur:145, cmpDur:98,  mainCount:12, cmpCount:9,  mainAvg:12, cmpAvg:11, notes:3, cmpNotes:2, mainPct:18, cmpPct:12,
-    station:'CNC-01, CNC-02, Press-01, Press-02, Assembly-01, Assembly-02', cmpStation:'CNC-01, CNC-03, Press-01, Press-03, Assembly-01, Assembly-03', stationGroup:'CNC, Press, Assembly', cmpStationGroup:'CNC, Press, Assembly', stopType:'Unplanned', location:'Hall A, Hall B, Hall C', cmpLocation:'Hall A, Hall B, Hall C', productGroup:'Electronics, Components, Assembly', cmpProductGroup:'Electronics, Components, Assembly', product:'Widget Pro, Gear Kit, Frame Set', cmpProduct:'Widget Pro, Circuit Bd., Frame Set', productCode:'PRD-001, PRD-002, PRD-003', cmpProductCode:'PRD-001, PRD-003, PRD-004', shift:'Morning, Afternoon, Night', cmpShift:'Morning, Afternoon, Night', operator:'M. Kostopoulou, G. Antoniou, E. Christodoulou, V. Mavroeidis, N. Papadopoulos, Unknown', cmpOperator:'E. Christodoulou, V. Mavroeidis, M. Kostopoulou, D. Ekonomou, Unknown', loss:145, cmpLoss:98,  durOee:145, cmpDurOee:98,  plannedTime:800, cmpPlannedTime:720 },
-  { name:'Motor failure', group:'Mechanical',  mainDur:112, cmpDur:134, mainCount:5,  cmpCount:6,  mainAvg:22, cmpAvg:22, notes:2, cmpNotes:3, mainPct:14, cmpPct:17,
-    station:'CNC-01, CNC-02, Press-01, Press-02', cmpStation:'CNC-02, CNC-03, Press-01, Press-03', stationGroup:'CNC, Press', cmpStationGroup:'CNC, Press', stopType:'Unplanned', location:'Hall A, Hall B', cmpLocation:'Hall A, Hall B', productGroup:'Electronics, Components', cmpProductGroup:'Electronics, Components', product:'Widget Pro, Gear Kit', cmpProduct:'Widget Pro, Circuit Bd., Bolt Pack', productCode:'PRD-001, PRD-002', cmpProductCode:'PRD-001, PRD-004, PRD-005', shift:'Morning, Afternoon', cmpShift:'Morning, Night', operator:'M. Kostopoulou, G. Antoniou, N. Papadopoulos', cmpOperator:'M. Kostopoulou, E. Christodoulou, S. Nikolaou', loss:112, cmpLoss:134, durOee:112, cmpDurOee:134, plannedTime:800, cmpPlannedTime:850 },
-  { name:'Belt broken',   group:'Mechanical',  mainDur:78,  cmpDur:52,  mainCount:3,  cmpCount:2,  mainAvg:26, cmpAvg:26, notes:1, cmpNotes:1, mainPct:10, cmpPct:6,
-    station:'Press-01, Press-02, Press-03', cmpStation:'Press-01, Press-02, Press-04', stationGroup:'Press', cmpStationGroup:'Press', stopType:'Unplanned', location:'Hall B', cmpLocation:'Hall B', productGroup:'Components', cmpProductGroup:'Components', product:'Gear Kit, Bolt Pack', cmpProduct:'Gear Kit, Bolt Pack', productCode:'PRD-002, PRD-005', cmpProductCode:'PRD-002, PRD-005', shift:'Morning, Afternoon', cmpShift:'Afternoon, Night', operator:'G. Antoniou, N. Papadopoulos, D. Ekonomou', cmpOperator:'N. Papadopoulos, S. Nikolaou, M. Kostopoulou', loss:78,  cmpLoss:52,  durOee:78,  cmpDurOee:52,  plannedTime:600, cmpPlannedTime:600 },
-  { name:'Bearing worn',  group:'Mechanical',  mainDur:34,  cmpDur:41,  mainCount:4,  cmpCount:5,  mainAvg:9,  cmpAvg:8,  notes:0, cmpNotes:0, mainPct:4,  cmpPct:5,
-    station:'Press-02, Press-03, CNC-02', cmpStation:'Press-01, Press-03, CNC-01', stationGroup:'Press, CNC', cmpStationGroup:'Press, CNC', stopType:'Unplanned', location:'Hall A, Hall B', cmpLocation:'Hall A, Hall B', productGroup:'Components, Electronics', cmpProductGroup:'Components, Electronics', product:'Gear Kit, Widget Pro', cmpProduct:'Bolt Pack, Widget Pro', productCode:'PRD-002, PRD-001', cmpProductCode:'PRD-005, PRD-001', shift:'Morning, Afternoon', cmpShift:'Morning, Night', operator:'G. Antoniou, V. Mavroeidis, N. Papadopoulos', cmpOperator:'V. Mavroeidis, M. Kostopoulou, G. Antoniou', loss:34,  cmpLoss:41,  durOee:34,  cmpDurOee:41,  plannedTime:600, cmpPlannedTime:750 },
-  { name:'Planned maint.',group:'Planned',     mainDur:89,  cmpDur:89,  mainCount:2,  cmpCount:2,  mainAvg:45, cmpAvg:45, notes:1, cmpNotes:1, mainPct:11, cmpPct:11,
-    station:'Assembly-01, CNC-01, CNC-02, Press-01, Press-02', cmpStation:'Assembly-01, Assembly-02, CNC-01, Press-01, Press-02', stationGroup:'Assembly, CNC, Press', cmpStationGroup:'Assembly, CNC, Press', stopType:'Planned', location:'Hall A, Hall B, Hall C', cmpLocation:'Hall A, Hall B, Hall C', productGroup:'Assembly, Electronics, Components', cmpProductGroup:'Assembly, Electronics, Components', product:'Frame Set, Widget Pro, Gear Kit', cmpProduct:'Frame Set, Panel Set, Widget Pro', productCode:'PRD-003, PRD-001, PRD-002', cmpProductCode:'PRD-003, PRD-006, PRD-001', shift:'Morning, Afternoon', cmpShift:'Morning, Afternoon', operator:'V. Mavroeidis, M. Kostopoulou, G. Antoniou, N. Papadopoulos', cmpOperator:'V. Mavroeidis, D. Ekonomou, E. Christodoulou', loss:0,   cmpLoss:0,   durOee:0,   cmpDurOee:0,   plannedTime:750, cmpPlannedTime:750 },
-  { name:'Planned break', group:'Planned',     mainDur:45,  cmpDur:38,  mainCount:3,  cmpCount:3,  mainAvg:15, cmpAvg:13, notes:0, cmpNotes:0, mainPct:6,  cmpPct:5,
-    station:'Assembly-01, Assembly-02, CNC-01, CNC-02, Press-01, Press-02', cmpStation:'Assembly-01, Assembly-02, Assembly-03, CNC-01, Press-01', stationGroup:'Assembly, CNC, Press', cmpStationGroup:'Assembly, CNC, Press', stopType:'Planned', location:'Hall A, Hall B, Hall C', cmpLocation:'Hall A, Hall B, Hall C', productGroup:'Assembly, Electronics, Components', cmpProductGroup:'Assembly, Electronics, Components', product:'Frame Set, Widget Pro, Gear Kit, Panel Set', cmpProduct:'Frame Set, Panel Set, Widget Pro', productCode:'PRD-003, PRD-001, PRD-002, PRD-006', cmpProductCode:'PRD-003, PRD-006, PRD-001', shift:'Morning, Afternoon, Night', cmpShift:'Morning, Afternoon, Night', operator:'V. Mavroeidis, D. Ekonomou, M. Kostopoulou, G. Antoniou, S. Nikolaou', cmpOperator:'D. Ekonomou, N. Papadopoulos, E. Christodoulou, V. Mavroeidis', loss:0,   cmpLoss:0,   durOee:0,   cmpDurOee:0,   plannedTime:750, cmpPlannedTime:750 },
-  { name:'Mat. shortage', group:'Material',    mainDur:91,  cmpDur:67,  mainCount:7,  cmpCount:5,  mainAvg:13, cmpAvg:13, notes:4, cmpNotes:2, mainPct:11, cmpPct:8,
-    station:'CNC-03, CNC-04, Press-01, Press-02, Assembly-01, Assembly-02', cmpStation:'CNC-01, CNC-04, Press-02, Press-03, Assembly-01', stationGroup:'CNC, Press, Assembly', cmpStationGroup:'CNC, Press, Assembly', stopType:'Unplanned', location:'Hall A, Hall B, Hall C', cmpLocation:'Hall A, Hall B, Hall C', productGroup:'Electronics, Components, Assembly', cmpProductGroup:'Electronics, Components, Assembly', product:'Circuit Bd., Widget Pro, Gear Kit, Frame Set', cmpProduct:'Widget Pro, Circuit Bd., Gear Kit', productCode:'PRD-004, PRD-001, PRD-002, PRD-003', cmpProductCode:'PRD-001, PRD-004, PRD-002', shift:'Morning, Night', cmpShift:'Morning, Afternoon, Night', operator:'E. Christodoulou, M. Kostopoulou, S. Nikolaou, G. Antoniou, V. Mavroeidis, Additional workforce', cmpOperator:'E. Christodoulou, V. Mavroeidis, N. Papadopoulos, Additional workforce', loss:91,  cmpLoss:67,  durOee:91,  cmpDurOee:67,  plannedTime:700, cmpPlannedTime:630 },
-  { name:'Waiting parts', group:'Material',    mainDur:47,  cmpDur:73,  mainCount:4,  cmpCount:6,  mainAvg:12, cmpAvg:12, notes:2, cmpNotes:3, mainPct:6,  cmpPct:9,
-    station:'Press-03, Press-04, Assembly-01, Assembly-02', cmpStation:'Press-03, Assembly-01, Assembly-02, Assembly-03', stationGroup:'Press, Assembly', cmpStationGroup:'Press, Assembly', stopType:'Unplanned', location:'Hall B, Hall C', cmpLocation:'Hall B, Hall C', productGroup:'Components, Assembly', cmpProductGroup:'Components, Assembly', product:'Bolt Pack, Gear Kit, Frame Set', cmpProduct:'Gear Kit, Frame Set, Panel Set', productCode:'PRD-005, PRD-002, PRD-003', cmpProductCode:'PRD-002, PRD-003, PRD-006', shift:'Morning, Afternoon', cmpShift:'Morning, Night', operator:'N. Papadopoulos, M. Kostopoulou, D. Ekonomou, V. Mavroeidis', cmpOperator:'M. Kostopoulou, D. Ekonomou, V. Mavroeidis', loss:47,  cmpLoss:73,  durOee:47,  cmpDurOee:73,  plannedTime:600, cmpPlannedTime:600 },
-  { name:'Changeover',    group:'Setup',       mainDur:62,  cmpDur:55,  mainCount:4,  cmpCount:4,  mainAvg:16, cmpAvg:14, notes:0, cmpNotes:0, mainPct:8,  cmpPct:7,
-    station:'Assembly-03, Assembly-01, CNC-01, CNC-02', cmpStation:'Assembly-03, Assembly-02, CNC-01, CNC-03', stationGroup:'Assembly, CNC', cmpStationGroup:'Assembly, CNC', stopType:'Semi-planned', location:'Hall A, Hall C', cmpLocation:'Hall A, Hall C', productGroup:'Assembly, Electronics', cmpProductGroup:'Assembly, Electronics', product:'Panel Set, Frame Set, Widget Pro', cmpProduct:'Frame Set, Panel Set, Widget Pro', productCode:'PRD-006, PRD-003, PRD-001', cmpProductCode:'PRD-003, PRD-006, PRD-001', shift:'Morning, Afternoon', cmpShift:'Morning, Afternoon', operator:'D. Ekonomou, V. Mavroeidis, M. Kostopoulou, G. Antoniou, Additional workforce', cmpOperator:'D. Ekonomou, G. Antoniou, S. Nikolaou, M. Kostopoulou, E. Christodoulou', loss:0,   cmpLoss:0,   durOee:62,  cmpDurOee:55,  plannedTime:750, cmpPlannedTime:750 },
-  { name:'Calibration',   group:'Setup',       mainDur:28,  cmpDur:19,  mainCount:2,  cmpCount:1,  mainAvg:14, cmpAvg:19, notes:1, cmpNotes:0, mainPct:4,  cmpPct:2,
-    station:'CNC-04, CNC-01, CNC-02, CNC-03', cmpStation:'CNC-01, CNC-02, CNC-04', stationGroup:'CNC', cmpStationGroup:'CNC', stopType:'Planned', location:'Hall A', cmpLocation:'Hall A', productGroup:'Electronics', cmpProductGroup:'Electronics', product:'Widget Pro, Circuit Bd.', cmpProduct:'Widget Pro, Circuit Bd.', productCode:'PRD-001, PRD-004', cmpProductCode:'PRD-001, PRD-004', shift:'Morning, Night', cmpShift:'Morning, Afternoon', operator:'E. Christodoulou, G. Antoniou, M. Kostopoulou', cmpOperator:'M. Kostopoulou, E. Christodoulou', loss:0,   cmpLoss:0,   durOee:0,   cmpDurOee:0,   plannedTime:800, cmpPlannedTime:800 },
-  { name:'Quality check', group:'Quality',     mainDur:56,  cmpDur:61,  mainCount:5,  cmpCount:5,  mainAvg:11, cmpAvg:12, notes:2, cmpNotes:2, mainPct:7,  cmpPct:8,
-    station:'Press-04, Press-03, Assembly-01, CNC-01', cmpStation:'Press-04, Assembly-01, Assembly-02, CNC-02', stationGroup:'Press, Assembly, CNC', cmpStationGroup:'Press, Assembly, CNC', stopType:'Unplanned', location:'Hall A, Hall B, Hall C', cmpLocation:'Hall A, Hall B, Hall C', productGroup:'Components, Assembly, Electronics', cmpProductGroup:'Components, Assembly, Electronics', product:'Gear Kit, Frame Set, Widget Pro', cmpProduct:'Gear Kit, Frame Set, Widget Pro', productCode:'PRD-002, PRD-003, PRD-001', cmpProductCode:'PRD-002, PRD-003, PRD-001', shift:'Morning, Afternoon', cmpShift:'Afternoon, Night', operator:'G. Antoniou, N. Papadopoulos, V. Mavroeidis, E. Christodoulou', cmpOperator:'G. Antoniou, E. Christodoulou, D. Ekonomou', loss:56,  cmpLoss:61,  durOee:56,  cmpDurOee:61,  plannedTime:600, cmpPlannedTime:600 },
-  { name:'Prod. defect',  group:'Quality',     mainDur:23,  cmpDur:31,  mainCount:3,  cmpCount:4,  mainAvg:8,  cmpAvg:8,  notes:1, cmpNotes:1, mainPct:3,  cmpPct:4,
-    station:'Assembly-04, Assembly-01, Assembly-02', cmpStation:'Assembly-04, Assembly-03, Press-04', stationGroup:'Assembly', cmpStationGroup:'Assembly, Press', stopType:'Unplanned', location:'Hall C', cmpLocation:'Hall B, Hall C', productGroup:'Assembly, Components', cmpProductGroup:'Assembly, Components', product:'Frame Set, Panel Set', cmpProduct:'Bolt Pack, Frame Set', productCode:'PRD-003, PRD-006', cmpProductCode:'PRD-005, PRD-003', shift:'Morning, Afternoon', cmpShift:'Afternoon, Night', operator:'V. Mavroeidis, D. Ekonomou, N. Papadopoulos', cmpOperator:'N. Papadopoulos, M. Kostopoulou, E. Christodoulou', loss:23,  cmpLoss:31,  durOee:23,  cmpDurOee:31,  plannedTime:750, cmpPlannedTime:600 },
-  { name:'Operator break',group:'Operator',    mainDur:38,  cmpDur:29,  mainCount:6,  cmpCount:5,  mainAvg:6,  cmpAvg:6,  notes:0, cmpNotes:0, mainPct:5,  cmpPct:4,
-    station:'CNC-01, CNC-02, Press-01, Press-02, Assembly-01', cmpStation:'CNC-01, CNC-02, Press-01, Assembly-01, Assembly-02', stationGroup:'CNC, Press, Assembly', cmpStationGroup:'CNC, Press, Assembly', stopType:'Planned', location:'Hall A, Hall B, Hall C', cmpLocation:'Hall A, Hall B, Hall C', productGroup:'Electronics, Components, Assembly', cmpProductGroup:'Electronics, Components, Assembly', product:'Widget Pro, Gear Kit, Frame Set', cmpProduct:'Widget Pro, Gear Kit, Frame Set', productCode:'PRD-001, PRD-002, PRD-003', cmpProductCode:'PRD-001, PRD-002, PRD-003', shift:'Morning, Afternoon', cmpShift:'Morning, Afternoon', operator:'M. Kostopoulou, S. Nikolaou, D. Ekonomou, G. Antoniou, E. Christodoulou', cmpOperator:'M. Kostopoulou, V. Mavroeidis, N. Papadopoulos, D. Ekonomou', loss:0,   cmpLoss:0,   durOee:0,   cmpDurOee:0,   plannedTime:800, cmpPlannedTime:800 },
-  { name:'Training',      group:'Operator',    mainDur:19,  cmpDur:24,  mainCount:2,  cmpCount:3,  mainAvg:10, cmpAvg:8,  notes:0, cmpNotes:0, mainPct:2,  cmpPct:3,
-    station:'Press-01, CNC-01, Assembly-01, CNC-03', cmpStation:'Press-03, CNC-02, Assembly-02', stationGroup:'Press, CNC, Assembly', cmpStationGroup:'Press, CNC, Assembly', stopType:'Planned', location:'Hall A, Hall B, Hall C', cmpLocation:'Hall A, Hall B, Hall C', productGroup:'Components, Electronics, Assembly', cmpProductGroup:'Components, Electronics, Assembly', product:'Gear Kit, Widget Pro, Frame Set', cmpProduct:'Bolt Pack, Widget Pro, Frame Set', productCode:'PRD-002, PRD-001, PRD-003', cmpProductCode:'PRD-005, PRD-001, PRD-003', shift:'Morning, Night', cmpShift:'Afternoon, Night', operator:'S. Nikolaou, G. Antoniou, V. Mavroeidis, E. Christodoulou', cmpOperator:'N. Papadopoulos, E. Christodoulou, V. Mavroeidis, M. Kostopoulou', loss:0,   cmpLoss:0,   durOee:0,   cmpDurOee:0,   plannedTime:600, cmpPlannedTime:600 },
-  { name:'Ext. factor',   group:'Other',       mainDur:15,  cmpDur:22,  mainCount:2,  cmpCount:3,  mainAvg:8,  cmpAvg:7,  notes:0, cmpNotes:0, mainPct:2,  cmpPct:3,
-    station:'Assembly-01, CNC-01, Press-01, Press-02', cmpStation:'Assembly-01, CNC-02, Press-01, Press-03', stationGroup:'Assembly, CNC, Press', cmpStationGroup:'Assembly, CNC, Press', stopType:'Unplanned', location:'Hall A, Hall B, Hall C', cmpLocation:'Hall A, Hall B, Hall C', productGroup:'Assembly, Electronics, Components', cmpProductGroup:'Assembly, Electronics, Components', product:'Frame Set, Widget Pro, Gear Kit', cmpProduct:'Frame Set, Widget Pro', productCode:'PRD-003, PRD-001, PRD-002', cmpProductCode:'PRD-003, PRD-001', shift:'Morning, Afternoon', cmpShift:'Morning, Night', operator:'V. Mavroeidis, D. Ekonomou, S. Nikolaou, M. Kostopoulou, Additional workforce, Unknown', cmpOperator:'V. Mavroeidis, E. Christodoulou, G. Antoniou, Unknown', loss:15,  cmpLoss:22,  durOee:15,  cmpDurOee:22,  plannedTime:750, cmpPlannedTime:750 },
-  // main-only: occurred in current period, absent in compare period
-  { name:'Power outage',  group:'Other',       mainDur:42,  cmpDur:0,   mainCount:1,  cmpCount:0,  mainAvg:42, cmpAvg:0,  notes:1, cmpNotes:0, mainPct:5,  cmpPct:0,
-    station:'CNC-01, Press-01, Assembly-01', cmpStation:'', stationGroup:'CNC, Press, Assembly', cmpStationGroup:'', stopType:'Unplanned', location:'Hall A, Hall B', cmpLocation:'', productGroup:'Electronics, Components', cmpProductGroup:'', product:'Widget Pro, Gear Kit', cmpProduct:'', productCode:'PRD-001, PRD-002', cmpProductCode:'', shift:'Morning', cmpShift:'', operator:'M. Kostopoulou, G. Antoniou, E. Christodoulou, Unknown', cmpOperator:'', loss:42, cmpLoss:0, durOee:42, cmpDurOee:0, plannedTime:800, cmpPlannedTime:0 },
-  // compare-only: absent in current period, occurred in compare period
-  { name:'Sensor error',  group:'Mechanical',  mainDur:0,   cmpDur:35,  mainCount:0,  cmpCount:2,  mainAvg:0,  cmpAvg:18, notes:0, cmpNotes:1, mainPct:0,  cmpPct:4,
-    station:'', cmpStation:'CNC-02, CNC-03', stationGroup:'', cmpStationGroup:'CNC', stopType:'Unplanned', location:'', cmpLocation:'Hall A', productGroup:'', cmpProductGroup:'Electronics', product:'', cmpProduct:'Circuit Bd., Widget Pro', productCode:'', cmpProductCode:'PRD-004, PRD-001', shift:'', cmpShift:'Afternoon, Night', operator:'', cmpOperator:'E. Christodoulou, G. Antoniou', loss:0, cmpLoss:35, durOee:0, cmpDurOee:35, plannedTime:0, cmpPlannedTime:800 },
-];
-
-// Derive the group + leader fields from the operator names on each row. Adds:
-//   .operatorGroupName — comma-joined list of distinct groups on the main period
-//   .cmpOperatorGroupName — same for the compare period
-// Stored as named fields so aggregateBy('operatorGroupName') Just Works™.
-STOP_REASONS_DATA.forEach(r => {
-  r.operatorGroupName  = deriveOperatorGroups(r.operator);
-  r.cmpOperatorGroupName = deriveOperatorGroups(r.cmpOperator);
-  r.leader             = deriveLeader(r.operator);
-  r.cmpLeader          = deriveLeader(r.cmpOperator);
-});
-
-// Manhours = SUM of each DISTINCT operator's worked hours.
-// Operator-level dedup: even if a person appears on multiple station rows, their
-// hours are counted once. So manhours never derives from a per-row product —
-// it's computed from the distinct set of operators in scope. We store the raw
-// operator string on each row and compute manhours from the distinct union at
-// aggregation time (see manhoursFor). The per-row figures below are only used
-// for the stop-reason (un-aggregated) view, where each row's operators are
-// already its own scope.
-function operatorList(operatorStr) {
-  if (!operatorStr) return [];
-  return operatorStr.split(',').map(s => s.trim()).filter(Boolean);
-}
-// Downtime-side hours for the Additional workforce pseudo-operator. The
-// downtime rows carry operator NAMES, not headcounts, so AW gets a single
-// period figure here (the OEE / Quantities side derives real hours per block
-// from awCount — see awManhours). "Unknown" contributes 0 by definition.
-const AW_HOURS     = 96;
-const AW_CMP_HOURS = 72;
-
-// Hours for one operator-list name, pseudo-operators included.
-function pseudoAwareHours(name, cmp) {
-  if (name === OP_AW)      return cmp ? AW_CMP_HOURS : AW_HOURS;
-  if (name === OP_UNKNOWN) return 0;
-  const e = OPERATOR_DIRECTORY[name];
-  return e ? ((cmp ? e.cmpHours : e.hours) || 0) : 0;
-}
-
-function manhoursFor(operatorStr, cmp) {
-  // Σ distinct operators' hours. Unrecognised names contribute 0.
-  const seen = new Set();
-  let total = 0;
-  operatorList(operatorStr).forEach(n => {
-    if (seen.has(n)) return;
-    seen.add(n);
-    total += pseudoAwareHours(n, cmp);
-  });
-  return total;
-}
-STOP_REASONS_DATA.forEach(r => {
-  r.mainManhours = manhoursFor(r.operator, false);
-  r.cmpManhours  = manhoursFor(r.cmpOperator, true);
-});
-
-// ── OEE mock data ─────────────────────────────────────────────────────────────
-
-const OEE_DATA = [
-  { day:1, quality:94, performance:55, availability:61, oee:32, cmpQuality:99, cmpPerformance:53, cmpAvailability:70, cmpOee:37 },
-  { day:2, quality:94, performance:54, availability:53, oee:27, cmpQuality:99, cmpPerformance:56, cmpAvailability:62, cmpOee:34 },
-  { day:3, quality:94, performance:65, availability:46, oee:28, cmpQuality:99, cmpPerformance:59, cmpAvailability:65, cmpOee:38 },
-  { day:4, quality:94, performance:53, availability:53, oee:26, cmpQuality:98, cmpPerformance:54, cmpAvailability:68, cmpOee:36 },
-  { day:5, quality:94, performance:55, availability:55, oee:28, cmpQuality:99, cmpPerformance:60, cmpAvailability:67, cmpOee:40 },
-  { day:6, quality:94, performance:50, availability:50, oee:24, cmpQuality:99, cmpPerformance:55, cmpAvailability:63, cmpOee:33 },
-  { day:7, quality:95, performance:60, availability:47, oee:27, cmpQuality:98, cmpPerformance:58, cmpAvailability:66, cmpOee:38 },
-];
-
 const OEE_LINES = [
   { key:'quality',      cmpKey:'cmpQuality',      label:'Quality',      color:'#ff9800' },
   { key:'performance',  cmpKey:'cmpPerformance',   label:'Performance',  color:'#fdd835' },
@@ -411,7 +276,8 @@ const SHIFT_BLOCKS = [
   blk(7, 'Quality Lab','N. Papadopoulos', ['S. Panagiotou','S. Nikolaou'],                 480, 270, 800, 455, 436),
   // ── Additional-workforce-only blocks ─────────────────────────────────────
   // A shift covered purely by extra hands — no named operator was assigned, so
-  // the block belongs to "Additional workforce" alone (and to no leader).
+  // the block reports as "Additional workforce" and, per spec, "Unknown" too
+  // (no actual operator was selected), and belongs to no leader.
   // Peak-season packing lines are the realistic case for this.
   blk(3, 'Packing-01', '', [], 480, 290, 800, 480, 455, 5),
   blk(6, 'Packing-01', '', [], 480, 275, 800, 462, 436, 4),
@@ -431,27 +297,30 @@ function blk(day, station, leaderId, operatorIds, plannedMin, runMin, idealQty, 
   // the 14-row table terse — an 8h shift inside a 24h day, ~6% tech stops.
   const shiftMin = 480, allMin = 1440;
   const techStopMin = Math.round((plannedMin - runMin) * 0.4); // ~40% of downtime is technical
-  // Demo product/order metadata, varied by station family so descr columns
-  // aren't empty (real data would carry these per production run).
+  // Demo product/order metadata, varied by station family. Every station has
+  // one, so the Products / Orders / LOT axes account for every block and add up
+  // to the same total as any other axis.
   const fam = station.split('-')[0];
   const META = {
-    CNC:      { products:['Widget Pro'],  productCodes:['PRD-001'], lots:['LOT-A1'], orders:['ORD-1001'] },
-    Press:    { products:['Gear Kit'],     productCodes:['PRD-002'], lots:['LOT-B1'], orders:['ORD-1002'] },
-    Assembly: { products:['Frame Set'],    productCodes:['PRD-003'], lots:['LOT-C1'], orders:['ORD-1003'] },
+    CNC:           { products:['Widget Pro'],  productCodes:['PRD-001'], productGroups:['Electronics'], lots:['LOT-A1'], orders:['ORD-1001'] },
+    Press:         { products:['Gear Kit'],    productCodes:['PRD-002'], productGroups:['Components'],  lots:['LOT-B1'], orders:['ORD-1002'] },
+    Assembly:      { products:['Frame Set'],   productCodes:['PRD-003'], productGroups:['Assembly'],    lots:['LOT-C1'], orders:['ORD-1003'] },
+    'Quality Lab': { products:['Circuit Bd.'], productCodes:['PRD-004'], productGroups:['Electronics'], lots:['LOT-A2'], orders:['ORD-1004'] },
+    Packing:       { products:['Bolt Pack'],   productCodes:['PRD-005'], productGroups:['Components'],  lots:['LOT-B2'], orders:['ORD-1005'] },
+    Warehouse:     { products:['Panel Set'],   productCodes:['PRD-006'], productGroups:['Assembly'],    lots:['LOT-C2'], orders:['ORD-1006'] },
   };
-  const meta = META[fam] || { products:[], productCodes:[], lots:[], orders:[] };
-  const shift = 'Day';
+  const meta = META[fam];
+  // Each leader runs a fixed shift; blocks nobody led ran at night.
+  const shift = leaderId === 'V. Mavroeidis' ? 'Morning'
+              : leaderId === 'N. Papadopoulos' ? 'Afternoon' : 'Night';
   return { day, station, leaderId, operatorIds, plannedMin, runMin, idealQty, totalQty, goodQty,
            awCount: awCount || 0,
            shiftMin, allMin, techStopMin, shift, ...meta };
 }
 
 // Which pseudo-operators a block belongs to, as operator-list values:
-//   no named operators → Unknown (regardless of AW — see note below)
+//   no named operators → Unknown (with or without AW)
 //   awCount > 0        → Additional workforce
-// A block with AW but no named operators counts as Additional workforce only,
-// NOT Unknown: somebody was there, they just weren't named individuals. Unknown
-// means literally nobody was recorded.
 function blockPseudoOps(b) {
   const out = [];
   // No named operator on the block → "Unknown", whether or not additional
@@ -549,18 +418,31 @@ function descrValues(blocks, key) {
       case 'lots':          vals = b.lots || []; break;
       case 'orders':        vals = b.orders || []; break;
       case 'shifts':        vals = [b.shift || 'Day']; break;
-      // People descr columns (fixed order: Operators → Operator group → Shift leader)
-      // Operators lists the pseudo-operators too, so a row's people cell always
-      // accounts for who was actually on the block (incl. AW / Unknown).
+      // People columns read the blocks exactly as the people axes do, so a
+      // row's cells always agree with the axis it would land on:
+      //   Operators       — named people, plus Unknown / Additional workforce
+      //   Operator groups — spec: additional workforce shows here too
+      //   Shift leader    — spec: no leader selected reports as "Unknown"
       case 'operators':     vals = blockOperatorValues(b); break;
-      // Pseudo-operators have no group — an AW-only or Unknown block yields no
-      // group value at all rather than a fake one.
-      case 'operatorGroup': vals = [...new Set(b.operatorIds.map(o => OPERATOR_DIRECTORY[o]?.group || 'Operators'))]; break;
-      case 'leader':        vals = b.leaderId ? [b.leaderId] : []; break;
+      case 'operatorGroup': vals = OEE_DIMS.group.valsOf(b); break;
+      case 'leader':        vals = OEE_DIMS.leader.valsOf(b); break;
     }
     vals.forEach(v => v && set.add(v));
   });
+  if (key === 'operators' && set.has(OP_AW)) {
+    return [...set].map(v => (v === OP_AW ? awLabel(blocks) : v)).join(', ');
+  }
   return [...set].join(', ') || '—';
+}
+
+// Prototype setting (H-panel on the reports page): "Additional workforce: 38",
+// where 38 is the headcount the row's man-hours were calculated from — the sum
+// of the additional-workforce counts on the shifts in the row. Off → the plain
+// label.
+function awLabel(blocks) {
+  const on = typeof window === 'undefined' || window.__protoAwCount !== 'off';
+  if (!on) return OP_AW;
+  return `${OP_AW}: ${blocks.reduce((s, b) => s + (b.awCount || 0), 0)}`;
 }
 
 // Lightweight station → group / factory lookups for the descr columns.
@@ -661,10 +543,12 @@ const OEE_DIMS = {
   },
   // Time axis as an outer dimension, so Day × split-by (group / leader /
   // operators) works through the same matrix machinery as the people dims.
+  // Calendar days of the selected range, labelled as on Downtime's Day axis.
   day: {
     header: 'Day',
-    labels: () => [...new Set(SHIFT_BLOCKS.map(b => b.day))].sort((a, b) => a - b).map(d => 'Day ' + d),
-    valsOf: (b) => ['Day ' + b.day],
+    labels: () => (typeof rangeStart !== 'undefined' ? daysBetween(rangeStart, rangeEnd) : [])
+      .map(d => timeBucket('Day', d).label),
+    valsOf: (b) => [timeBucket('Day', b.date).label],
     isPeople: false,
   },
 };
@@ -717,7 +601,7 @@ function manhoursScoped(blocks, dim, val) {
   if (val === OP_UNKNOWN) return 0;
 
   const inVal = (o) => dim === 'group'
-    ? ((OPERATOR_DIRECTORY[o]?.group || 'Default') === val)
+    ? ((OPERATOR_DIRECTORY[o]?.group || 'Operators') === val)
     : (o === val); // 'operator'
   const perOp = new Map();
   blocks.forEach(b => b.operatorIds.forEach(o => {
@@ -835,17 +719,17 @@ function qtyMatrixFromBlocks(blocks, outerDim, innerDim) {
   return { labels: O.labels(), innerLabels: I.labels(), data, outerHeader: O.header, innerHeader: I.header };
 }
 
-// Per-day stacked quantities for the Day (time) X-axis. One entry per day in
-// SHIFT_BLOCKS, summing that day's blocks. (The OEE Day view uses synthetic
-// OEE_DATA; Quantities derives the Day view straight from the blocks so it
-// reconciles with the categorical views.)
+// Per-day stacked quantities for the Day (time) X-axis: one entry per calendar
+// day with production, summing that day's blocks, so the Day view reconciles
+// with the categorical views. `blocks` rides along for the descr columns.
 function qtyByDay(blocks) {
   const byDay = new Map();
-  blocks.forEach(b => { (byDay.get(b.day) || byDay.set(b.day, []).get(b.day)).push(b); });
-  return [...byDay.keys()].sort((a,b)=>a-b).map(day => {
-    const r = rollupQty(byDay.get(day));
-    r.day = day; r.name = day;
-    r.manhours = blockManhours(byDay.get(day));
+  blocks.forEach(b => { (byDay.get(b.idx) || byDay.set(b.idx, []).get(b.idx)).push(b); });
+  return [...byDay.keys()].sort((a,b)=>a-b).map(idx => {
+    const bs = byDay.get(idx);
+    const r = rollupQty(bs);
+    r.day = timeBucket('Day', bs[0].date).label; r.name = r.day; r.blocks = bs;
+    r.manhours = blockManhours(bs);
     return r;
   });
 }
@@ -942,349 +826,355 @@ function computeRangeForMode(mode, rangeStart, rangeEnd, currentPreset, matchDow
   return { cs, ce };
 }
 
-// ── Data aggregation ──────────────────────────────────────────────────────────
-// Groups baseData rows by nameKey, totalling numeric fields and building a
-// stacked `segments` array (one entry per stop group) for the chart.
+// ── One period, three reports ─────────────────────────────────────────────────
+// All three reports describe the SAME production — the shift blocks above.
+// OEE and Quantities roll the blocks up directly; Downtime reads stop events
+// allocated from each block's actual downtime (planned − run minutes). So a
+// station's downtime here is exactly what OEE's availability implies for it,
+// and every axis of every report adds up to the same totals.
+//
+// Nothing is random. The selected range is the mock week repeated day by day,
+// and the comparison period uses fixed per-block factors, so switching axes,
+// splits or reports never changes a number.
 
-function aggregateBy(nameKey, baseData) {
-  const map    = new Map(); // nameKey value → aggregated row
-  const segMap = new Map(); // nameKey value → Map(group → {mainDur, cmpDur})
-  const opSet  = new Map(); // nameKey value → { main:Set, cmp:Set } distinct operators
+const DOW3 = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 
-  baseData.forEach(d => {
-    // Split comma-separated multi-values so each individual item gets its own bar
-    const rawVal = d[nameKey] || 'Unknown';
-    const keys   = rawVal.split(',').map(k => k.trim()).filter(k => k);
-    const n      = keys.length; // distribute numeric values evenly across keys
+// Calendar days from start to end inclusive, as local midnights.
+function daysBetween(start, end) {
+  const out = [];
+  if (!start || !end) return out;
+  const cur  = new Date(start); cur.setHours(0,0,0,0);
+  const last = new Date(end);   last.setHours(0,0,0,0);
+  while (cur <= last) { out.push(new Date(cur)); cur.setDate(cur.getDate() + 1); }
+  return out;
+}
 
-    keys.forEach(k => {
-      if (!map.has(k)) {
-        map.set(k, {
-          name: k, group: k,
-          mainDur:0, cmpDur:0, mainCount:0, cmpCount:0,
-          mainAvg:0, cmpAvg:0, notes:0, cmpNotes:0,
-          mainPct:0, cmpPct:0,
-          station: d.station, cmpStation: d.cmpStation,
-          stationGroup: d.stationGroup, cmpStationGroup: d.cmpStationGroup,
-          stopType: d.stopType, location: d.location, cmpLocation: d.cmpLocation,
-          productGroup: d.productGroup, cmpProductGroup: d.cmpProductGroup,
-          product: d.product, cmpProduct: d.cmpProduct,
-          productCode: d.productCode, cmpProductCode: d.cmpProductCode,
-          shift: d.shift, cmpShift: d.cmpShift,
-          operator: d.operator, cmpOperator: d.cmpOperator,
-          operatorGroupName: d.operatorGroupName, cmpOperatorGroupName: d.cmpOperatorGroupName,
-          loss: 0, cmpLoss: 0, durOee: 0, cmpDurOee: 0,
-          plannedTime: d.plannedTime, cmpPlannedTime: d.cmpPlannedTime,
-          mainManhours: 0, cmpManhours: 0,
-          _n: 0
-        });
-        segMap.set(k, new Map());
-        opSet.set(k, { main: new Set(), cmp: new Set() });
-      }
-      const row = map.get(k);
-      const sg  = segMap.get(k);
-      // Collect distinct operators feeding this key (for deduped manhours).
-      const os = opSet.get(k);
-      operatorList(d.operator).forEach(nm => os.main.add(nm));
-      operatorList(d.cmpOperator).forEach(nm => os.cmp.add(nm));
-      row.mainDur      += Math.round(d.mainDur      / n); row.cmpDur      += Math.round(d.cmpDur      / n);
-      row.mainCount    += Math.round(d.mainCount    / n); row.cmpCount    += Math.round(d.cmpCount    / n);
-      row.notes        += Math.round(d.notes        / n); row.cmpNotes    += Math.round(d.cmpNotes    / n);
-      row.loss         += Math.round(d.loss         / n); row.cmpLoss     += Math.round(d.cmpLoss     / n);
-      row.durOee       += Math.round(d.durOee       / n); row.cmpDurOee   += Math.round(d.cmpDurOee   / n);
-      // mainManhours/cmpManhours intentionally NOT summed here — computed from
-      // the distinct operator set after the loop (operator-level dedup).
-      row.mainPct      += d.mainPct / n;                  row.cmpPct      += d.cmpPct   / n;
-      row._n++;
-      if (!sg.has(d.name)) sg.set(d.name, { name: d.name, group: d.group, mainDur: 0, cmpDur: 0 });
-      sg.get(d.name).mainDur += Math.round(d.mainDur / n);
-      sg.get(d.name).cmpDur  += Math.round(d.cmpDur  / n);
+// The range's first day plays week day 1, the next day 2, and so on. Each tiled
+// block keeps its calendar date (so every time axis groups by real dates) and a
+// period tag (so the comparison period gets its own stop mix).
+function blocksForRange(start, end, pattern, period) {
+  const out = [];
+  const today = new Date(); today.setHours(0,0,0,0);
+  daysBetween(start, end).forEach((date, idx) => {
+    if (date > today) return;              // nothing has run on future days
+    const day = (idx % 7) + 1;
+    pattern.forEach(b => { if (b.day === day) out.push({ ...b, date, idx, period }); });
+  });
+  return out;
+}
+
+// The comparison period: the same crews on the same stations, running a little
+// differently. Fixed factors per block — never random.
+const CMP_FACTORS = [1.06, 0.95, 1.03, 0.92, 1.08, 0.97, 1.01, 0.94, 1.05, 0.98];
+const SHIFT_BLOCKS_CMP = SHIFT_BLOCKS.map((b, i) => {
+  const f = CMP_FACTORS[i % CMP_FACTORS.length];
+  const runMin   = Math.min(b.plannedMin, Math.round(b.runMin * f));
+  const totalQty = Math.round(b.totalQty * f);
+  const goodQty  = Math.min(totalQty, Math.round(b.goodQty * f));
+  return { ...b, runMin, totalQty, goodQty, techStopMin: Math.round((b.plannedMin - runMin) * 0.4) };
+});
+
+// Machine location of each station (Downtime's "Machine locations" axis).
+const LOCATION_OF = { 'CNC-01':'Hall A','CNC-02':'Hall A','CNC-03':'Hall A','Quality Lab':'Hall A',
+                      'Press-01':'Hall B','Press-02':'Hall B','Press-03':'Hall B','Warehouse':'Hall B',
+                      'Assembly-01':'Hall C','Assembly-02':'Hall C','Packing-01':'Hall C' };
+
+// Stop reason catalogue. `w` = how common the reason is, `typical` = minutes a
+// single stop of it usually lasts (drives the stop count).
+const DT_REASONS = [
+  { name:'Uncommented',    group:'Uncommented', type:'Unplanned',    w:145, typical:12 },
+  { name:'Motor failure',  group:'Mechanical',  type:'Unplanned',    w:112, typical:22 },
+  { name:'Belt broken',    group:'Mechanical',  type:'Unplanned',    w: 78, typical:26 },
+  { name:'Bearing worn',   group:'Mechanical',  type:'Unplanned',    w: 34, typical: 9 },
+  { name:'Planned maint.', group:'Planned',     type:'Planned',      w: 89, typical:45 },
+  { name:'Planned break',  group:'Planned',     type:'Planned',      w: 45, typical:15 },
+  { name:'Mat. shortage',  group:'Material',    type:'Unplanned',    w: 91, typical:13 },
+  { name:'Waiting parts',  group:'Material',    type:'Unplanned',    w: 47, typical:12 },
+  { name:'Changeover',     group:'Setup',       type:'Semi-planned', w: 62, typical:16 },
+  { name:'Calibration',    group:'Setup',       type:'Planned',      w: 28, typical:14 },
+  { name:'Quality check',  group:'Quality',     type:'Unplanned',    w: 56, typical:11 },
+  { name:'Prod. defect',   group:'Quality',     type:'Unplanned',    w: 23, typical: 8 },
+  { name:'Operator break', group:'Operator',    type:'Planned',      w: 38, typical: 6 },
+  { name:'Training',       group:'Operator',    type:'Planned',      w: 19, typical:10 },
+  { name:'Ext. factor',    group:'Other',       type:'Unplanned',    w: 15, typical: 8 },
+  { name:'Power outage',   group:'Other',       type:'Unplanned',    w: 42, typical:42 },
+];
+
+// Stable 32-bit hash (FNV-1a) — the only source of variety in the mock.
+function hash32(str) {
+  let h = 2166136261;
+  for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); }
+  return h >>> 0;
+}
+
+// A block's downtime minutes, split into stop events. Each block sees a handful
+// of reasons, weighted by how common they are; largest-remainder rounding
+// allocates the minutes exactly, so Σ events = planned − run for every block.
+function downtimeEvents(blocks) {
+  const events = [];
+  blocks.forEach(b => {
+    const D = b.plannedMin - b.runMin;
+    if (D <= 0) return;
+    const seed = `${b.period}|${b.station}|${b.idx}`;
+    const picks = DT_REASONS.map((r, i) => {
+      const h = hash32(seed + '|' + i);
+      return { r, on: i === 0 || h % 100 < 38, w: r.w * (0.6 + (h % 81) / 100) };
+    }).filter(p => p.on);
+    const W = picks.reduce((s, p) => s + p.w, 0);
+    const alloc = picks.map(p => ({ p, exact: D * p.w / W }));
+    alloc.forEach(a => { a.min = Math.floor(a.exact); });
+    const rest = D - alloc.reduce((s, a) => s + a.min, 0);
+    alloc.slice().sort((a, c) => (c.exact - c.min) - (a.exact - a.min))
+      .slice(0, rest).forEach(a => { a.min++; });
+    alloc.filter(a => a.min > 0).forEach(({ p, min }) => {
+      const count = Math.max(1, Math.round(min / p.r.typical));
+      events.push({
+        reason: p.r.name, group: p.r.group, type: p.r.type,
+        dur: min, count, notes: Math.floor(count / 3),
+        // Units not produced during the stop, at the block's ideal rate.
+        loss: Math.round(min * b.idealQty / b.plannedMin),
+        block: b,
+      });
     });
   });
-
-  map.forEach((row, k) => {
-    if (row._n > 0) {
-      row.mainAvg = Math.round(row.mainDur / row._n);
-      row.cmpAvg  = Math.round(row.cmpDur  / row._n);
-      row.mainPct = Math.round(row.mainPct / row._n);
-      row.cmpPct  = Math.round(row.cmpPct  / row._n);
-    }
-    // Operator-level deduped manhours: Σ distinct operators' hours for this key.
-    // Pseudo-operators go through the same lookup (AW_HOURS / Unknown = 0).
-    const os = opSet.get(k);
-    row.mainManhours = [...os.main].reduce((s, nm) => s + pseudoAwareHours(nm, false), 0);
-    row.cmpManhours  = [...os.cmp ].reduce((s, nm) => s + pseudoAwareHours(nm, true),  0);
-    // People fields = the distinct union across ALL bucket rows (the seed only
-    // copied the first row's values, and `leader` wasn't carried at all) — so
-    // Split by Operators / Operator group / Shift leaders works on any X-axis.
-    row.operator    = [...os.main].join(', ');
-    row.cmpOperator = [...os.cmp ].join(', ');
-    row.operatorGroupName    = deriveOperatorGroups(row.operator);
-    row.cmpOperatorGroupName = deriveOperatorGroups(row.cmpOperator);
-    row.leader    = [...os.main].filter(nm => OPERATOR_DIRECTORY[nm]?.canLead).join(', ');
-    row.cmpLeader = [...os.cmp ].filter(nm => OPERATOR_DIRECTORY[nm]?.canLead).join(', ');
-    row.segments = [...segMap.get(k).entries()]
-      .map(([, v]) => ({ name: v.name, group: v.group, mainDur: v.mainDur, cmpDur: v.cmpDur }))
-      .sort((a, b) => b.mainDur - a.mainDur);
-  });
-
-  return [...map.values()];
+  return events;
 }
 
-// Generates synthetic time-series rows (stacked by stop group) for time-based axes.
-// cmpCount:  how many leading labels have compare data (undefined = all).
-// mainCount: how many leading labels have main-period data (undefined = all).
-//   Slots beyond mainCount get mainDur=0 (placeholder bar for compare-only slots).
-function mockTimeSeries(labels, cmpCount, mainCount, cmpLabels) {
-  const nCmp  = (cmpCount  !== undefined) ? cmpCount  : labels.length;
-  const nMain = (mainCount !== undefined) ? mainCount : labels.length;
-  const MOCK_SEGS = [
-    { name:'Uncommented',   group:'Uncommented', w:3.0 },
-    { name:'Motor failure', group:'Mechanical',  w:2.0 },
-    { name:'Planned maint.',group:'Planned',     w:1.5 },
-    { name:'Mat. shortage', group:'Material',    w:1.0 },
-    { name:'Changeover',    group:'Setup',       w:0.8 },
-    { name:'Quality check', group:'Quality',     w:0.5 },
-  ];
-  const totalW = MOCK_SEGS.reduce((s, g) => s + g.w, 0);
+// ── Downtime axes ──
+// How each X-axis / split dimension reads a stop event. People dimensions use
+// the same block attribution as OEE and Quantities (OEE_DIMS), so "Operators"
+// means the same thing in all three reports: a stop counts for everyone who was
+// on the shift, "Unknown" collects shifts with no named operator, "Additional
+// workforce" shifts that had extra hands.
+const DT_AXES = {
+  'Stop reasons':      { keys: ev => [ev.reason] },
+  'Stop groups':       { keys: ev => [ev.group] },
+  'Machine locations': { keys: ev => [LOCATION_OF[ev.block.station] || '—'] },
+  'Stations':          { keys: ev => [ev.block.station] },
+  'Station groups':    { keys: ev => [STATION_GROUP_OF[ev.block.station] || '—'] },
+  'Factories':         { keys: ev => [FACTORY_OF[ev.block.station] || '—'] },
+  'Operators':         { keys: ev => OEE_DIMS.operator.valsOf(ev.block), people: 'operator' },
+  'Operator groups':   { keys: ev => OEE_DIMS.group.valsOf(ev.block),    people: 'group' },
+  'Shift leaders':     { keys: ev => OEE_DIMS.leader.valsOf(ev.block),   people: 'leader' },
+  'Products':          { keys: ev => ev.block.products },
+  'Product code':      { keys: ev => ev.block.productCodes },
+  'Orders':            { keys: ev => ev.block.orders },
+  'LOT/Batch':         { keys: ev => ev.block.lots },
+  'Product groups':    { keys: ev => ev.block.productGroups },
+  'Shifts':            { keys: ev => [ev.block.shift] },
+};
 
-  // Rotating crews (each led by a canLead operator) so the people splits —
-  // Operators / Operator group / Shift leaders — have real values on the
-  // synthetic time-series rows too.
-  const MOCK_CREWS = [
-    'V. Mavroeidis, M. Kostopoulou, G. Antoniou',
-    'N. Papadopoulos, E. Christodoulou, D. Ekonomou',
-    'V. Mavroeidis, P. Lambrou, S. Nikolaou',
-    'N. Papadopoulos, K. Vlachos, S. Panagiotou',
-  ];
+// Day labels read "Mon 22" inside one month. A longer range adds the month
+// ("Mon 22.09") and, across years, the year — the chart keys its bars by label,
+// so a repeated "Wed 1" would fold two days into one bar.
+function dayLabel(d) {
+  const rs = typeof rangeStart !== 'undefined' ? rangeStart : null;
+  const re = typeof rangeEnd   !== 'undefined' ? rangeEnd   : null;
+  const multiYear  = rs && re && rs.getFullYear() !== re.getFullYear();
+  const multiMonth = rs && re && (multiYear || rs.getMonth() !== re.getMonth());
+  const dm = multiMonth ? `${d.getDate()}.${String(d.getMonth() + 1).padStart(2, '0')}` : String(d.getDate());
+  return `${DOW3[d.getDay()]} ${dm}${multiYear ? '.' + String(d.getFullYear()).slice(2) : ''}`;
+}
 
-  return labels.map((lbl, idx) => {
-    const hasMain    = idx < nMain;
-    const hasCompare = idx < nCmp;
-    const crew    = MOCK_CREWS[idx % MOCK_CREWS.length];
-    const cmpCrew = MOCK_CREWS[(idx + 1) % MOCK_CREWS.length];
-    const totalMain = hasMain    ? 80  + Math.round(Math.random() * 240) : 0;
-    const totalCmp  = hasCompare ? 60  + Math.round(Math.random() * 200) : 0;
-    const cnt  = hasMain    ? 3  + Math.round(Math.random() * 15) : 0;
-    const cCnt = hasCompare ? 2  + Math.round(Math.random() * 12) : 0;
+// Time buckets: a grouping key and the label shown on the axis.
+function timeBucket(unit, d, multiYear) {
+  if (unit === 'Day') return { key: d.toDateString(), label: dayLabel(d) };
+  if (unit === 'Week') {
+    const mon = new Date(d); mon.setDate(mon.getDate() - ((mon.getDay() + 6) % 7));
+    const jan1 = new Date(mon.getFullYear(), 0, 1);
+    const wk = Math.ceil(((mon - jan1) / 86400000 + ((jan1.getDay() + 6) % 7) + 1) / 7);
+    return { key: mon.toDateString(), label: `W${String(wk).padStart(2, '0')}` };
+  }
+  if (unit === 'Month')   return { key: `${d.getFullYear()}-${d.getMonth()}`, label: MONTHS[d.getMonth()].slice(0, 3) };
+  if (unit === 'Quarter') {
+    const q = Math.floor(d.getMonth() / 3) + 1;
+    return { key: `${d.getFullYear()}-Q${q}`, label: multiYear ? `Q${q} ${d.getFullYear()}` : `Q${q}` };
+  }
+  return { key: String(d.getFullYear()), label: String(d.getFullYear()) };   // Year
+}
 
-    const segments = MOCK_SEGS.map(sg => ({
-      name:    sg.name,
-      group:   sg.group,
-      mainDur: hasMain    ? Math.max(1, Math.round(totalMain * sg.w / totalW * (0.65 + Math.random() * 0.7))) : 0,
-      cmpDur:  hasCompare ? Math.max(1, Math.round(totalCmp  * sg.w / totalW * (0.65 + Math.random() * 0.7))) : 0,
-    })).sort((a, b) => b.mainDur - a.mainDur);
+// Ordered time slots over a range, optionally extended past its end until there
+// are `minSlots` of them (a longer comparison period still gets its own bars).
+function timeSlots(unit, range, minSlots) {
+  if (unit === 'Day of the week') {
+    return [1, 2, 3, 4, 5, 6, 0].map(dow => ({ key: 'dow' + dow, label: DOW3[dow] }));
+  }
+  const [start, end] = range;
+  const multiYear = start.getFullYear() !== end.getFullYear();
+  const slots = [], seen = new Set();
+  const cur = new Date(start); cur.setHours(0,0,0,0);
+  const last = new Date(end);  last.setHours(0,0,0,0);
+  for (let guard = 0; guard < 4000; guard++) {
+    if (cur > last && slots.length >= (minSlots || 0)) break;
+    const b = timeBucket(unit, cur, multiYear);
+    if (!seen.has(b.key)) { seen.add(b.key); slots.push(b); }
+    cur.setDate(cur.getDate() + 1);
+  }
+  return slots;
+}
+function eventSlotKey(unit, ev, multiYear) {
+  return unit === 'Day of the week' ? 'dow' + ev.block.date.getDay()
+                                    : timeBucket(unit, ev.block.date, multiYear).key;
+}
 
-    const mainDur = segments.reduce((s, sg) => s + sg.mainDur, 0);
-    const cmpDur  = segments.reduce((s, sg) => s + sg.cmpDur,  0);
+// Accumulates stop events into one report row per key, for both periods.
+function dtAccumulate(base, keysOf) {
+  const rows = new Map();
+  const side = () => ({ dur: 0, count: 0, notes: 0, loss: 0, blocks: new Set(), reasons: new Map(),
+                        groups: new Set(), types: new Set() });
+  ['main', 'cmp'].forEach(p => {
+    base[p].forEach(ev => {
+      keysOf(ev, p).forEach(k => {
+        if (!rows.has(k)) rows.set(k, { key: k, main: side(), cmp: side() });
+        const s = rows.get(k)[p];
+        s.dur += ev.dur; s.count += ev.count; s.notes += ev.notes; s.loss += ev.loss;
+        s.blocks.add(ev.block); s.groups.add(ev.group); s.types.add(ev.type);
+        const r = s.reasons.get(ev.reason) || { group: ev.group, dur: 0 };
+        r.dur += ev.dur; s.reasons.set(ev.reason, r);
+      });
+    });
+  });
+  return rows;
+}
 
+// Distinct values across a block set, comma-joined (the descr columns).
+function uniqueJoin(values) { return [...new Set(values.filter(Boolean))].join(', '); }
+
+// One accumulated key → the row shape the Downtime chart and table read.
+function dtFinishRow(acc, name, people) {
+  const m = acc.main, c = acc.cmp;
+  const mb = [...m.blocks], cb = [...c.blocks];
+  const planned = bs => bs.reduce((s, b) => s + b.plannedMin, 0);
+  const mh = bs => people && people !== 'leader' ? manhoursScoped(bs, people, acc.key) : blockManhours(bs);
+  const descr = (bs, fn) => uniqueJoin(bs.flatMap(fn));
+  const reasons = new Set([...m.reasons.keys(), ...c.reasons.keys()]);
+  return {
+    name, key: acc.key,
+    group: uniqueJoin([...m.groups]),
+    mainDur: m.dur, cmpDur: c.dur,
+    mainCount: m.count, cmpCount: c.count,
+    mainAvg: m.count ? Math.round(m.dur / m.count) : 0,
+    cmpAvg:  c.count ? Math.round(c.dur / c.count) : 0,
+    notes: m.notes, cmpNotes: c.notes,
+    loss: m.loss, cmpLoss: c.loss,
+    durOee: m.dur, cmpDurOee: c.dur,
+    plannedTime: planned(mb), cmpPlannedTime: planned(cb),
+    mainPct: planned(mb) ? Math.round(m.dur / planned(mb) * 100) : 0,
+    cmpPct:  planned(cb) ? Math.round(c.dur / planned(cb) * 100) : 0,
+    mainManhours: mh(mb), cmpManhours: mh(cb),
+    stopType: uniqueJoin([...m.types]),
+    station:      descr(mb, b => [b.station]),                        cmpStation:      descr(cb, b => [b.station]),
+    stationGroup: descr(mb, b => [STATION_GROUP_OF[b.station]]),      cmpStationGroup: descr(cb, b => [STATION_GROUP_OF[b.station]]),
+    location:     descr(mb, b => [LOCATION_OF[b.station]]),           cmpLocation:     descr(cb, b => [LOCATION_OF[b.station]]),
+    productGroup: descr(mb, b => b.productGroups),                    cmpProductGroup: descr(cb, b => b.productGroups),
+    product:      descr(mb, b => b.products),                         cmpProduct:      descr(cb, b => b.products),
+    productCode:  descr(mb, b => b.productCodes),                     cmpProductCode:  descr(cb, b => b.productCodes),
+    shift:        descr(mb, b => [b.shift]),                          cmpShift:        descr(cb, b => [b.shift]),
+    // People columns — the same derivations as OEE / Quantities.
+    operator:          descrValues(mb, 'operators'),     cmpOperator:          descrValues(cb, 'operators'),
+    operatorGroupName: descrValues(mb, 'operatorGroup'), cmpOperatorGroupName: descrValues(cb, 'operatorGroup'),
+    leader:            descrValues(mb, 'leader'),        cmpLeader:            descrValues(cb, 'leader'),
+    segments: [...reasons].map(r => ({
+      name: r, group: (m.reasons.get(r) || c.reasons.get(r)).group,
+      mainDur: (m.reasons.get(r) || {}).dur || 0, cmpDur: (c.reasons.get(r) || {}).dur || 0,
+    })).sort((a, b) => b.mainDur - a.mainDur),
+  };
+}
+
+// base = { main: events, cmp: events, mainRange: [start, end], cmpRange: [start, end] | null }
+function getAxisData(xAxis, base) {
+  if (TIME_AXES.has(xAxis)) {
+    const cmpSlots  = base.cmpRange ? timeSlots(xAxis, base.cmpRange) : [];
+    const mainSlots = timeSlots(xAxis, base.mainRange, cmpSlots.length);
+    const myMain = base.mainRange[0].getFullYear() !== base.mainRange[1].getFullYear();
+    const myCmp  = base.cmpRange && base.cmpRange[0].getFullYear() !== base.cmpRange[1].getFullYear();
+    // Day of the week lines up by weekday; every other unit by position.
+    const mainIdx = new Map(mainSlots.map((s, i) => [s.key, i]));
+    const cmpIdx  = new Map((xAxis === 'Day of the week' ? mainSlots : cmpSlots).map((s, i) => [s.key, i]));
+    const acc = dtAccumulate(base, (ev, p) => {
+      const i = (p === 'main' ? mainIdx : cmpIdx).get(eventSlotKey(xAxis, ev, p === 'main' ? myMain : myCmp));
+      return i === undefined ? [] : [i];
+    });
+    const empty = { dur: 0, count: 0, notes: 0, loss: 0, blocks: new Set(), reasons: new Map(), groups: new Set(), types: new Set() };
+    return mainSlots.map((slot, i) => {
+      const row = dtFinishRow(acc.get(i) || { key: i, main: empty, cmp: empty }, slot.label, null);
+      const cs = xAxis === 'Day of the week' ? slot : cmpSlots[i];
+      if (base.cmpRange && cs) row.cmpName = cs.label;
+      return row;
+    });
+  }
+  const dim = DT_AXES[xAxis] || DT_AXES['Stop reasons'];
+  const acc = dtAccumulate(base, ev => dim.keys(ev));
+  return [...acc.values()].map(a => dtFinishRow(a, a.key, dim.people))
+    // A stop-reason row is coloured and filed under its own stop group.
+    .map(r => (xAxis === 'Stop reasons' ? { ...r, group: r.segments[0]?.group || r.group } : r));
+}
+
+// The Total row is the whole period, computed from every stop — not a sum of
+// the rows. Rows overlap on the people axes (a stop counts for everyone on the
+// shift), each stop-reason row carries its shifts' planned time, and an average
+// of averages is not an average.
+function downtimeTotalRow(base) {
+  const empty = { dur: 0, count: 0, notes: 0, loss: 0, blocks: new Set(), reasons: new Map(), groups: new Set(), types: new Set() };
+  const acc = dtAccumulate(base, () => ['Total']).get('Total') || { key: 'Total', main: empty, cmp: empty };
+  return dtFinishRow(acc, 'Total', null);
+}
+
+// Split by: a true two-way sum — each cell is the stop minutes that happened on
+// that category AND under that split value. People splits follow the same
+// attribution as the axis, so a stop on a three-person shift counts for each of
+// the three, exactly as it does on the Operators axis.
+function downtimeSplitMatrix(xAxis, splitLabel, base, items) {
+  const splitDim = DT_AXES[splitLabel];
+  const cell = new Map();                  // category name → Map(split value → minutes)
+  // Time axes: a stop lands on the slot of its day (slots worked out once).
+  const my = base.mainRange[0].getFullYear() !== base.mainRange[1].getFullYear();
+  const slotLabel = TIME_AXES.has(xAxis)
+    ? new Map(timeSlots(xAxis, base.mainRange).map(x => [x.key, x.label])) : null;
+  const catKeys = ev => {
+    if (!slotLabel) return (DT_AXES[xAxis] || DT_AXES['Stop reasons']).keys(ev);
+    const label = slotLabel.get(eventSlotKey(xAxis, ev, my));
+    return label ? [label] : [];
+  };
+  base.main.forEach(ev => {
+    const vals = splitDim.keys(ev);
+    catKeys(ev).forEach(cat => {
+      const m = cell.get(cat) || cell.set(cat, new Map()).get(cat);
+      vals.forEach(v => m.set(v, (m.get(v) || 0) + ev.dur));
+    });
+  });
+  // Split values in the axis's own order (Unknown → Additional workforce → A–Z).
+  const order = splitLabel === 'Operators' ? OEE_DIMS.operator.labels()
+              : splitLabel === 'Operator groups' ? OEE_DIMS.group.labels()
+              : OEE_DIMS.leader.labels();
+  const present = new Set(); cell.forEach(m => m.forEach((_, v) => present.add(v)));
+  const splitVals = order.filter(v => present.has(v));
+  return {
+    splitVals,
+    clusters: items.map(it => {
+      const m = cell.get(it.name) || new Map();
+      return { name: it.name, subs: splitVals.filter(v => m.has(v)).map(v => ({ val: v, dur: m.get(v) })) };
+    }),
+  };
+}
+
+// OEE's line chart, one point per day of the selected range, rolled up from the
+// same blocks as the table under it (the Day rows). Compare points come from
+// the comparison period, aligned by position. `day` is the 1-based position
+// the chart plots against.
+function oeeDailySeries(mainBlocks, cmpBlocks, mainRange, cmpRange) {
+  const byIdx = bs => { const m = new Map(); bs.forEach(b => (m.get(b.idx) || m.set(b.idx, []).get(b.idx)).push(b)); return m; };
+  const mm = byIdx(mainBlocks), cm = byIdx(cmpBlocks || []);
+  const today = new Date(); today.setHours(0,0,0,0);
+  const days = daysBetween(mainRange[0], mainRange[1]).filter(d => d <= today);
+  return days.map((date, i) => {
+    const r = rollupOEE(mm.get(i) || []);
+    const c = rollupOEE(cm.get(i) || []);
+    const hasMain = (mm.get(i) || []).length > 0;
     return {
-      name: lbl, group: lbl,
-      mainDur, cmpDur,
-      mainCount: cnt,  cmpCount: cCnt,
-      mainAvg: hasMain    ? Math.round(mainDur / Math.max(1, cnt)) : 0,
-      cmpAvg:  hasCompare ? Math.round(cmpDur  / Math.max(1, cCnt)) : 0,
-      notes: hasMain    ? Math.round(Math.random()*4) : 0,
-      cmpNotes: hasCompare ? Math.round(Math.random()*3) : 0,
-      mainPct: hasMain    ? 5 + Math.round(Math.random()*30) : 0,
-      cmpPct:  hasCompare ? 5 + Math.round(Math.random()*25) : 0,
-      station:'CNC-01', cmpStation:'CNC-02', stationGroup:'CNC', cmpStationGroup:'CNC',
-      stopType:'Unplanned', location:'Hall A', cmpLocation:'Hall A',
-      productGroup:'Electronics', cmpProductGroup:'Electronics',
-      product:'Widget Pro', cmpProduct:'Circuit Bd.',
-      productCode:'PRD-001', cmpProductCode:'PRD-004',
-      shift:'Morning', cmpShift:'Night',
-      operator: crew, cmpOperator: cmpCrew,
-      operatorGroupName: deriveOperatorGroups(crew), cmpOperatorGroupName: deriveOperatorGroups(cmpCrew),
-      leader: deriveLeader(crew), cmpLeader: deriveLeader(cmpCrew),
-      loss: mainDur, cmpLoss: cmpDur, durOee: mainDur, cmpDurOee: cmpDur,
-      plannedTime: 800, cmpPlannedTime: 800,
-      cmpName: (cmpLabels && cmpLabels[idx]) ? cmpLabels[idx] : undefined,
-      segments
+      day: i + 1, date, label: timeBucket('Day', date).label, hasMain,
+      quality: r.quality, performance: r.performance, availability: r.availability, oee: r.oee,
+      cmpQuality: c.quality, cmpPerformance: c.performance, cmpAvailability: c.availability, cmpOee: c.oee,
     };
   });
-}
-
-// Returns how many leading time-unit slots in the main period have a corresponding
-// slot in the compare period. Used to zero out compare bars beyond the compare range.
-function _cmpUnitCount(unit) {
-  if (typeof _appliedCompareOn === 'undefined' || !_appliedCompareOn) return undefined;
-  if (typeof compareStart === 'undefined' || !compareStart || !compareEnd) return undefined;
-  const cs = compareStart, ce = compareEnd;
-  if (unit === 'day')     return Math.round((ce - cs) / 86400000) + 1;
-  if (unit === 'week')    return Math.ceil((Math.round((ce - cs) / 86400000) + 1) / 7);
-  if (unit === 'month')   return (ce.getFullYear()-cs.getFullYear())*12 + (ce.getMonth()-cs.getMonth()) + 1;
-  if (unit === 'quarter') return Math.floor(ce.getFullYear()*4+Math.floor(ce.getMonth()/3)) - Math.floor(cs.getFullYear()*4+Math.floor(cs.getMonth()/3)) + 1;
-  if (unit === 'year')    return ce.getFullYear() - cs.getFullYear() + 1;
-  return undefined;
-}
-
-// Generates the compare-period time-unit labels for a given unit type.
-// Used to populate cmpName on each time-series item.
-function _cmpLabels(unit) {
-  if (typeof _appliedCompareOn === 'undefined' || !_appliedCompareOn) return [];
-  if (typeof compareStart === 'undefined' || !compareStart) return [];
-  const cs = compareStart;
-  const ce = (typeof compareEnd !== 'undefined' && compareEnd) ? compareEnd : compareStart;
-  const labels = [];
-  if (unit === 'day') {
-    const DOW3 = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
-    const cur = new Date(cs); cur.setHours(0,0,0,0);
-    const last = new Date(ce); last.setHours(0,0,0,0);
-    while (cur <= last && labels.length < 60)
-      { labels.push(`${DOW3[cur.getDay()]} ${cur.getDate()}`); cur.setDate(cur.getDate()+1); }
-  } else if (unit === 'week') {
-    const cur = new Date(cs); cur.setHours(0,0,0,0);
-    cur.setDate(cur.getDate() - ((cur.getDay()+6)%7));
-    const last = new Date(ce); last.setHours(0,0,0,0);
-    while (cur <= last && labels.length < 53) {
-      const jan1 = new Date(cur.getFullYear(), 0, 1);
-      const wk = Math.ceil(((cur-jan1)/86400000 + ((jan1.getDay()+6)%7) + 1) / 7);
-      labels.push(`W${String(wk).padStart(2,'0')}`);
-      cur.setDate(cur.getDate() + 7);
-    }
-  } else if (unit === 'month') {
-    const cur = new Date(cs.getFullYear(), cs.getMonth(), 1);
-    const last = new Date(ce.getFullYear(), ce.getMonth(), 1);
-    while (cur <= last)
-      { labels.push(MONTHS[cur.getMonth()].slice(0,3)); cur.setMonth(cur.getMonth()+1); }
-  } else if (unit === 'quarter') {
-    let y = cs.getFullYear(), q = Math.floor(cs.getMonth()/3);
-    const ey = ce.getFullYear(), eq = Math.floor(ce.getMonth()/3);
-    const multiYear = ey > cs.getFullYear();
-    while (y < ey || (y === ey && q <= eq)) {
-      labels.push(multiYear ? `Q${q+1} ${y}` : `Q${q+1}`);
-      if (++q > 3) { q=0; y++; }
-    }
-  } else if (unit === 'year') {
-    for (let y = cs.getFullYear(); y <= ce.getFullYear(); y++) labels.push(String(y));
-  }
-  return labels;
-}
-
-// Returns the chart/table dataset for the given X-axis selection.
-// baseData must be the current STOP_REASONS_DATA snapshot (from app state).
-function getAxisData(xAxis, baseData) {
-  switch (xAxis) {
-    case 'Stop reasons':     return baseData.map(d => ({...d}));
-    case 'Stop groups':      return aggregateBy('group',        baseData);
-    case 'Machine locations':return aggregateBy('location',     baseData);
-    case 'Stations':         return aggregateBy('station',      baseData);
-    case 'Station groups':   return aggregateBy('stationGroup', baseData);
-    case 'Factories':        return mockTimeSeries(['Factory A','Factory B','Factory C']);
-    case 'Operators':        return aggregateBy('operator',          baseData);
-    case 'Operator groups':  return aggregateBy('operatorGroupName',  baseData);
-    // One bar per leading supervisor. Rows with no leader are dropped (a leader
-    // X-axis only makes sense for shifts that had one).
-    case 'Shift leaders':    return aggregateBy('leader', baseData.filter(d => d.leader));
-    case 'Products':         return aggregateBy('product',      baseData);
-    case 'Product code':     return aggregateBy('productCode',  baseData);
-    case 'Orders':           return mockTimeSeries(['ORD-1001','ORD-1002','ORD-1003','ORD-1004','ORD-1005']);
-    case 'LOT/Batch':        return mockTimeSeries(['LOT-A1','LOT-A2','LOT-B1','LOT-B2','LOT-C1']);
-    case 'Product groups':   return aggregateBy('productGroup', baseData);
-    case 'Shifts':           return aggregateBy('shift',        baseData);
-    case 'Day': {
-      const rs = (typeof rangeStart !== 'undefined') ? rangeStart : null;
-      const re = (typeof rangeEnd   !== 'undefined') ? rangeEnd   : null;
-      if (rs && re) {
-        const DOW3 = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
-        const labels = []; const cur = new Date(rs); cur.setHours(0,0,0,0);
-        const last = new Date(re); last.setHours(0,0,0,0);
-        while (cur <= last && labels.length < 60)
-          { labels.push(`${DOW3[cur.getDay()]} ${cur.getDate()}`); cur.setDate(cur.getDate()+1); }
-        const mainLen = labels.length;
-        const cmpLen  = _cmpUnitCount('day');
-        const overflow = (cmpLen !== undefined) ? Math.max(0, cmpLen - mainLen) : 0;
-        for (let i = 0; i < overflow && labels.length < 60; i++)
-          { labels.push(`${DOW3[cur.getDay()]} ${cur.getDate()}`); cur.setDate(cur.getDate()+1); }
-        return mockTimeSeries(labels, cmpLen, mainLen, _cmpLabels('day'));
-      }
-      return mockTimeSeries(['Mon 3','Tue 4','Wed 5','Thu 6','Fri 7','Sat 8','Sun 9']);
-    }
-    case 'Day of the week':  return mockTimeSeries(['Mon','Tue','Wed','Thu','Fri','Sat','Sun']);
-    case 'Week': {
-      const rs = (typeof rangeStart !== 'undefined') ? rangeStart : null;
-      const re = (typeof rangeEnd   !== 'undefined') ? rangeEnd   : null;
-      if (rs && re) {
-        const labels = [];
-        const cur = new Date(rs); cur.setHours(0,0,0,0);
-        cur.setDate(cur.getDate() - ((cur.getDay() + 6) % 7)); // back to Monday
-        const last = new Date(re); last.setHours(0,0,0,0);
-        while (cur <= last && labels.length < 53) {
-          const jan1 = new Date(cur.getFullYear(), 0, 1);
-          const wk = Math.ceil(((cur - jan1) / 86400000 + ((jan1.getDay()+6)%7) + 1) / 7);
-          labels.push(`W${String(wk).padStart(2,'0')}`);
-          cur.setDate(cur.getDate() + 7);
-        }
-        const mainLen = labels.length;
-        const cmpLen  = _cmpUnitCount('week');
-        const overflow = (cmpLen !== undefined) ? Math.max(0, cmpLen - mainLen) : 0;
-        for (let i = 0; i < overflow && labels.length < 53; i++) {
-          const jan1 = new Date(cur.getFullYear(), 0, 1);
-          const wk = Math.ceil(((cur - jan1) / 86400000 + ((jan1.getDay()+6)%7) + 1) / 7);
-          labels.push(`W${String(wk).padStart(2,'0')}`);
-          cur.setDate(cur.getDate() + 7);
-        }
-        return mockTimeSeries(labels, cmpLen, mainLen, _cmpLabels('week'));
-      }
-      return mockTimeSeries(['W01','W02','W03','W04','W05']);
-    }
-    case 'Month': {
-      const rs = (typeof rangeStart !== 'undefined') ? rangeStart : null;
-      const re = (typeof rangeEnd   !== 'undefined') ? rangeEnd   : null;
-      if (rs && re) {
-        const labels = [];
-        const cur = new Date(rs.getFullYear(), rs.getMonth(), 1);
-        const last = new Date(re.getFullYear(), re.getMonth(), 1);
-        while (cur <= last)
-          { labels.push(MONTHS[cur.getMonth()].slice(0,3)); cur.setMonth(cur.getMonth()+1); }
-        const mainLen = labels.length;
-        const cmpLen  = _cmpUnitCount('month');
-        const overflow = (cmpLen !== undefined) ? Math.max(0, cmpLen - mainLen) : 0;
-        for (let i = 0; i < overflow; i++)
-          { labels.push(MONTHS[cur.getMonth()].slice(0,3)); cur.setMonth(cur.getMonth()+1); }
-        return mockTimeSeries(labels, cmpLen, mainLen, _cmpLabels('month'));
-      }
-      return mockTimeSeries(['Jan','Feb','Mar','Apr','May','Jun']);
-    }
-    case 'Quarter': {
-      const rs = (typeof rangeStart !== 'undefined') ? rangeStart : null;
-      const re = (typeof rangeEnd   !== 'undefined') ? rangeEnd   : null;
-      if (rs && re) {
-        const labels = [];
-        let y = rs.getFullYear(), q = Math.floor(rs.getMonth()/3);
-        const ey = re.getFullYear(), eq = Math.floor(re.getMonth()/3);
-        const multiYear = ey > rs.getFullYear();
-        while (y < ey || (y === ey && q <= eq)) {
-          labels.push(multiYear ? `Q${q+1} ${y}` : `Q${q+1}`);
-          if (++q > 3) { q=0; y++; }
-        }
-        const mainLen = labels.length;
-        const cmpLen  = _cmpUnitCount('quarter');
-        const overflow = (cmpLen !== undefined) ? Math.max(0, cmpLen - mainLen) : 0;
-        for (let i = 0; i < overflow; i++) {
-          labels.push(`Q${q+1} ${y}`);
-          if (++q > 3) { q=0; y++; }
-        }
-        return mockTimeSeries(labels, cmpLen, mainLen, _cmpLabels('quarter'));
-      }
-      return mockTimeSeries(['Q1','Q2','Q3','Q4']);
-    }
-    case 'Year': {
-      const rs = (typeof rangeStart !== 'undefined') ? rangeStart : null;
-      const re = (typeof rangeEnd   !== 'undefined') ? rangeEnd   : null;
-      if (rs && re) {
-        const labels = [];
-        let y = rs.getFullYear();
-        for (; y <= re.getFullYear(); y++) labels.push(String(y));
-        const mainLen = labels.length;
-        const cmpLen  = _cmpUnitCount('year');
-        const overflow = (cmpLen !== undefined) ? Math.max(0, cmpLen - mainLen) : 0;
-        for (let i = 0; i < overflow; i++) labels.push(String(y++));
-        return mockTimeSeries(labels, cmpLen, mainLen, _cmpLabels('year'));
-      }
-      return mockTimeSeries(['2022','2023','2024','2025']);
-    }
-    default:                 return baseData.map(d => ({...d}));
-  }
 }

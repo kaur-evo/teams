@@ -12,55 +12,45 @@ Load order matters: `data.js` must execute before `logic.js` (both are `<script 
 
 ---
 
-## data.js sections (347 lines)
+## data.js — where things are
 
-| Line | Section | Key symbols |
-|------|---------|-------------|
-| 7 | Calendar constants | `MONTHS`, `DOW` |
-| 13 | Preset labels | `PRESET_LABELS` — maps preset key → button text |
-| 23 | X-axis options | `XAXIS_OPTIONS` (ordered list), `TIME_AXES` (Set) |
-| 34 | Table columns | `DT_COLS` — column defs (key, label, width, align, mono, unit) |
-| 61 | SVG icons | `ICON_Y_INLINE`, `ICON_OPEN` |
-| 66 | Figma asset URLs | `RADIO_ON/OFF`, `CHECK_ON/OFF`, `ICON_X_URL`, `ICON_Y_URL` |
-| 75 | Chart colors | `STOP_GROUP_COLORS` (named groups), `CHART_PALETTE` (fallback) |
-| 85 | Mock dataset | `STOP_REASONS_DATA` — 15 rows, each with `mainDur/cmpDur`, `mainCount/cmpCount`, etc. |
-| 122 | Date utilities | `sameDay`, `mondayDow`, `addDays`, `fmtDMY`, `fmtDMslashM` |
-| 153 | Compare range | `computeRangeForMode(mode, rangeStart, rangeEnd, currentPreset, matchDow)` → `{cs,ce}` |
-| 215 | Aggregation | `aggregateBy(nameKey, baseData)`, `mockTimeSeries(labels)`, `getAxisData(xAxis, baseData)` |
+Search by symbol; line numbers drift.
 
----
+| Section | Key symbols |
+|---------|-------------|
+| Calendar, presets, axes | `MONTHS`, `PRESET_LABELS`, `XAXIS_OPTIONS`, `TIME_AXES` |
+| People | `OPERATOR_DIRECTORY`, `OPERATOR_GROUPS`, `PSEUDO_OPERATORS` (`OP_UNKNOWN`, `OP_AW`), `OP_NO_LEADER` |
+| Downtime columns | `DT_COLS` |
+| Icons | `ICN` / `ICN_MULTI` + `icn(name, size, color)` — Evocon's own assets |
+| Shift blocks | `SHIFT_BLOCKS` (one mock week), `blk()`, `blockPseudoOps`, `blockOperatorValues` |
+| OEE | `OEE_TABLE_COLS`, `rollupOEE`, `descrValues`, `awLabel`, `oeeTableRows`, `OEE_DIMS`, `oeeMatrixFromBlocks`, `manhoursScoped`, `blockManhours` |
+| Quantities | `QTY_TABLE_COLS`, `rollupQty`, `qtyTableRows`, `qtyMatrixFromBlocks`, `qtyByDay` |
+| Dates, compare range | `sameDay`, `addDays`, `computeRangeForMode` |
+| One period, three reports | `blocksForRange`, `SHIFT_BLOCKS_CMP`, `DT_REASONS`, `downtimeEvents`, `DT_AXES`, `timeBucket` / `timeSlots` / `dayLabel`, `getAxisData`, `downtimeTotalRow`, `downtimeSplitMatrix`, `oeeDailySeries` |
 
-## logic.js sections (1032 lines)
+## logic.js — where things are
 
-| Line | Section | Key symbols |
-|------|---------|-------------|
-| 7 | App state | `rangeStart/End`, `leftMonth/rightMonth`, `picking`, `currentPreset`, `_appliedCompareOn`, `_pickerSnapshot` |
-| 28 | Compare state | `compareMode`, `matchDow`, `compareStart/End`, `comparePicking` |
-| 35 | Table state | `_dtData`, `_dtPage` |
-| 40 | Display-month helpers | `inRange(d)`, `setDisplayMonths(start, end)` |
-| 71 | Calendar rendering | `renderCalendar(titleId, gridId, year, month)`, `renderCalendars()`, `updateNavButtons()` |
-| 179 | Navigation | `navigate(dir)` — dir: -1 / 1 / 2 |
-| 198 | Day click | `handleDayClick(year, month, day)` — branches on `comparePicking` vs `picking` |
-| 240 | Preset chips | `selectPreset(el)`, `clearChips()`, `selectChipByPreset(preset)` |
-| 323 | Filter-bar label | `updateFilterBtn()` |
-| 341 | Picker open/close | `toggleDatePicker()`, `closeDatePicker()` (reverts to `_pickerSnapshot`), `applyDatePicker()` |
-| 413 | Compare chip | `updateCompareChip()`, `removeCompare()` |
-| 453 | Match-DOW checkbox | `updateMatchDowVisibility()` |
-| 468 | Compare panel | `toggleCompare()`, `selectCompareMode(btn, mode)`, `activateComparePicking()`, `toggleMatchDow()`, `updateCompareDescriptions()`, `updateCompareDates()` |
-| 577 | Data table | `initTable(data)`, `renderTable()`, `initTableEvents()`, `dtPrev()`, `dtNext()` |
-| 765 | Chart | `initChart()`, `drawChartWith(items)` — sets `updateChartCompare` closure |
-| 972 | X-axis | `redrawChart(xAxis)`, `toggleXAxisDropdown()`, `selectXAxis(option)`, `buildXAxisDropdown()` |
-| 1024 | Init | calls `setDisplayMonths`, `renderCalendars`, `initChart`, `buildXAxisDropdown`, `initTableEvents` |
+| Area | Key symbols |
+|------|-------------|
+| App / compare / table state | `rangeStart/End`, `currentPreset`, `_appliedCompareOn`, `compareStart/End`, `_dtData`, `_dtPage` |
+| Date picker + compare | `toggleDatePicker`, `applyDatePicker`, `removeCompare`, `applyCdd` |
+| Downtime chart + table | `initChart`, `redrawChart`, `drawChartWith`, `drawDowntimeSplit`, `initTable`, `renderTable` |
+| The period's input | `periodBlocks`, `comparePeriodBlocks`, `passesFilters`, `selectedBlocks`, `downtimeBase` |
+| Chart controls | `decorateChartChips`, `setChipLabel`, `setChipActive`, `splitOptionsFor` |
+| Filter bar | `FILTER_DIMS`, `FILTER_MENU`, `MENU_DECOR`, `renderActiveChips`, `renderSelectionList`, `applyFilters` |
+| OEE / Quantities | `drawOeeChart`, `drawOeeBars`, `renderOeeMainTable`, `drawQtyChart`, `renderQtyTable` |
 
 ---
 
 ## Key wiring
 
-- **Compare on/off** — `applyDatePicker()` calls `updateChartCompare(isOn)` (a closure set by `drawChartWith`) and `updateCompareChip()`. Removing via the ✕ chip calls `removeCompare()`.
-- **X-axis change** → `redrawChart(xAxis)` → `getAxisData(xAxis, _chartBaseData)` → `drawChartWith(items)` → `initTable(items)`.
-- **`_chartBaseData`** always stays at the stop-reason level (15 rows). Aggregated views are computed on the fly from it; only `redrawChart('Stop reasons')` overwrites it.
+- **One period, three reports.** All three reports read the same production: `SHIFT_BLOCKS` is one mock week, and `blocksForRange` repeats it day by day over whatever range is picked (no production on future days). OEE and Quantities roll the blocks up; Downtime reads stop events that `downtimeEvents` allocates from each block's real downtime (planned − run), so Downtime minutes equal what OEE's availability implies. The comparison period is `SHIFT_BLOCKS_CMP` (fixed per-block factors). **Nothing is random** — the only variety is a stable hash — so every view, axis, split and report reconciles, and switching never changes a number.
+- **Date / compare / filter change** → `redrawChart(currentXAxis)` (or `drawOeeChart` / `drawQtyChart`) → `downtimeBase()` rebuilds the events from the filtered period → `getAxisData(xAxis, base)` → `drawChartWith(items)` + `initTable(items)`. Nothing is cached between draws.
+- **Downtime rows** come from `dtFinishRow`: average = duration ÷ count, % of planned = duration ÷ the row's planned time, people columns via `descrValues` (the same as OEE / Quantities). The **Total row** is `downtimeTotalRow` — the whole period, never a sum of rows (rows overlap on the people axes). **Split by** is `downtimeSplitMatrix`, a true two-way sum.
+- **People attribution is the same in all three reports**: a stop / a block counts for everyone on the shift, so rows overlap on Operators and Operator groups, and sum exactly on Shift leaders (which has an `Unknown` bucket, per spec).
 - **Picker snapshot** — `toggleDatePicker()` saves all state to `_pickerSnapshot`; `closeDatePicker()` restores it. `applyDatePicker()` clears it (commit).
-- **`_appliedCompareOn`** tracks the last *applied* compare state (not the in-picker state). Guards compare columns in `renderTable` and tooltip in `drawChartWith`.
+- **`_appliedCompareOn`** tracks the last *applied* compare state (not the in-picker state). Compare events only exist while it is on.
+- **Prototype settings** — the page brings its own H-key panel options (`window.PROTO_PANEL` in `index.html`, rendered by `../prototype/proto-panel.js`). `protoAwCount`: the Operators column shows "Additional workforce: N", N = the additional-workforce headcount summed over the row's shifts (what its man-hours were calculated from).
 
 ---
 
@@ -75,7 +65,7 @@ OEE and Quantities both derive **everything about operators / groups / leaders f
 - **Name sync:** `OPERATOR_DIRECTORY` mirrors the setup prototype's 8 operators (`mock-data.js` MOCK_OPERATORS) in short form — `V. Mavroeidis`, `N. Papadopoulos` (the two `canLead`), `M. Kostopoulou`, etc., all in the single **`Operators`** group. Moving setup → reports shows familiar names. 1:1 by last name.
 - **Pseudo-operators** — `Unknown` (`OP_UNKNOWN`) and `Additional workforce` (`OP_AW`) behave like operators everywhere: filter list, X-axis/split-by categories, table rows, `operators` descr column. They are NOT in `OPERATOR_DIRECTORY`; `allOperatorOptions()` pins them above the real people (Unknown → AW → operators A–Z) and the filter list renders them ungrouped above the group headers (`pinned()` in `FILTER_DIMS`).
   - A block belongs to **AW** when `awCount > 0` (even if it also has named operators) and to **Unknown** whenever it carries no named operator — an AW-only shift reports as both, per spec ("when only add. workforce is chosen, Unknown is also displayed, since no actual operator was selected"). See `blockPseudoOps` / `blockOperatorValues`.
-  - **Man-hours:** AW = `awCount × plannedMin/60` per block (`awManhours`); Unknown = 0. The downtime side has no headcounts, so AW uses flat `AW_HOURS` / `AW_CMP_HOURS` via `pseudoAwareHours`.
+  - **Man-hours:** AW = `awCount × plannedMin/60` per block (`awManhours`); Unknown = 0 — in all three reports, since Downtime reads the same blocks.
   - **Reconciliation:** every people axis sums to its Total. AW/Unknown have no group, so the group axis gets its own `Unknown` + `Additional workforce` buckets; the leader axis gets `Unknown` (`OP_NO_LEADER`, an alias of `OP_UNKNOWN`, also pinned in the Shift-leaders filter) for unled blocks.
 - **`OEE_DIMS`** {operator, group, leader} maps a block → its value(s) per dimension. `oeeDimKey(label)` turns an axis/split label into a key. `oeeMatrixFromBlocks` / `qtyMatrixFromBlocks` build the outer×inner cell grid.
 - **`selectedBlocks()`** applies the operator + leader filter chips to `SHIFT_BLOCKS`.
@@ -83,7 +73,7 @@ OEE and Quantities both derive **everything about operators / groups / leaders f
 
 ### OEE report
 
-- `drawOeeChart()` dispatches: **line** only when `oeeChartType==='line'` AND `oeeXAxis==='Day'` AND no split (synthetic `OEE_DATA` time series); otherwise **`drawOeeBars()`** (grouped bars). The 4 component bars are Quality/Performance/Availability/OEE (multiplicative — never stacked). **Manhours is table-only** — no 2nd-Y line.
+- `drawOeeChart()` dispatches: **line** only when `oeeChartType==='line'` AND `oeeXAxis==='Day'` AND no split (`oeeDailySeries` — rolled up from the same blocks as the Day table shown under it); otherwise **`drawOeeBars()`** (grouped bars). The 4 component bars are Quality/Performance/Availability/OEE (multiplicative — never stacked). **Manhours is table-only** — no 2nd-Y line.
 - Controls: `oee-charttype-btn` (Line/Bar), `oee-xaxis-btn`, `oee-splitby-btn`.
 - Tables: `renderOeeMainTable` (full 21-col `OEE_TABLE_COLS`, no-split) / `renderOeeTable` (compact category×inner, split). `oeeTableRows(blocks, dimKey)` builds rows + a Total.
 

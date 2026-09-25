@@ -6,7 +6,8 @@
 
 // ── App state ─────────────────────────────────────────────────────────────────
 
-let _chartBaseData = [];           // working copy of STOP_REASONS_DATA; stays at stop-reason level
+// Downtime reads stop events built fresh from the period's blocks on every
+// draw (see periodBlocks / downtimeBase) — nothing is cached between views.
 let currentXAxis   = 'Stop reasons';
 let downtimeSplitBy = null;        // null = off, or 'Shift leaders' | 'Operators' | 'Operator groups'
 let _dtColLabel    = 'Stop reasons';
@@ -372,7 +373,7 @@ function applyDatePicker() {
 
   if (currentReport === 'oee') drawOeeChart();
   else if (currentReport === 'quantities') drawQtyChart();
-  else if (updateChartCompare) updateChartCompare(_appliedCompareOn);
+  else redrawChart(currentXAxis);
   updateCddDescriptions();
   updateCompareBtnLabel();
   document.getElementById('date-picker').style.display = 'none';
@@ -394,7 +395,7 @@ function removeCompare() {
 
   if (currentReport === 'oee') drawOeeChart();
   else if (currentReport === 'quantities') drawQtyChart();
-  else if (updateChartCompare) updateChartCompare(false);
+  else redrawChart(currentXAxis);
   updateCompareBtnLabel();
   updateCddOptionStyles();
   renderCalendars();
@@ -518,7 +519,7 @@ function applyCdd() {
   cddPickFirst      = null;
   if (currentReport === 'oee') drawOeeChart();
   else if (currentReport === 'quantities') drawQtyChart();
-  else if (updateChartCompare) updateChartCompare(_appliedCompareOn);
+  else redrawChart(currentXAxis);
   updateCompareBtnLabel();
   renderCalendars(); // refresh date-picker calendar compare band
   document.getElementById('compare-dropdown').classList.remove('open');
@@ -766,29 +767,13 @@ function renderTable() {
   const end   = Math.min(start + DT_PER_PAGE, _dtData.length);
   const page  = _dtData.slice(start, end);
 
-  // Totals row
-  const n = _dtData.length;
+  // Totals row — the whole period (see downtimeTotalRow), so it holds on every
+  // axis, and descr cells stay empty as in the live table.
   const tot = {
+    ...downtimeTotalRow(downtimeBase()),
     group:'', station:'', stationGroup:'', stopType:'', location:'',
     productGroup:'', product:'', productCode:'', shift:'', operator:'',
-    mainCount:      _dtData.reduce((s,d) => s + d.mainCount,      0),
-    cmpCount:       _dtData.reduce((s,d) => s + d.cmpCount,       0),
-    notes:          _dtData.reduce((s,d) => s + d.notes,          0),
-    cmpNotes:       _dtData.reduce((s,d) => s + d.cmpNotes,       0),
-    loss:           _dtData.reduce((s,d) => s + d.loss,           0),
-    cmpLoss:        _dtData.reduce((s,d) => s + d.cmpLoss,        0),
-    mainDur:        _dtData.reduce((s,d) => s + d.mainDur,        0),
-    cmpDur:         _dtData.reduce((s,d) => s + d.cmpDur,         0),
-    mainAvg:        Math.round(_dtData.reduce((s,d) => s + d.mainAvg, 0) / n),
-    cmpAvg:         Math.round(_dtData.reduce((s,d) => s + d.cmpAvg,  0) / n),
-    durOee:         _dtData.reduce((s,d) => s + d.durOee,         0),
-    cmpDurOee:      _dtData.reduce((s,d) => s + d.cmpDurOee,      0),
-    plannedTime:    _dtData.reduce((s,d) => s + d.plannedTime,    0),
-    cmpPlannedTime: _dtData.reduce((s,d) => s + d.cmpPlannedTime, 0),
-    mainManhours:   _dtData.reduce((s,d) => s + (d.mainManhours || 0), 0),
-    cmpManhours:    _dtData.reduce((s,d) => s + (d.cmpManhours  || 0), 0),
-    mainPct:        Math.round(_dtData.reduce((s,d) => s + d.mainPct, 0) / n),
-    cmpPct:         Math.round(_dtData.reduce((s,d) => s + d.cmpPct,  0) / n),
+    leader:'', operatorGroupName:'',
   };
 
   const cellVal = (d, col) => {
@@ -1010,32 +995,15 @@ function dtNext() { if ((_dtPage + 1) * DT_PER_PAGE < _dtData.length) { _dtPage+
 // ── Chart ─────────────────────────────────────────────────────────────────────
 
 function initChart() {
-  _chartBaseData = STOP_REASONS_DATA.map(d => ({...d})); // fresh copy from data.js
-  drawChartWith(_chartBaseData);
+  drawChartWith(getAxisData(currentXAxis, downtimeBase()));
 }
 
 // Downtime "Split by" — clustered bars. Each X-axis category (item) becomes a
 // cluster; within it, one bar per split value (shift leader / operator group /
-// operator) present on that category. A category's duration is distributed
-// evenly across the split values it lists, so the sub-bars sum to the category
-// total (same even-split convention aggregateBy uses for multi-value rows).
+// operator). Each bar is the stop minutes that actually happened on that
+// category under that value (downtimeSplitMatrix) — not a share of the total.
 function drawDowntimeSplit(items) {
-  const fieldKey = splitFieldKey(downtimeSplitBy);
-
-  // Build [{ name, subs:[{val, dur}] }] and the global set of split values.
-  const splitValSet = new Set();
-  const clusters = items.map(it => {
-    const raw = (it[fieldKey] || '').split(',').map(s => s.trim()).filter(Boolean);
-    // No value on a people dimension means nobody was recorded — that is the
-    // Unknown bucket, not a nameless "—" series.
-    const vals = raw.length ? raw
-      : [fieldKey === 'leader' ? OP_NO_LEADER : OP_UNKNOWN];
-    const per  = (it.mainDur || 0) / vals.length;
-    const subMap = new Map();
-    vals.forEach(v => { subMap.set(v, (subMap.get(v) || 0) + per); splitValSet.add(v); });
-    return { name: it.name, subs: [...subMap.entries()].map(([val, dur]) => ({ val, dur })) };
-  });
-  const splitVals = [...splitValSet];
+  const { clusters, splitVals } = downtimeSplitMatrix(currentXAxis, downtimeSplitBy, downtimeBase(), items);
   const colorMap = Object.fromEntries(splitVals.map((v, i) => [v, CHART_PALETTE[i % CHART_PALETTE.length]]));
 
   // Table stays in sync with the (unsplit) X-axis aggregation.
@@ -1507,10 +1475,8 @@ function redrawChart(xAxis) {
   currentXAxis = xAxis;
   _dtColLabel  = xAxis;
   const wasCompareOn = _appliedCompareOn;
-  const items = getAxisData(xAxis, _chartBaseData);
+  const items = getAxisData(xAxis, downtimeBase());
   if (!TIME_AXES.has(xAxis)) items.sort((a, b) => b.mainDur - a.mainDur);
-  // When returning to Stop reasons, refresh base data from the sorted items
-  if (xAxis === 'Stop reasons') _chartBaseData = items;
   drawChartWith(items);
   // updateChartCompare is set fresh inside drawChartWith; restore compare state
   if (wasCompareOn) updateChartCompare(true);
@@ -1633,16 +1599,9 @@ function selectSplit(val) {
   setChipLabel('splitby-btn', 'Split by: ' + (val || '–'));
   setChipActive('splitby-btn', val);
   // Re-render through the normal pipeline (split mode reshapes the items).
-  const items = getAxisData(currentXAxis, _chartBaseData);
+  const items = getAxisData(currentXAxis, downtimeBase());
   if (!TIME_AXES.has(currentXAxis)) items.sort((a, b) => b.mainDur - a.mainDur);
   drawChartWith(items);
-}
-
-// The row field that carries each split dimension's value(s) (comma-joined).
-function splitFieldKey(splitLabel) {
-  if (splitLabel === 'Shift leaders')  return 'leader';
-  if (splitLabel === 'Operator groups') return 'operatorGroupName';
-  return 'operator'; // 'Operators'
 }
 
 // Close dropdowns when clicking outside them
@@ -1950,22 +1909,7 @@ function resetFilters() {
 // operators in those groups for the downtime row filter.
 function applyFilters() {
   _tblPage.oee = 0; _tblPage.qty = 0;
-  const opSel     = filterState.operators;
-  const leaderSel = filterState.leaders;
-
-  if (!opSel.size && !leaderSel.size) {
-    _chartBaseData = STOP_REASONS_DATA.map(d => ({ ...d }));
-  } else {
-    _chartBaseData = STOP_REASONS_DATA.filter(d => {
-      const names = (d.operator || '').split(',').map(s => s.trim()).filter(Boolean);
-      if (opSel.size  && !names.some(n => opSel.has(n)))  return false;
-      if (leaderSel.size && !leaderSel.has(d.leader || OP_NO_LEADER)) return false;
-      return true;
-    }).map(d => ({ ...d }));
-  }
-  const items = getAxisData(currentXAxis, _chartBaseData);
-  drawChartWith(items);
-  initTable(items);
+  redrawChart(currentXAxis);
   if (currentReport === 'oee') drawOeeChart();
   else if (currentReport === 'quantities') drawQtyChart();
 }
@@ -2004,17 +1948,36 @@ function switchReport(type) {
 // derive from these so chart + filters always reconcile.
 //   Shift-leaders filter → keep blocks led by a selected leader.
 //   Operators filter     → keep blocks where ≥1 selected operator was present.
-function selectedBlocks() {
+function selectedBlocks() { return periodBlocks(); }
+
+// The filter chips, applied to any block list.
+function passesFilters(b) {
   const leaderSel = filterState.leaders;
   const opSel     = filterState.operators;
-  return SHIFT_BLOCKS.filter(b => {
-    if (leaderSel.size && !leaderSel.has(b.leaderId || OP_NO_LEADER)) return false;
-    // Pseudo-operators participate like any other operator: selecting
-    // "Additional workforce" keeps blocks with awCount > 0, "Unknown" keeps
-    // blocks nobody was assigned to.
-    if (opSel.size && !blockOperatorValues(b).some(o => opSel.has(o))) return false;
-    return true;
-  });
+  if (leaderSel.size && !leaderSel.has(b.leaderId || OP_NO_LEADER)) return false;
+  // Pseudo-operators filter like any operator: "Additional workforce" keeps
+  // shifts that had extra hands, "Unknown" shifts with no named operator.
+  if (opSel.size && !blockOperatorValues(b).some(o => opSel.has(o))) return false;
+  return true;
+}
+
+// Blocks of the selected range, and of the comparison range when one is
+// applied — the one input all three reports read.
+function periodBlocks() {
+  return blocksForRange(rangeStart, rangeEnd, SHIFT_BLOCKS, 'main').filter(passesFilters);
+}
+function comparePeriodBlocks() {
+  if (!_appliedCompareOn || !compareStart || !compareEnd) return [];
+  return blocksForRange(compareStart, compareEnd, SHIFT_BLOCKS_CMP, 'cmp').filter(passesFilters);
+}
+function downtimeBase() {
+  const cmp = comparePeriodBlocks();
+  return {
+    main: downtimeEvents(periodBlocks()),
+    cmp:  downtimeEvents(cmp),
+    mainRange: [rangeStart, rangeEnd],
+    cmpRange: cmp.length || (_appliedCompareOn && compareStart) ? [compareStart, compareEnd || compareStart] : null,
+  };
 }
 
 // ── OEE chart-type toggle (Line / Bar) ─────────────────────────────────────
@@ -2460,13 +2423,16 @@ function drawOeeChart() {
     return;
   }
 
-  // Line path (Day axis, no split): no pager, no per-category table.
+  // Line path (Day axis, no split): no pager. The points are rolled up from the
+  // same blocks as the Day table under the chart, so each point is its row.
   const _pg = document.getElementById('oee-pager');
   if (_pg) _pg.style.display = 'none';
-  const _tw = document.getElementById('oee-table-wrap');
-  if (_tw) _tw.style.display = 'none';
+  const series = oeeDailySeries(periodBlocks(), comparePeriodBlocks(),
+    [rangeStart, rangeEnd], compareStart ? [compareStart, compareEnd || compareStart] : null);
+  renderOeeMainTable(oeeTableRows(selectedBlocks(), 'day'), OEE_DIMS.day.header);
+  if (!series.length) return;
 
-  const x = d3.scaleLinear().domain([1, OEE_DATA.length]).range([0, width]);
+  const x = d3.scaleLinear().domain([1, Math.max(2, series.length)]).range([0, width]);
   const y = d3.scaleLinear().domain([0, 100]).range([height, 0]);
 
   // Horizontal gridlines
@@ -2485,7 +2451,7 @@ function drawOeeChart() {
         .y(d => y(d[line.cmpKey]))
         .curve(d3.curveMonotoneX);
 
-      chart.append('path').datum(OEE_DATA)
+      chart.append('path').datum(series)
         .attr('class', `oee-line-cmp line-cmp-${line.key}`)
         .attr('fill', 'none')
         .attr('stroke', line.color)
@@ -2503,7 +2469,7 @@ function drawOeeChart() {
       .y(d => y(d[line.key]))
       .curve(d3.curveMonotoneX);
 
-    chart.append('path').datum(OEE_DATA)
+    chart.append('path').datum(series)
       .attr('class', `oee-line-main line-main-${line.key}`)
       .attr('fill', 'none').attr('stroke', line.color).attr('stroke-width', 2)
       .attr('d', lineGen);
@@ -2512,7 +2478,7 @@ function drawOeeChart() {
   // ── Compare dots ──────────────────────────────────────────────────────────
   if (compareOn) {
     OEE_LINES.forEach(line => {
-      chart.selectAll(`.cmp-dot-${line.key}`).data(OEE_DATA).join('circle')
+      chart.selectAll(`.cmp-dot-${line.key}`).data(series).join('circle')
         .attr('class', `cmp-dot-${line.key}`)
         .attr('cx', d => x(d.day)).attr('cy', d => y(d[line.cmpKey]))
         .attr('r', 3.5).attr('fill', line.color).attr('opacity', 0.5)
@@ -2522,7 +2488,7 @@ function drawOeeChart() {
 
   // ── Main dots ─────────────────────────────────────────────────────────────
   OEE_LINES.forEach(line => {
-    chart.selectAll(`.dot-${line.key}`).data(OEE_DATA).join('circle')
+    chart.selectAll(`.dot-${line.key}`).data(series).join('circle')
       .attr('class', `dot-${line.key}`)
       .attr('cx', d => x(d.day)).attr('cy', d => y(d[line.key]))
       .attr('r', 4).attr('fill', line.color).attr('stroke', 'white').attr('stroke-width', 1.5);
@@ -2531,7 +2497,7 @@ function drawOeeChart() {
 
   // X axis
   const xAxisG = chart.append('g').attr('transform', `translate(0,${height})`)
-    .call(d3.axisBottom(x).ticks(OEE_DATA.length).tickFormat(d => d).tickSize(0));
+    .call(d3.axisBottom(x).ticks(series.length).tickFormat(d => (series[d - 1] ? series[d - 1].label : '')).tickSize(0));
   xAxisG.select('.domain').style('stroke', '#e0e0e0');
   xAxisG.selectAll('text').style('font-family','Inter,sans-serif').style('font-size','11px').style('fill','#616161').attr('dy','1.4em');
 
@@ -2543,13 +2509,13 @@ function drawOeeChart() {
 
   // ── Column background rects (visual highlight, pointer-events:none) ───────
   const gapHalf = (x(2) - x(1)) / 2;
-  chart.selectAll('.oee-col-bg').data(OEE_DATA).join('rect')
+  chart.selectAll('.oee-col-bg').data(series).join('rect')
     .attr('class', 'oee-col-bg')
     .attr('x', (d, i) => i === 0 ? 0 : x(d.day) - gapHalf)
     .attr('y', 0)
     .attr('width', (d, i) => {
       const left  = i === 0 ? 0 : x(d.day) - gapHalf;
-      const right = i === OEE_DATA.length - 1 ? width : x(d.day) + gapHalf;
+      const right = i === series.length - 1 ? width : x(d.day) + gapHalf;
       return right - left;
     })
     .attr('height', height)
@@ -2658,10 +2624,10 @@ function drawOeeChart() {
 
       // Find column index
       let colIdx = -1;
-      for (let i = 0; i < OEE_DATA.length; i++) {
-        const cx = x(OEE_DATA[i].day);
-        const left  = i === 0 ? 0 : (cx + x(OEE_DATA[i-1].day)) / 2;
-        const right = i === OEE_DATA.length - 1 ? width : (cx + x(OEE_DATA[i+1].day)) / 2;
+      for (let i = 0; i < series.length; i++) {
+        const cx = x(series[i].day);
+        const left  = i === 0 ? 0 : (cx + x(series[i-1].day)) / 2;
+        const right = i === series.length - 1 ? width : (cx + x(series[i+1].day)) / 2;
         if (mx >= left && mx <= right) { colIdx = i; break; }
       }
 
@@ -2677,7 +2643,7 @@ function drawOeeChart() {
         return;
       }
 
-      const d = OEE_DATA[colIdx];
+      const d = series[colIdx];
 
       // Option 1 / no compare: just day tooltip
       showDayTooltip(event, d);
@@ -2849,8 +2815,8 @@ function drawQtyChart() {
   let cats, innersForCat, cellOf, catLabel, outerHeader, inners;
   if (qtyXAxis === 'Day' && !split) {
     const days = qtyByDay(selectedBlocks());
-    const byKey = {}; days.forEach(d => byKey[d.day] = d);
-    cats = days.map(d => d.day);
+    const byKey = {}; days.forEach(d => byKey[d.name] = d);
+    cats = days.map(d => d.name);
     inners = [null];
     innersForCat = () => [null];
     cellOf = (cat) => byKey[cat];
@@ -2918,7 +2884,7 @@ function drawQtyChart() {
           .attr('fill', s.color)
           .on('mousemove', (event) => {
             if (!tooltipEl) return;
-            const title = qtyXAxis === 'Day' ? ('Day ' + cat) : (split ? `${cat} — ${l}` : cat);
+            const title = split ? `${cat} — ${l}` : cat;
             tooltipEl.innerHTML =
               `<div style="font-family:'Open Sans',sans-serif;font-size:12px;">` +
               `<div style="font-weight:600;margin-bottom:2px;">${title}</div>` +
@@ -2985,8 +2951,8 @@ function drawQtyChart() {
     // Day view: one table row per day (familiar to the OEE Day-less table).
     const days = qtyByDay(selectedBlocks());
     const rows = days.map(d => {
-      const r = { ...d, name: 'Day ' + d.day };
-      QTY_TABLE_COLS.filter(c => c.type === 'descr').forEach(c => { r[c.key] = descrValues(selectedBlocks().filter(b => b.day === d.day), c.key); });
+      const r = { ...d };
+      QTY_TABLE_COLS.filter(c => c.type === 'descr').forEach(c => { r[c.key] = descrValues(d.blocks, c.key); });
       return r;
     });
     if (rows.length) {
@@ -3001,6 +2967,13 @@ function drawQtyChart() {
     renderQtyTable(qtyTableRows(selectedBlocks(), outerDim), OEE_DIMS[outerDim].header);
   }
 }
+
+// Prototype setting flipped in the H-panel → redraw whichever report is open.
+window.addEventListener('proto:awCount', () => {
+  if (currentReport === 'oee') drawOeeChart();
+  else if (currentReport === 'quantities') drawQtyChart();
+  else redrawChart(currentXAxis);
+});
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 

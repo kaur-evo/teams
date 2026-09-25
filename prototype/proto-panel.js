@@ -15,7 +15,11 @@
   // value is still a string (`on` / `off` below) so consumer code keeps reading
   // the same values it always did (e.g. 'chip', 'flat'). `defOn` is the default
   // checked state. Add an option here and it appears on every page.
-  const OPTIONS = [
+  // A page with its own concerns can bring its own list instead (the reports
+  // prototype does): set window.PROTO_PANEL = { options: [...], versionKey }
+  // before this script loads. Everything else below works the same.
+  const PAGE = window.PROTO_PANEL || null;
+  const OPTIONS = (PAGE && PAGE.options) || [
     {
       key: 'protoCardLayout', global: '__protoCardLayout', event: 'proto:cardLayout',
       label: 'Alternative operator card layout (time + roles, one row per tag)',
@@ -107,9 +111,12 @@
   // tags off) bump PANEL_VERSION so stale stored choices are cleared once and
   // everyone lands on the spec defaults.
   const PANEL_VERSION = '3';
-  if (localStorage.getItem('protoPanelVersion') !== PANEL_VERSION) {
+  // A page-specific list keeps its own version key, so resetting one page's
+  // choices can never mark another page's stale choices as current.
+  const VERSION_KEY = (PAGE && PAGE.versionKey) || 'protoPanelVersion';
+  if (localStorage.getItem(VERSION_KEY) !== PANEL_VERSION) {
     OPTIONS.forEach(opt => localStorage.removeItem(opt.key));
-    localStorage.setItem('protoPanelVersion', PANEL_VERSION);
+    localStorage.setItem(VERSION_KEY, PANEL_VERSION);
   }
 
   // Seed globals immediately (before DOM/panel) so components reading them at
