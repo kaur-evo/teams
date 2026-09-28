@@ -23,7 +23,7 @@ Search by symbol; line numbers drift.
 | Downtime columns | `DT_COLS` |
 | Icons | `ICN` / `ICN_MULTI` + `icn(name, size, color)` — Evocon's own assets |
 | Shift blocks | `SHIFT_BLOCKS` (one mock week), `blk()`, `blockPseudoOps`, `blockOperatorValues` |
-| OEE | `OEE_TABLE_COLS`, `rollupOEE`, `descrValues`, `awLabel`, `oeeTableRows`, `OEE_DIMS`, `oeeMatrixFromBlocks`, `manhoursScoped`, `blockManhours` |
+| OEE | `OEE_TABLE_COLS`, `rollupOEE`, `descrValues`, `oeeTableRows`, `OEE_DIMS`, `oeeMatrixFromBlocks`, `manhoursScoped`, `blockManhours` |
 | Quantities | `QTY_TABLE_COLS`, `rollupQty`, `qtyTableRows`, `qtyMatrixFromBlocks`, `qtyByDay` |
 | Dates, compare range | `sameDay`, `addDays`, `computeRangeForMode` |
 | One period, three reports | `blocksForRange`, `SHIFT_BLOCKS_CMP`, `DT_REASONS`, `downtimeEvents`, `DT_AXES`, `timeBucket` / `timeSlots` / `dayLabel`, `getAxisData`, `downtimeTotalRow`, `downtimeSplitMatrix`, `oeeDailySeries` |
@@ -50,7 +50,6 @@ Search by symbol; line numbers drift.
 - **People attribution is the same in all three reports**: a stop / a block counts for everyone on the shift, so rows overlap on Operators and Operator groups, and sum exactly on Shift leaders (which has an `Unknown` bucket, per spec).
 - **Picker snapshot** — `toggleDatePicker()` saves all state to `_pickerSnapshot`; `closeDatePicker()` restores it. `applyDatePicker()` clears it (commit).
 - **`_appliedCompareOn`** tracks the last *applied* compare state (not the in-picker state). Compare events only exist while it is on.
-- **Prototype settings** — the page brings its own H-key panel options (`window.PROTO_PANEL` in `index.html`, rendered by `../prototype/proto-panel.js`). `protoAwCount`: the Operators column shows "Additional workforce: N", N = the additional-workforce headcount summed over the row's shifts (what its man-hours were calculated from).
 
 ---
 

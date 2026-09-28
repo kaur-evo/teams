@@ -2968,13 +2968,6 @@ function drawQtyChart() {
   }
 }
 
-// Prototype setting flipped in the H-panel → redraw whichever report is open.
-window.addEventListener('proto:awCount', () => {
-  if (currentReport === 'oee') drawOeeChart();
-  else if (currentReport === 'quantities') drawQtyChart();
-  else redrawChart(currentXAxis);
-});
-
 // ── Init ──────────────────────────────────────────────────────────────────────
 
 decorateChartChips();      // icon + label + caret, before anything writes a value

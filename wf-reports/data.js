@@ -429,20 +429,7 @@ function descrValues(blocks, key) {
     }
     vals.forEach(v => v && set.add(v));
   });
-  if (key === 'operators' && set.has(OP_AW)) {
-    return [...set].map(v => (v === OP_AW ? awLabel(blocks) : v)).join(', ');
-  }
   return [...set].join(', ') || '—';
-}
-
-// Prototype setting (H-panel on the reports page): "Additional workforce: 38",
-// where 38 is the headcount the row's man-hours were calculated from — the sum
-// of the additional-workforce counts on the shifts in the row. Off → the plain
-// label.
-function awLabel(blocks) {
-  const on = typeof window === 'undefined' || window.__protoAwCount !== 'off';
-  if (!on) return OP_AW;
-  return `${OP_AW}: ${blocks.reduce((s, b) => s + (b.awCount || 0), 0)}`;
 }
 
 // Lightweight station → group / factory lookups for the descr columns.
