@@ -1639,10 +1639,10 @@ const FILTER_DIMS = {
   operators: {
     label: 'Operators', singular: 'operator', grouped: true,
     icon: icn('operators', 20),
-    // Unknown → Additional workforce → real operators A–Z.
+    // Unknown → real operators A–Z.
     values: () => allOperatorOptions(),
-    // Unknown / Additional workforce are pinned above the group headers as
-    // ungrouped rows — they aren't people and belong to no team.
+    // Unknown is pinned above the group headers as an ungrouped row — it is
+    // not a person and belongs to no team.
     pinned: () => PSEUDO_OPERATORS.slice(),
     // Group → its operators, in OPERATOR_GROUPS order, each group A–Z.
     groupsOf: () => OPERATOR_GROUPS.map(g => ({
@@ -1815,8 +1815,8 @@ function renderSelectionList() {
     `<div class="sl-row${on ? ' is-checked' : ''}${extraCls || ''}" data-val="${esc(v)}"><span class="sl-check">${check(on)}</span><span>${v}</span></div>`;
 
   // Body: grouped (group header + indented members) or a flat list.
-  // Pinned values (Unknown, Additional workforce) sit above the group headers
-  // as plain top-level rows — no divider, they read as ordinary options.
+  // The pinned value (Unknown) sits above the group headers as a plain
+  // top-level row — no divider, it reads as an ordinary option.
   let body;
   const pinned = (dim.pinned ? dim.pinned() : []).filter(match);
   const pinnedHtml = pinned.map(v => row(v, _slDraft.has(v))).join('');
@@ -1955,8 +1955,8 @@ function passesFilters(b) {
   const leaderSel = filterState.leaders;
   const opSel     = filterState.operators;
   if (leaderSel.size && !leaderSel.has(b.leaderId || OP_NO_LEADER)) return false;
-  // Pseudo-operators filter like any operator: "Additional workforce" keeps
-  // shifts that had extra hands, "Unknown" shifts with no named operator.
+  // Unknown filters like any operator: it keeps the shifts that carried it —
+  // nobody named, or unnamed extra hands (see blockPseudoOps).
   if (opSel.size && !blockOperatorValues(b).some(o => opSel.has(o))) return false;
   return true;
 }

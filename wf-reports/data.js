@@ -87,28 +87,26 @@ const OPERATOR_DIRECTORY = {
 // Operators allowed to lead a shift (mirrors Settings "Allow as shift leader").
 const CAN_LEAD_OPERATORS = Object.keys(OPERATOR_DIRECTORY).filter(n => OPERATOR_DIRECTORY[n].canLead);
 
-// ── Pseudo-operators ─────────────────────────────────────────────────────────
-// Two non-person entries that behave like operators everywhere in the reports —
-// filter list, X-axis / split-by categories, table rows, descr columns:
+// ── Unknown: the people nobody named ─────────────────────────────────────────
+// Reports have one non-person entry, "Unknown", and it behaves like an operator
+// everywhere — filter list, X-axis / split-by categories, table rows, descr
+// columns. It stands for the unnamed part of a shift, with a headcount:
 //
-//   Unknown              — production that ran with NO operator selected. The
-//                          catch-all so the numbers always add up to the total.
-//   Additional workforce — the per-shift AW headcount from Shift View. Not named
-//                          people, so it can never be a shift leader and has no
-//                          operator group, but it DOES contribute man-hours:
-//                          headcount × the block's planned hours.
+//   Unknown ×0 — no operator was selected at all (an empty shift)
+//   Unknown ×N — N additional-workforce people from Shift View, on their own or
+//                alongside named operators
 //
-// They are NOT in OPERATOR_DIRECTORY (which stays a directory of real people);
-// PSEUDO_OPERATORS is prepended wherever an operator list is built, in this
-// fixed order — Unknown first, then Additional workforce, then the real
-// operators alphabetically.
+// "Additional workforce" is a Shift View term only; in reports those people are
+// Unknown, and their headcount feeds Unknown's man-hours (N × the shift's
+// planned hours). Unknown ×0 contributes none. It is NOT in OPERATOR_DIRECTORY
+// (a directory of real people) and is pinned above the real operators, which
+// follow alphabetically.
 const OP_UNKNOWN = 'Unknown';
-const OP_AW      = 'Additional workforce';
 // Catch-all on the Shift-leader axis: production that ran without an assigned
 // leader. Reported as "Unknown", the same label the operator axis uses for
 // "nobody was recorded" — one word for one concept across every people axis.
 const OP_NO_LEADER = OP_UNKNOWN;
-const PSEUDO_OPERATORS = [OP_UNKNOWN, OP_AW];
+const PSEUDO_OPERATORS = [OP_UNKNOWN];
 const isPseudoOperator = (n) => PSEUDO_OPERATORS.includes(n);
 
 // The canonical operator option list: pseudo-operators pinned to the top, real
@@ -119,9 +117,9 @@ function allOperatorOptions() {
   return [...PSEUDO_OPERATORS, ...people];
 }
 
-// Same rule one level up: Additional workforce and Unknown are groups in their
-// own right, so grouping / splitting by Operator group orders them exactly like
-// the operator list — pinned on top, real groups alphabetically after.
+// Same rule one level up: Unknown people belong to no operator group, so
+// Unknown is a group of its own on the group axis — pinned on top, real groups
+// alphabetically after.
 function allGroupOptions() {
   const groups = OPERATOR_GROUPS.slice()
     .sort((a, b) => a.localeCompare(b, 'en', { sensitivity: 'base' }));
@@ -240,7 +238,8 @@ const SHIFT_LEADERS = CAN_LEAD_OPERATORS;
 //                   or '' when nobody was assigned (an Unknown block)
 //   operatorIds   — everyone who worked the block (includes the leader). Empty
 //                   means no operator was selected → the block counts as Unknown.
-//   awCount       — Additional workforce headcount on this block (0 = none).
+//   awCount       — Shift View's additional-workforce headcount on this block
+//                   (0 = none). Reports show those people as Unknown ×awCount.
 //                   Unnamed extra hands; contributes man-hours but never leads.
 //   plannedMin    — planned production time (denominator of availability)
 //   runMin        — operating time (green+yellow) ≤ plannedMin
@@ -276,9 +275,8 @@ const SHIFT_BLOCKS = [
   blk(7, 'Quality Lab','N. Papadopoulos', ['S. Panagiotou','S. Nikolaou'],                 480, 270, 800, 455, 436),
   // ── Additional-workforce-only blocks ─────────────────────────────────────
   // A shift covered purely by extra hands — no named operator was assigned, so
-  // the block reports as "Additional workforce" and, per spec, "Unknown" too
-  // (no actual operator was selected), and belongs to no leader.
-  // Peak-season packing lines are the realistic case for this.
+  // the block reports as Unknown ×N (N feeding man-hours) and belongs to no
+  // leader. Peak-season packing lines are the realistic case for this.
   blk(3, 'Packing-01', '', [], 480, 290, 800, 480, 455, 5),
   blk(6, 'Packing-01', '', [], 480, 275, 800, 462, 436, 4),
   // ── Unknown blocks (no operator selected at all) ──────────────────────────
@@ -318,19 +316,11 @@ function blk(day, station, leaderId, operatorIds, plannedMin, runMin, idealQty, 
            shiftMin, allMin, techStopMin, shift, ...meta };
 }
 
-// Which pseudo-operators a block belongs to, as operator-list values:
-//   no named operators → Unknown (with or without AW)
-//   awCount > 0        → Additional workforce
+// Whether a block carries Unknown in its operator list: when nobody was named
+// (Unknown ×0), or when it had additional workforce (Unknown ×N) — those people
+// are there but unnamed, and their hours need a row to land on.
 function blockPseudoOps(b) {
-  const out = [];
-  // No named operator on the block → "Unknown", whether or not additional
-  // workforce was recorded. Spec: when only additional workforce is chosen for
-  // a shift, Unknown is reported as well, because no actual operator was
-  // selected — not every customer uses AW and the behaviour has to hold either
-  // way. Unknown carries no man-hours, so the people axes still reconcile.
-  if (!b.operatorIds.length) out.push(OP_UNKNOWN);
-  if (b.awCount > 0) out.push(OP_AW);
-  return out;
+  return (!b.operatorIds.length || b.awCount > 0) ? [OP_UNKNOWN] : [];
 }
 
 // Everyone on a block as operator-list values: named people + pseudo-operators.
@@ -420,8 +410,8 @@ function descrValues(blocks, key) {
       case 'shifts':        vals = [b.shift || 'Day']; break;
       // People columns read the blocks exactly as the people axes do, so a
       // row's cells always agree with the axis it would land on:
-      //   Operators       — named people, plus Unknown / Additional workforce
-      //   Operator groups — spec: additional workforce shows here too
+      //   Operators       — named people, plus Unknown
+      //   Operator groups — the named people's groups, plus Unknown
       //   Shift leader    — spec: no leader selected reports as "Unknown"
       case 'operators':     vals = blockOperatorValues(b); break;
       case 'operatorGroup': vals = OEE_DIMS.group.valsOf(b); break;
@@ -467,8 +457,8 @@ function oeeTableRows(blocks, dimKey) {
 
 // Distinct operators across a set of blocks → total worked hours (manhours).
 // Each operator counted once; their hours = Σ block durations they were on.
-// Additional workforce adds headcount × the block's planned hours (each AW head
-// is a separate pair of hands, so there is nothing to dedup across blocks).
+// Unknown ×N adds N × the block's planned hours (each unnamed head is a
+// separate pair of hands, so there is nothing to dedup across blocks).
 // Unknown contributes nothing — no people were recorded.
 function blockManhours(blocks) {
   const perOp = new Map();
@@ -483,7 +473,8 @@ function blockManhours(blocks) {
   return total;
 }
 
-// Man-hours contributed by the Additional workforce on one block.
+// Man-hours of a block's unnamed people (Unknown ×N, N = the Shift View
+// additional-workforce count).
 function awManhours(b) {
   return (b.awCount || 0) * (b.plannedMin / 60);
 }
@@ -496,26 +487,22 @@ function awManhours(b) {
 const OEE_DIMS = {
   operator: {
     header: 'Operators',
-    // Unknown → Additional workforce → real operators A–Z (see allOperatorOptions).
+    // Unknown → real operators A–Z (see allOperatorOptions).
     labels: () => allOperatorOptions(),
     valsOf: (b) => blockOperatorValues(b),
     isPeople: true,
   },
   group: {
     header: 'Operator groups',
-    // Pseudo-operators are in no group, so blocks made up only of them land in
-    // their own catch-all buckets — without these the group rows would silently
-    // fail to add up to the Total.
+    // Unknown people are in no group, so they get a bucket of their own —
+    // without it the group rows would not add up to the Total.
     labels: () => allGroupOptions(),
-    // A block contributes to every group its named operators belong to, AND to
-    // the "Additional workforce" bucket whenever it carried AW — so a mixed
-    // block's AW hours are attributed instead of vanishing. Blocks with nobody
-    // at all fall to "Unknown".
-    valsOf: (b) => {
-      const groups = [...new Set(b.operatorIds.map(o => OPERATOR_DIRECTORY[o]?.group || 'Operators'))];
-      if (b.awCount > 0) groups.push(OP_AW);
-      return groups.length ? groups : [OP_UNKNOWN];
-    },
+    // Every group the block's named operators belong to, plus Unknown when the
+    // block carries it (see blockPseudoOps).
+    valsOf: (b) => [
+      ...new Set(b.operatorIds.map(o => OPERATOR_DIRECTORY[o]?.group || 'Operators')),
+      ...blockPseudoOps(b),
+    ],
     isPeople: true,
   },
   leader: {
@@ -581,11 +568,9 @@ function oeeMatrixFromBlocks(blocks, outerDim, innerDim) {
 // Manhours attributable to a single dimension value within a block set —
 // distinct operators that belong to that value, hours counted once.
 function manhoursScoped(blocks, dim, val) {
-  // Pseudo-operator rows (on both the operator and the group axis):
-  // "Additional workforce" = Σ headcount × block hours; "Unknown" = 0
-  // (no people were recorded on those blocks).
-  if (val === OP_AW)      return blocks.reduce((s, b) => s + awManhours(b), 0);
-  if (val === OP_UNKNOWN) return 0;
+  // Unknown (on the operator and the group axis) = its headcount × the block's
+  // hours — the additional workforce; an empty shift (×0) adds nothing.
+  if (val === OP_UNKNOWN) return blocks.reduce((s, b) => s + awManhours(b), 0);
 
   const inVal = (o) => dim === 'group'
     ? ((OPERATOR_DIRECTORY[o]?.group || 'Operators') === val)
@@ -1130,7 +1115,7 @@ function downtimeSplitMatrix(xAxis, splitLabel, base, items) {
       vals.forEach(v => m.set(v, (m.get(v) || 0) + ev.dur));
     });
   });
-  // Split values in the axis's own order (Unknown → Additional workforce → A–Z).
+  // Split values in the axis's own order (Unknown → A–Z).
   const order = splitLabel === 'Operators' ? OEE_DIMS.operator.labels()
               : splitLabel === 'Operator groups' ? OEE_DIMS.group.labels()
               : OEE_DIMS.leader.labels();

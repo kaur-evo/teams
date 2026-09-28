@@ -19,7 +19,7 @@ Search by symbol; line numbers drift.
 | Section | Key symbols |
 |---------|-------------|
 | Calendar, presets, axes | `MONTHS`, `PRESET_LABELS`, `XAXIS_OPTIONS`, `TIME_AXES` |
-| People | `OPERATOR_DIRECTORY`, `OPERATOR_GROUPS`, `PSEUDO_OPERATORS` (`OP_UNKNOWN`, `OP_AW`), `OP_NO_LEADER` |
+| People | `OPERATOR_DIRECTORY`, `OPERATOR_GROUPS`, `PSEUDO_OPERATORS` (`OP_UNKNOWN`), `OP_NO_LEADER` |
 | Downtime columns | `DT_COLS` |
 | Icons | `ICN` / `ICN_MULTI` + `icn(name, size, color)` — Evocon's own assets |
 | Shift blocks | `SHIFT_BLOCKS` (one mock week), `blk()`, `blockPseudoOps`, `blockOperatorValues` |
@@ -62,10 +62,9 @@ Search by symbol; line numbers drift.
 OEE and Quantities both derive **everything about operators / groups / leaders from `SHIFT_BLOCKS`** in `data.js` — one block = a station-shift with a `leaderId`, `operatorIds`, and raw counters (`plannedMin/runMin/idealQty/totalQty/goodQty`). So chart, table, and filter chips always reconcile, and Split-by works on either dimension for free.
 
 - **Name sync:** `OPERATOR_DIRECTORY` mirrors the setup prototype's 8 operators (`mock-data.js` MOCK_OPERATORS) in short form — `V. Mavroeidis`, `N. Papadopoulos` (the two `canLead`), `M. Kostopoulou`, etc., all in the single **`Operators`** group. Moving setup → reports shows familiar names. 1:1 by last name.
-- **Pseudo-operators** — `Unknown` (`OP_UNKNOWN`) and `Additional workforce` (`OP_AW`) behave like operators everywhere: filter list, X-axis/split-by categories, table rows, `operators` descr column. They are NOT in `OPERATOR_DIRECTORY`; `allOperatorOptions()` pins them above the real people (Unknown → AW → operators A–Z) and the filter list renders them ungrouped above the group headers (`pinned()` in `FILTER_DIMS`).
-  - A block belongs to **AW** when `awCount > 0` (even if it also has named operators) and to **Unknown** whenever it carries no named operator — an AW-only shift reports as both, per spec ("when only add. workforce is chosen, Unknown is also displayed, since no actual operator was selected"). See `blockPseudoOps` / `blockOperatorValues`.
-  - **Man-hours:** AW = `awCount × plannedMin/60` per block (`awManhours`); Unknown = 0 — in all three reports, since Downtime reads the same blocks.
-  - **Reconciliation:** every people axis sums to its Total. AW/Unknown have no group, so the group axis gets its own `Unknown` + `Additional workforce` buckets; the leader axis gets `Unknown` (`OP_NO_LEADER`, an alias of `OP_UNKNOWN`, also pinned in the Shift-leaders filter) for unled blocks.
+- **Unknown ×N** — reports have one non-person entry, `Unknown` (`OP_UNKNOWN`), which behaves like an operator everywhere: filter list, X-axis/split-by categories, table rows, the Operators / Operator groups columns. It is the unnamed part of a shift, with a headcount: **×0** = no operator was selected, **×N** = N additional-workforce people from Shift View, alone or alongside named operators. "Additional workforce" is a Shift View term only and never appears in reports. See `blockPseudoOps`.
+  - **Man-hours:** Unknown = `awCount × plannedMin/60` per block (`awManhours`); an empty shift (×0) adds nothing. Same in all three reports.
+  - **Reconciliation:** every people axis sums to its Total — the Unknown row is where the unnamed people's hours land. Unknown has no group, so the group axis gets its own `Unknown` bucket; the leader axis gets `Unknown` (`OP_NO_LEADER`, an alias of `OP_UNKNOWN`, also pinned in the Shift-leaders filter) for unled blocks.
 - **`OEE_DIMS`** {operator, group, leader} maps a block → its value(s) per dimension. `oeeDimKey(label)` turns an axis/split label into a key. `oeeMatrixFromBlocks` / `qtyMatrixFromBlocks` build the outer×inner cell grid.
 - **`selectedBlocks()`** applies the operator + leader filter chips to `SHIFT_BLOCKS`.
 - **Axes map** — `splitOptionsFor(xAxis)` builds all three Split-by dropdowns and leaves out the dimension already on the X-axis: the spec's matrix has no diagonal (Operators × Operators and so on are "-"). `selectXAxis` / `selectOeeXAxis` / `selectQtyXAxis` drop the split when the axis moves onto it.
