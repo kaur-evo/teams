@@ -147,7 +147,7 @@ const DT_COLS = [
   { key:'operatorGroupName', label:'Operator groups',   width:150, align:'left',  mono:false },
   // Numeric columns (right-aligned, Roboto Mono)
   // Man-hours = first numeric column, kept next to the people context.
-  { key:'manhours',      label:'Man-hours',            width:120, align:'right', mono:true,  unit:' h',   manhours:true },
+  { key:'manhours',      label:'Man-hours',            width:120, align:'right', mono:true,  unit:'h',    manhours:true },
   { key:'count',         label:'Count',                width:71,  align:'right', mono:true  },
   { key:'notes',         label:'Notes',                width:70,  align:'right', mono:true,  hasNote:true, neutral:true },
   // Units not produced during the stops (primary unit), not minutes.

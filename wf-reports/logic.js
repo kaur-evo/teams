@@ -2338,7 +2338,7 @@ function qtyTblNext() { _tblNext('qty'); }
 function oeeCellValue(c, r) {
   if (c.type === 'descr')       return r[c.key] || (r._total ? '' : '—');
   else if (c.type === 'metric') return (r[c.key]).toFixed(1) + '%';
-  else if (c.type === 'hours')  return (r[c.key]).toFixed(0) + ' h';
+  else if (c.type === 'hours')  return (r[c.key]).toFixed(0) + 'h';
   else if (c.type === 'time')   return fmtMin(r[c.key]);
   else if (c.type === 'qty')    return Math.round(r[c.key]).toLocaleString();
   return r[c.key];
@@ -2389,7 +2389,7 @@ function renderOeeTable(cats, inners, data, outerHeader, innerHeader) {
       { label: 'Performance',  align: 'right', render: r => r.performance.toFixed(1) + '%' },
       { label: 'Quality',      align: 'right', render: r => r.quality.toFixed(1) + '%' },
       { label: 'OEE',          align: 'right', render: r => r.oee.toFixed(1) + '%' },
-      { label: 'Man-hours',    align: 'right', render: r => r.manhours.toFixed(1) + ' h' },
+      { label: 'Man-hours',    align: 'right', render: r => r.manhours.toFixed(0) + 'h' },
     ],
     rows,
   });
@@ -2760,7 +2760,7 @@ function renderQtyTable(rows, firstHeader) {
       label: c.label,
       align: c.type === 'descr' ? 'left' : 'right',
       render: r => c.type === 'descr' ? (r[c.key] || (r._total ? '' : '—'))
-                 : c.type === 'hours' ? (r[c.key] || 0).toFixed(0) + ' h'
+                 : c.type === 'hours' ? (r[c.key] || 0).toFixed(0) + 'h'
                  : fmtQty(r[c.key]),
     })),
     rows,
@@ -2790,7 +2790,7 @@ function renderQtySplitTable(cats, inners, data, outerHeader, innerHeader) {
       { label: 'Scrap',         align: 'right', render: r => fmtQty(r.scrap) },
       { label: 'Potential',     align: 'right', render: r => fmtQty(r.potential) },
       { label: 'Total quantity',align: 'right', render: r => fmtQty(r.totalQty) },
-      { label: 'Man-hours',     align: 'right', render: r => (r.manhours || 0).toFixed(1) + ' h' },
+      { label: 'Man-hours',     align: 'right', render: r => (r.manhours || 0).toFixed(0) + 'h' },
     ],
     rows,
   });
