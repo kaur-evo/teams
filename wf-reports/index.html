@@ -491,9 +491,8 @@
        the page. */
     #dt-card, .dt-card { background:white; border-radius:4px; box-shadow:0 1px 3px rgba(0,0,0,0.12),0 1px 2px rgba(0,0,0,0.08); }
     #dt-scroll, .dt-scroll { overflow-x:auto; }
-    /* Fixed layout: columns share the card's width and shrink with the window. */
-    #dt-table { border-collapse:collapse; table-layout:fixed; }
-    #oee-table, #qty-table { border-collapse:collapse; table-layout:fixed; }
+    #dt-table { border-collapse:collapse; table-layout:auto; }
+    #oee-table, #qty-table { border-collapse:collapse; table-layout:auto; }
     #dt-table th, #dt-table td,
     #oee-table th, #oee-table td,
     #qty-table th, #qty-table td {
@@ -520,10 +519,6 @@
     .dt-row-total td { border-top:2px solid #e0e0e0 !important; }
     .dt-mono { font-family:'Roboto Mono',monospace; }
     .dt-th-inner { display:flex; align-items:center; gap:4px; }
-    /* A right-aligned header still truncates at its end ("Total quan…"); as a
-       flex row it would clip its start instead. */
-    th:not(.dt-fixed) .dt-th-inner { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-    .dt-th-inner.right { text-align:right; }
     .dt-th-inner.right { justify-content:flex-end; }
     .dt-page-btn {
       width:28px; height:28px; border:none; background:none; cursor:pointer;
@@ -842,7 +837,7 @@
           </div>
         </div>
         <div class="dt-scroll" id="oee-scroll">
-          <table id="oee-table" style="width:100%;">
+          <table id="oee-table" style="min-width:900px; width:100%;">
             <thead id="oee-head"></thead>
             <tbody id="oee-body"></tbody>
           </table>
@@ -900,7 +895,7 @@
           </div>
         </div>
         <div class="dt-scroll" id="qty-scroll">
-          <table id="qty-table" style="width:100%;">
+          <table id="qty-table" style="min-width:900px; width:100%;">
             <thead id="qty-head"></thead>
             <tbody id="qty-body"></tbody>
           </table>
@@ -1016,7 +1011,7 @@
     </div>
     <!-- Scrollable table -->
     <div id="dt-scroll">
-      <table id="dt-table" style="width:100%;">
+      <table id="dt-table" style="min-width:900px; width:100%;">
         <thead id="dt-head"></thead>
         <tbody id="dt-body"></tbody>
       </table>
