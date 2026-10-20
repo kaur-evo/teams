@@ -756,7 +756,7 @@ function initTableEvents() {
 }
 
 function renderTable() {
-  const activeCols = DT_COLS;
+  const activeCols = DT_COLS.filter(c => !c.hidden);
   const start = _dtPage * DT_PER_PAGE;
   const end   = Math.min(start + DT_PER_PAGE, _dtData.length);
   const page  = _dtData.slice(start, end);
@@ -2368,11 +2368,11 @@ function oeeCellValue(c, r) {
 // bold Total row. Rows derive from blocks so they reconcile with chart + chips.
 function renderOeeMainTable(rows, firstHeader) {
   const cc = document.getElementById('oee-col-count');
-  if (cc) cc.textContent = 'Columns: ' + (OEE_TABLE_COLS.length + 1);
+  if (cc) cc.textContent = 'Columns: ' + (OEE_TABLE_COLS.filter(c => !c.hidden).length + 1);
   renderStyledTable({
     key: 'oee',
     firstHeader,
-    cols: OEE_TABLE_COLS.map(c => ({
+    cols: OEE_TABLE_COLS.filter(c => !c.hidden).map(c => ({
       label: c.label,
       align: c.type === 'descr' ? 'left' : 'right',
       render: r => oeeCellValue(c, r),
@@ -2727,11 +2727,11 @@ function renderQtyPager(totalCats, pageCount) {
 // Uses the shared styled-table renderer (same chrome as Downtime / OEE).
 function renderQtyTable(rows, firstHeader) {
   const cc = document.getElementById('qty-col-count');
-  if (cc) cc.textContent = 'Columns: ' + (QTY_TABLE_COLS.length + 1);
+  if (cc) cc.textContent = 'Columns: ' + (QTY_TABLE_COLS.filter(c => !c.hidden).length + 1);
   renderStyledTable({
     key: 'qty',
     firstHeader,
-    cols: QTY_TABLE_COLS.map(c => ({
+    cols: QTY_TABLE_COLS.filter(c => !c.hidden).map(c => ({
       label: c.label,
       align: c.type === 'descr' ? 'left' : 'right',
       render: r => c.type === 'descr' ? (r[c.key] || (r._total ? '' : '—'))

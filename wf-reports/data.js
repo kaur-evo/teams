@@ -138,7 +138,8 @@ const DT_COLS = [
   { key:'shift',         label:'Shifts',               width:110, align:'left',  mono:false },
   // People columns — spec order: Shifts → Shift leader → Operators → Operator groups.
   { key:'leader',            label:'Shift leader',      width:150, align:'left',  mono:false },
-  { key:'operator',          label:'Operators',         width:130, align:'left',  mono:false },
+  // Hidden for now (`hidden: true`) — delete the flag to bring the column back.
+  { key:'operator',          label:'Operators',         width:130, align:'left',  mono:false, hidden:true },
   { key:'operatorGroupName', label:'Operator groups',   width:150, align:'left',  mono:false },
   // Numeric columns (right-aligned, Roboto Mono)
   // Man-hours = first numeric column, kept next to the people context.
@@ -382,7 +383,7 @@ const OEE_TABLE_COLS = [
   { key:'shifts',          label:'Shifts',            et:'Vahetused',            type:'descr' },
   // People columns — spec order: Shifts → Shift leader → Operators → Operator groups.
   { key:'leader',          label:'Shift leader',      et:'Vahetuse juht',        type:'descr' },
-  { key:'operators',       label:'Operators',         et:'Operaatorid',          type:'descr' },
+  { key:'operators',       label:'Operators',         et:'Operaatorid',          type:'descr', hidden:true },  // hidden for now
   { key:'operatorGroup',   label:'Operator groups',   et:'Operaatorite grupid',  type:'descr' },
   // Man-hours = first numeric column, kept next to the people context.
   { key:'manhours',        label:'Man-hours',         et:'Inimtunnid',           type:'hours'  },
@@ -625,7 +626,7 @@ const QTY_TABLE_COLS = [
   { key:'shifts',        label:'Shifts',         type:'descr' },
   // People columns — spec order: Shifts → Shift leader → Operators → Operator groups.
   { key:'leader',        label:'Shift leader',    type:'descr' },
-  { key:'operators',     label:'Operators',       type:'descr' },
+  { key:'operators',     label:'Operators',       type:'descr', hidden:true },  // hidden for now
   { key:'operatorGroup', label:'Operator groups', type:'descr' },
   // Man-hours = first numeric column, kept next to the people context.
   { key:'manhours',      label:'Man-hours',      type:'hours' },
