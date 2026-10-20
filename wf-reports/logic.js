@@ -1648,7 +1648,7 @@ const FILTER_DIMS = {
     groupsOf: () => OPERATOR_GROUPS.map(g => ({
       group: g,
       members: Object.keys(OPERATOR_DIRECTORY)
-        .filter(n => (OPERATOR_DIRECTORY[n]?.group || 'Operators') === g)
+        .filter(n => OPERATOR_DIRECTORY[n]?.group === g)
         .sort((a, b) => a.localeCompare(b, 'en', { sensitivity: 'base' })),
     })).filter(s => s.members.length),
   },

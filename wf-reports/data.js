@@ -45,12 +45,10 @@ const OPERATOR_ROLES = [
   { name: 'Other',       enterprise: true  },
 ];
 
-// Operator groups. Mirrors the setup prototype (mock-data.js MOCK_TEAMS):
-// two named teams (Blue / Red) plus the fallback "Operators" bucket. The
-// group dimension / filter / Split-by all read from this list, sorted A–Z so
-// group ordering matches the operator list (see allGroupOptions for the
-// pinned-pseudo variant used by the axes and the filter).
-const OPERATOR_GROUPS = ['Blue Team', 'Operators', 'Red Team'];
+// Operator groups: two production teams (Blue / Red) and a Maintenance team.
+// The group dimension / filter / Split-by all read from this list, sorted A–Z
+// (see allGroupOptions for the variant with Unknown pinned on top).
+const OPERATOR_GROUPS = ['Blue Team', 'Maintenance', 'Red Team'];
 
 // Static directory: every operator name appearing in mock data → its role + group.
 //
@@ -79,9 +77,9 @@ const OPERATOR_DIRECTORY = {
   'D. Ekonomou':     { role: 'Operator',    group: 'Red Team',  canLead: false, hours: 28, cmpHours: 26 },
   'K. Vlachos':      { role: 'Operator',    group: 'Red Team',  canLead: false, hours: 36, cmpHours: 38 },
   'D. Roussou':      { role: 'Operator',    group: 'Red Team',  canLead: false, hours: 30, cmpHours: 28 },
-  // Operators (fallback group)
-  'S. Nikolaou':     { role: 'Operator',    group: 'Operators', canLead: false, hours: 34, cmpHours: 36 },
-  'S. Panagiotou':   { role: 'Operator',    group: 'Operators', canLead: false, hours: 30, cmpHours: 32 },
+  // Maintenance
+  'S. Nikolaou':     { role: 'Operator',    group: 'Maintenance', canLead: false, hours: 34, cmpHours: 36 },
+  'S. Panagiotou':   { role: 'Operator',    group: 'Maintenance', canLead: false, hours: 30, cmpHours: 32 },
 };
 
 // Operators allowed to lead a shift (mirrors Settings "Allow as shift leader").
@@ -270,7 +268,7 @@ const SHIFT_BLOCKS = [
   blk(4, 'CNC-03',     'N. Papadopoulos', ['N. Papadopoulos','D. Ekonomou','D. Roussou'],        480, 235, 1000, 430, 402),
   blk(5, 'Press-03',   'N. Papadopoulos', ['N. Papadopoulos','K. Vlachos','E. Christodoulou'],   480, 245, 900, 448, 420, 4),
   blk(6, 'Press-02',   'N. Papadopoulos', ['N. Papadopoulos','D. Roussou','D. Ekonomou'],        480, 238, 900, 440, 412),
-  // ── Operators (fallback group): mid performance ──────────────────────────
+  // ── Maintenance team: Warehouse and Quality Lab ─────────────────────────
   blk(7, 'Warehouse',  'V. Mavroeidis',   ['S. Nikolaou','S. Panagiotou'],                 480, 280, 800, 470, 450, 2),
   blk(7, 'Quality Lab','N. Papadopoulos', ['S. Panagiotou','S. Nikolaou'],                 480, 270, 800, 455, 436),
   // ── Additional-workforce-only blocks ─────────────────────────────────────
@@ -500,7 +498,7 @@ const OEE_DIMS = {
     // Every group the block's named operators belong to, plus Unknown when the
     // block carries it (see blockPseudoOps).
     valsOf: (b) => [
-      ...new Set(b.operatorIds.map(o => OPERATOR_DIRECTORY[o]?.group || 'Operators')),
+      ...new Set(b.operatorIds.map(o => OPERATOR_DIRECTORY[o]?.group || OP_UNKNOWN)),
       ...blockPseudoOps(b),
     ],
     isPeople: true,
@@ -573,7 +571,7 @@ function manhoursScoped(blocks, dim, val) {
   if (val === OP_UNKNOWN) return blocks.reduce((s, b) => s + awManhours(b), 0);
 
   const inVal = (o) => dim === 'group'
-    ? ((OPERATOR_DIRECTORY[o]?.group || 'Operators') === val)
+    ? ((OPERATOR_DIRECTORY[o]?.group || OP_UNKNOWN) === val)
     : (o === val); // 'operator'
   const perOp = new Map();
   blocks.forEach(b => b.operatorIds.forEach(o => {
