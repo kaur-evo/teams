@@ -45,41 +45,38 @@ const OPERATOR_ROLES = [
   { name: 'Other',       enterprise: true  },
 ];
 
-// Operator groups: two production teams (Blue / Red) and a Maintenance team.
-// The group dimension / filter / Split-by all read from this list, sorted A–Z
-// (see allGroupOptions for the variant with Unknown pinned on top).
-const OPERATOR_GROUPS = ['Blue Team', 'Maintenance', 'Red Team'];
+// Operator groups: four teams, each with its own shift leader. The group
+// dimension / filter / Split-by all read from this list, sorted A–Z (see
+// allGroupOptions for the variant with Unknown pinned on top).
+const OPERATOR_GROUPS = ['Blue Team', 'Maintenance', 'Night Crew', 'Red Team'];
 
-// Static directory: every operator name appearing in mock data → its role + group.
-//
-// NAME SYNC: these are the SAME 8 operators as the setup prototype
-// (mock-data.js MOCK_OPERATORS) — so moving from setup → reports shows familiar
-// names. Short "V. Mavroeidis" form keeps the table compact; the mapping back to
-// the setup full names is 1:1 by last name. Vasilis & Nikos are the two canLead
-// operators (mirrors `canLead: true` in setup).
-//
-// `canLead`  — operator can be picked as shift leader (Settings "Allow as
-//              shift leader"). Drives the Shift-leaders X-axis / split / filter.
-// `hours`    — total hours this operator actually worked in the (main) period.
-//              Manhours aggregations sum each DISTINCT operator's hours ONCE,
-//              so a person spread across several stations is never double-counted
-//              (operator-level dedup). `cmpHours` is the compare-period figure.
+// Every operator appearing in the mock data → role, group, and whether they can
+// lead a shift (Settings "Allow as shift leader"; drives the Shift-leaders
+// X-axis / split / filter). Each team has a leader and a deputy who leads some
+// of its shifts — so Split by Shift leaders shows two leaders per team, while
+// every team, and every leader, still adds up exactly to the Total.
 const OPERATOR_DIRECTORY = {
   // Blue Team
-  'V. Mavroeidis':   { role: 'Supervisor',  group: 'Blue Team', canLead: true,  hours: 38, cmpHours: 40 },
-  'M. Kostopoulou':  { role: 'Operator',    group: 'Blue Team', canLead: false, hours: 36, cmpHours: 38 },
-  'G. Antoniou':     { role: 'Operator',    group: 'Blue Team', canLead: false, hours: 40, cmpHours: 40 },
-  'P. Lambrou':      { role: 'Operator',    group: 'Blue Team', canLead: false, hours: 38, cmpHours: 36 },
-  'A. Dimitriou':    { role: 'Operator',    group: 'Blue Team', canLead: false, hours: 34, cmpHours: 34 },
+  'V. Mavroeidis':    { role: 'Supervisor', group: 'Blue Team',   canLead: true  },
+  'M. Kostopoulou':   { role: 'Operator',   group: 'Blue Team',   canLead: true  },
+  'G. Antoniou':      { role: 'Operator',   group: 'Blue Team',   canLead: false },
+  'P. Lambrou':       { role: 'Operator',   group: 'Blue Team',   canLead: false },
+  'A. Dimitriou':     { role: 'Operator',   group: 'Blue Team',   canLead: false },
   // Red Team
-  'N. Papadopoulos': { role: 'Supervisor',  group: 'Red Team',  canLead: true,  hours: 40, cmpHours: 38 },
-  'E. Christodoulou':{ role: 'Operator',    group: 'Red Team',  canLead: false, hours: 32, cmpHours: 30 },
-  'D. Ekonomou':     { role: 'Operator',    group: 'Red Team',  canLead: false, hours: 28, cmpHours: 26 },
-  'K. Vlachos':      { role: 'Operator',    group: 'Red Team',  canLead: false, hours: 36, cmpHours: 38 },
-  'D. Roussou':      { role: 'Operator',    group: 'Red Team',  canLead: false, hours: 30, cmpHours: 28 },
+  'N. Papadopoulos':  { role: 'Supervisor', group: 'Red Team',    canLead: true  },
+  'E. Christodoulou': { role: 'Operator',   group: 'Red Team',    canLead: false },
+  'D. Ekonomou':      { role: 'Operator',   group: 'Red Team',    canLead: false },
+  'K. Vlachos':       { role: 'Operator',   group: 'Red Team',    canLead: true  },
+  'D. Roussou':       { role: 'Operator',   group: 'Red Team',    canLead: false },
+  // Night Crew
+  'I. Georgiou':      { role: 'Supervisor', group: 'Night Crew',  canLead: true  },
+  'T. Karalis':       { role: 'Operator',   group: 'Night Crew',  canLead: true  },
+  'L. Mitsou':        { role: 'Operator',   group: 'Night Crew',  canLead: false },
+  'A. Petrou':        { role: 'Operator',   group: 'Night Crew',  canLead: false },
   // Maintenance
-  'S. Nikolaou':     { role: 'Operator',    group: 'Maintenance', canLead: false, hours: 34, cmpHours: 36 },
-  'S. Panagiotou':   { role: 'Operator',    group: 'Maintenance', canLead: false, hours: 30, cmpHours: 32 },
+  'S. Nikolaou':      { role: 'Supervisor', group: 'Maintenance', canLead: true  },
+  'S. Panagiotou':    { role: 'Operator',   group: 'Maintenance', canLead: true  },
+  'H. Stavrou':       { role: 'Operator',   group: 'Maintenance', canLead: false },
 };
 
 // Operators allowed to lead a shift (mirrors Settings "Allow as shift leader").
@@ -173,6 +170,17 @@ const ICN = {
   speedLoss:     'M12 16C13.66 16 15 14.66 15 13C15 11.88 14.39 10.9 13.5 10.39L3.79 4.77L9.32 14.35C9.82 15.33 10.83 16 12 16ZM12 3C10.19 3 8.5 3.5 7.03 4.32L9.13 5.53C10 5.19 11 5 12 5C16.42 5 20 8.58 20 13C20 15.21 19.11 17.21 17.66 18.65H17.65C17.26 19.04 17.26 19.67 17.65 20.06C18.04 20.45 18.68 20.45 19.07 20.07C20.88 18.26 22 15.76 22 13C22 7.5 17.5 3 12 3ZM2 13C2 15.76 3.12 18.26 4.93 20.07C5.32 20.45 5.95 20.45 6.34 20.06C6.73 19.67 6.73 19.04 6.34 18.65C4.89 17.2 4 15.21 4 13C4 12 4.19 11 4.54 10.1L3.33 8C2.5 9.5 2 11.18 2 13Z',
   machineLoc:    'M15 20C15 19.7348 14.8946 19.4804 14.7071 19.2929C14.5196 19.1054 14.2652 19 14 19H13V17H17C17.5304 17 18.0391 16.7893 18.4142 16.4142C18.7893 16.0391 19 15.5304 19 15V5C19 4.46957 18.7893 3.96086 18.4142 3.58579C18.0391 3.21071 17.5304 3 17 3H7C6.46957 3 5.96086 3.21071 5.58579 3.58579C5.21071 3.96086 5 4.46957 5 5V15C5 15.5304 5.21071 16.0391 5.58579 16.4142C5.96086 16.7893 6.46957 17 7 17H11V19H10C9.73478 19 9.48043 19.1054 9.29289 19.2929C9.10536 19.4804 9 19.7348 9 20H2V22H9C9 22.2652 9.10536 22.5196 9.29289 22.7071C9.48043 22.8946 9.73478 23 10 23H14C14.2652 23 14.5196 22.8946 14.7071 22.7071C14.8946 22.5196 15 22.2652 15 22H22V20H15ZM7 15V5H17V15H7ZM12 14L16 10H13V6H11V10H8L12 14Z',
   caret:         'M7 10L12 15L17 10H7Z',
+  chevLeft:      'M15.41 16.58L10.83 12L15.41 7.41L14 6L8 12L14 18L15.41 16.58Z',
+  chevRight:     'M8.59 16.58L13.17 12L8.59 7.41L10 6L16 12L10 18L8.59 16.58Z',
+  arrowLeft:     'M20 11H7.83L13.42 5.41L12 4L4 12L12 20L13.41 18.59L7.83 13H20V11Z',
+  closeCircle:   'M12 2C17.53 2 22 6.47 22 12C22 17.53 17.53 22 12 22C6.47 22 2 17.53 2 12C2 6.47 6.47 2 12 2ZM15.59 7L12 10.59L8.41 7L7 8.41L10.59 12L7 15.59L8.41 17L12 13.41L15.59 17L17 15.59L13.41 12L17 8.41L15.59 7Z',
+  download:      'M15 9H19L12 16L5 9H9V3H15V9ZM5 20V18H19V20H5Z',
+  viewColumn:    'M4 18H9V5H4V18ZM10 18H15V5H10V18ZM16 18V5H21V18H16Z',
+  infoOutline:   'M2 12C2 6.48 6.48 2 12 2C17.52 2 22 6.48 22 12C22 17.52 17.52 22 12 22C6.48 22 2 17.52 2 12ZM13 11V17H11V11H13ZM12 20C7.59 20 4 16.41 4 12C4 7.59 7.59 4 12 4C16.41 4 20 7.59 20 12C20 16.41 16.41 20 12 20ZM13 7V9H11V7H13Z',
+  dotsVertical:  'M12 8C13.1 8 14 7.1 14 6C14 4.9 13.1 4 12 4C10.9 4 10 4.9 10 6C10 7.1 10.9 8 12 8ZM12 10C10.9 10 10 10.9 10 12C10 13.1 10.9 14 12 14C13.1 14 14 13.1 14 12C14 10.9 13.1 10 12 10ZM10 18C10 16.9 10.9 16 12 16C13.1 16 14 16.9 14 18C14 19.1 13.1 20 12 20C10.9 20 10 19.1 10 18Z',
+  share:         'M17.5542 15.7229C16.8675 15.7229 16.253 15.994 15.7831 16.4187L9.34036 12.6687C9.38554 12.4608 9.42169 12.253 9.42169 12.0361C9.42169 11.8193 9.38554 11.6114 9.34036 11.4036L15.7108 7.68976C16.1988 8.14157 16.8404 8.42169 17.5542 8.42169C19.0542 8.42169 20.2651 7.21084 20.2651 5.71084C20.2651 4.21084 19.0542 3 17.5542 3C16.0542 3 14.8434 4.21084 14.8434 5.71084C14.8434 5.92771 14.8795 6.13554 14.9247 6.34337L8.55422 10.0572C8.06627 9.60542 7.4247 9.3253 6.71084 9.3253C5.21084 9.3253 4 10.5361 4 12.0361C4 13.5361 5.21084 14.747 6.71084 14.747C7.4247 14.747 8.06627 14.4669 8.55422 14.0151L14.988 17.7741C14.9428 17.9639 14.9157 18.1627 14.9157 18.3614C14.9157 19.8163 16.0994 21 17.5542 21C19.009 21 20.1928 19.8163 20.1928 18.3614C20.1928 16.9066 19.009 15.7229 17.5542 15.7229Z',
+  starOutline:   'M12 15.39L8.24 17.66L9.23 13.38L5.91 10.5L10.29 10.13L12 6.09L13.71 10.13L18.09 10.5L14.77 13.38L15.76 17.66M22 9.24L14.81 8.63L12 2L9.19 8.63L2 9.24L7.46 13.97L5.82 21L12 17.27L18.18 21L16.54 13.97L22 9.24Z',
+  plus:          'M19 13H13V19H11V13H5V11H11V5H13V11H19V13Z',
   lineChart:     'M3.5 18.49L9.5 12.48L13.5 16.48L22 6.92L20.59 5.51L13.5 13.48L9.5 9.48L2 16.99L3.5 18.49Z',
   barChart:      'M3 2.5H7V17.5H3V2.5Z',
   cog:           'M12 15.5C11.0717 15.5 10.1815 15.1313 9.52509 14.4749C8.86871 13.8185 8.49996 12.9283 8.49996 12C8.49996 11.0717 8.86871 10.1815 9.52509 9.52513C10.1815 8.86875 11.0717 8.5 12 8.5C12.9282 8.5 13.8185 8.86875 14.4748 9.52513C15.1312 10.1815 15.5 11.0717 15.5 12C15.5 12.9283 15.1312 13.8185 14.4748 14.4749C13.8185 15.1313 12.9282 15.5 12 15.5ZM19.43 12.97C19.47 12.65 19.5 12.33 19.5 12C19.5 11.67 19.47 11.34 19.43 11L21.54 9.37C21.73 9.22 21.78 8.95 21.66 8.73L19.66 5.27C19.54 5.05 19.27 4.96 19.05 5.05L16.56 6.05C16.04 5.66 15.5 5.32 14.87 5.07L14.5 2.42C14.46 2.18 14.25 2 14 2H9.99996C9.74996 2 9.53996 2.18 9.49996 2.42L9.12996 5.07C8.49996 5.32 7.95996 5.66 7.43996 6.05L4.94996 5.05C4.72996 4.96 4.45996 5.05 4.33996 5.27L2.33996 8.73C2.20996 8.95 2.26996 9.22 2.45996 9.37L4.56996 11C4.52996 11.34 4.49996 11.67 4.49996 12C4.49996 12.33 4.52996 12.65 4.56996 12.97L2.45996 14.63C2.26996 14.78 2.20996 15.05 2.33996 15.27L4.33996 18.73C4.45996 18.95 4.72996 19.03 4.94996 18.95L7.43996 17.94C7.95996 18.34 8.49996 18.68 9.12996 18.93L9.49996 21.58C9.53996 21.82 9.74996 22 9.99996 22H14C14.25 22 14.46 21.82 14.5 21.58L14.87 18.93C15.5 18.67 16.04 18.34 16.56 17.94L19.05 18.95C19.27 19.03 19.54 18.95 19.66 18.73L21.66 15.27C21.78 15.05 21.73 14.78 21.54 14.63L19.43 12.97Z',
@@ -185,10 +193,15 @@ const ICN_MULTI = {
 // The 2nd-Y glyph keeps its green axis bar, as in the asset.
 const ICN_Y2 = '<path d="M4.76562 7.69407C5.5927 7.40804 6.53832 7.39927 7.46484 7.93333L7.62207 8.02903C8.40249 8.53257 9.09272 9.3775 9.69141 10.2585C10.3484 11.2254 10.9809 12.369 11.5674 13.4753C12.1653 14.6032 12.705 15.6717 13.2148 16.5759C13.7437 17.5138 14.1452 18.095 14.4189 18.3318C14.5651 18.4581 14.781 18.5323 15.1562 18.4861C15.547 18.4378 16.0111 18.2659 16.4922 18.0163C16.9633 17.7719 17.3968 17.4819 17.7168 17.2478C17.8753 17.1318 18.0028 17.0319 18.0889 16.9626C18.1318 16.9281 18.1647 16.9009 18.1855 16.8835L18.2119 16.8611L19.5186 18.3757C19.5167 18.3775 19.4944 18.3957 19.4678 18.4177C19.438 18.4426 19.3961 18.4783 19.3428 18.5212C19.2363 18.6069 19.0841 18.7255 18.8975 18.862C18.5269 19.1331 18.0041 19.4851 17.4131 19.7917C16.8318 20.0933 16.1271 20.3818 15.4023 20.4714C14.6623 20.5628 13.8152 20.453 13.1113 19.8445C12.535 19.3462 11.9796 18.4574 11.4727 17.5583C10.9467 16.6256 10.3714 15.4892 9.80078 14.4128C9.21854 13.3145 8.62847 12.2528 8.03711 11.3825C7.50359 10.5974 7.02984 10.0617 6.63184 9.77415L6.46582 9.66575C6.1174 9.46498 5.78713 9.45639 5.41895 9.58372C5.01411 9.7238 4.57845 10.0289 4.15137 10.4392C3.7327 10.8414 3.37459 11.2947 3.11719 11.655C2.99 11.8331 2.89063 11.984 2.82422 12.0886C2.79106 12.1408 2.76577 12.1816 2.75 12.2077L2.73047 12.2409L1 11.238C1.00167 11.2349 1.01825 11.2074 1.03906 11.1726C1.06188 11.1348 1.09436 11.0815 1.13574 11.0163C1.2187 10.8857 1.33881 10.7039 1.49023 10.4919C1.79062 10.0715 2.22915 9.51311 2.7666 8.9968C3.29556 8.48872 3.9755 7.96736 4.76562 7.69407Z"/><path fill-rule="evenodd" clip-rule="evenodd" d="M23 20.5V3.5H21V20.5H23Z" fill="#2ECC71"/>';
 
+// Assets drawn with even-odd fill (an outline cut out of a solid) — without the
+// rule they render as filled blobs.
+const ICN_EVENODD = new Set(['viewColumn', 'download', 'infoOutline', 'dotsVertical', 'products', 'stops', 'factories', 'stations']);
+
 function icn(name, size = 18, color = '#616161') {
+  const rule = ICN_EVENODD.has(name) ? ' fill-rule="evenodd" clip-rule="evenodd"' : '';
   const paths = ICN_MULTI[name]
     ? ICN_MULTI[name].map(d => `<path d="${d}"/>`).join('')
-    : (name === 'y2Axis' ? ICN_Y2 : `<path d="${ICN[name] || ''}"/>`);
+    : (name === 'y2Axis' ? ICN_Y2 : `<path${rule} d="${ICN[name] || ''}"/>`);
   return `<svg class="chip-icn" width="${size}" height="${size}" viewBox="0 0 24 24" fill="${color}">${paths}</svg>`;
 }
 
@@ -254,37 +267,32 @@ const SHIFT_LEADERS = CAN_LEAD_OPERATORS;
 // so each named group shows a distinct OEE / quantity profile in the report.
 const SHIFT_BLOCKS = [
   // day, station, leader, operators, plannedMin, runMin, idealQty, totalQty, goodQty, awCount
-  // ── Blue Team (stronger) ─────────────────────────────────────────────────
-  blk(1, 'CNC-01',     'V. Mavroeidis', ['V. Mavroeidis','M. Kostopoulou','G. Antoniou'],  480, 320, 1000, 580, 562, 2),
-  blk(2, 'CNC-02',     'V. Mavroeidis', ['V. Mavroeidis','P. Lambrou','A. Dimitriou'],     480, 315, 1000, 575, 558),
-  blk(3, 'CNC-01',     'V. Mavroeidis', ['V. Mavroeidis','M. Kostopoulou','P. Lambrou'],   480, 325, 1000, 590, 572, 1),
-  blk(4, 'Press-01',   'V. Mavroeidis', ['V. Mavroeidis','G. Antoniou','A. Dimitriou'],    480, 305,  900, 525, 508),
-  blk(5, 'Assembly-02','V. Mavroeidis', ['V. Mavroeidis','P. Lambrou','M. Kostopoulou'],   480, 318,  850, 545, 528, 3),
-  blk(6, 'CNC-02',     'V. Mavroeidis', ['V. Mavroeidis','G. Antoniou','A. Dimitriou'],    480, 312, 1000, 568, 552),
-  // ── Red Team (weaker) ────────────────────────────────────────────────────
-  blk(1, 'Press-01',   'N. Papadopoulos', ['N. Papadopoulos','E. Christodoulou','D. Ekonomou'], 480, 250, 900, 455, 428, 1),
-  blk(2, 'Press-02',   'N. Papadopoulos', ['N. Papadopoulos','K. Vlachos','D. Roussou'],         480, 240, 900, 445, 416),
-  blk(3, 'Assembly-01','N. Papadopoulos', ['N. Papadopoulos','E. Christodoulou','K. Vlachos'],   480, 255, 850, 450, 422, 2),
-  blk(4, 'CNC-03',     'N. Papadopoulos', ['N. Papadopoulos','D. Ekonomou','D. Roussou'],        480, 235, 1000, 430, 402),
-  blk(5, 'Press-03',   'N. Papadopoulos', ['N. Papadopoulos','K. Vlachos','E. Christodoulou'],   480, 245, 900, 448, 420, 4),
-  blk(6, 'Press-02',   'N. Papadopoulos', ['N. Papadopoulos','D. Roussou','D. Ekonomou'],        480, 238, 900, 440, 412),
-  // ── Maintenance team: Warehouse and Quality Lab ─────────────────────────
-  blk(7, 'Warehouse',  'V. Mavroeidis',   ['S. Nikolaou','S. Panagiotou'],                 480, 280, 800, 470, 450, 2),
-  blk(7, 'Quality Lab','N. Papadopoulos', ['S. Panagiotou','S. Nikolaou'],                 480, 270, 800, 455, 436),
-  // ── Additional-workforce-only blocks ─────────────────────────────────────
-  // A shift covered purely by extra hands — no named operator was assigned, so
-  // the block reports as Unknown ×N (N feeding man-hours) and belongs to no
-  // leader. Peak-season packing lines are the realistic case for this.
-  blk(3, 'Packing-01', '', [], 480, 290, 800, 480, 455, 5),
-  blk(6, 'Packing-01', '', [], 480, 275, 800, 462, 436, 4),
-  // ── Unknown blocks (no operator selected at all) ──────────────────────────
-  // Production ran, nobody picked operators in Shift View. These carry no
-  // leader and no AW, so they land in "Unknown" only — the catch-all bucket
-  // that makes the people rows reconcile with the overall totals.
-  blk(2, 'Assembly-01', '', [], 480, 300, 850, 500, 470),
-  blk(4, 'Warehouse',   '', [], 480, 220, 800, 390, 366),
-  blk(5, 'CNC-03',      '', [], 480, 265, 1000, 470, 442),
-  blk(7, 'Press-03',    '', [], 480, 230,  900, 415, 388),
+  // Every shift has a leader and named operators, so nothing reports as Unknown.
+  // ── Blue Team (strongest; deputy Kostopoulou leads Thu + Sat) ────────────
+  blk(1, 'CNC-01',      'V. Mavroeidis',   ['V. Mavroeidis','M. Kostopoulou','G. Antoniou'],   480, 336, 1000, 648, 634),
+  blk(2, 'CNC-02',      'V. Mavroeidis',   ['V. Mavroeidis','P. Lambrou','A. Dimitriou'],      480, 328, 1000, 632, 618),
+  blk(3, 'CNC-01',      'V. Mavroeidis',   ['V. Mavroeidis','M. Kostopoulou','P. Lambrou'],    480, 342, 1000, 661, 648),
+  blk(4, 'Press-01',    'M. Kostopoulou',  ['M. Kostopoulou','G. Antoniou','A. Dimitriou'],    480, 302,  900, 524, 506),
+  blk(5, 'Assembly-02', 'V. Mavroeidis',   ['V. Mavroeidis','P. Lambrou','M. Kostopoulou'],    480, 334,  850, 584, 571),
+  blk(6, 'CNC-02',      'M. Kostopoulou',  ['M. Kostopoulou','G. Antoniou','A. Dimitriou'],    480, 318, 1000, 611, 596),
+  // ── Red Team (most scrap; deputy Vlachos leads Thu + Sat) ────────────────
+  blk(1, 'Press-01',    'N. Papadopoulos', ['N. Papadopoulos','E. Christodoulou','D. Ekonomou'],480, 272,  900, 472, 446),
+  blk(2, 'Press-02',    'N. Papadopoulos', ['N. Papadopoulos','K. Vlachos','D. Roussou'],      480, 264,  900, 460, 433),
+  blk(3, 'Assembly-01', 'N. Papadopoulos', ['N. Papadopoulos','E. Christodoulou','K. Vlachos'],480, 276,  850, 464, 441),
+  blk(4, 'CNC-03',      'K. Vlachos',      ['K. Vlachos','D. Ekonomou','D. Roussou'],          480, 284, 1000, 512, 487),
+  blk(5, 'Press-03',    'N. Papadopoulos', ['N. Papadopoulos','K. Vlachos','E. Christodoulou'],480, 270,  900, 468, 442),
+  blk(6, 'Press-02',    'K. Vlachos',      ['K. Vlachos','D. Roussou','D. Ekonomou'],          480, 258,  900, 449, 421),
+  // ── Night Crew (steady; deputy Karalis leads Fri) ───────────────────────
+  blk(1, 'Packing-01',  'I. Georgiou',     ['I. Georgiou','T. Karalis','L. Mitsou'],           480, 302,  800, 484, 470),
+  blk(2, 'Assembly-02', 'I. Georgiou',     ['I. Georgiou','A. Petrou','T. Karalis'],           480, 296,  850, 503, 488),
+  blk(3, 'Packing-01',  'I. Georgiou',     ['I. Georgiou','L. Mitsou','A. Petrou'],            480, 306,  800, 490, 476),
+  blk(5, 'CNC-03',      'T. Karalis',      ['T. Karalis','L. Mitsou','A. Petrou'],             480, 312, 1000, 594, 578),
+  blk(6, 'Packing-01',  'I. Georgiou',     ['I. Georgiou','A. Petrou','T. Karalis'],           480, 300,  800, 486, 472),
+  // ── Maintenance (low volume; deputy Panagiotou leads Fri) ────────────────
+  blk(1, 'Warehouse',   'S. Nikolaou',     ['S. Nikolaou','S. Panagiotou','H. Stavrou'],       480, 292,  600, 362, 352),
+  blk(3, 'Quality Lab', 'S. Nikolaou',     ['S. Nikolaou','H. Stavrou'],                       480, 282,  600, 352, 340),
+  blk(5, 'Warehouse',   'S. Panagiotou',   ['S. Panagiotou','H. Stavrou'],                     480, 286,  600, 356, 345),
+  blk(7, 'Quality Lab', 'S. Nikolaou',     ['S. Nikolaou','S. Panagiotou'],                    480, 296,  600, 366, 356),
 ];
 function blk(day, station, leaderId, operatorIds, plannedMin, runMin, idealQty, totalQty, goodQty, awCount) {
   // shiftMin: scheduled shift length (≥ planned). allMin: calendar time the
@@ -306,9 +314,9 @@ function blk(day, station, leaderId, operatorIds, plannedMin, runMin, idealQty, 
     Warehouse:     { products:['Panel Set'],   productCodes:['PRD-006'], productGroups:['Assembly'],    lots:['LOT-C2'], orders:['ORD-1006'] },
   };
   const meta = META[fam];
-  // Each leader runs a fixed shift; blocks nobody led ran at night.
-  const shift = leaderId === 'V. Mavroeidis' ? 'Morning'
-              : leaderId === 'N. Papadopoulos' ? 'Afternoon' : 'Night';
+  // Each team runs a fixed shift.
+  const shift = { 'Blue Team': 'Morning', 'Red Team': 'Afternoon', 'Night Crew': 'Night',
+                  'Maintenance': 'Morning' }[OPERATOR_DIRECTORY[leaderId]?.group] || 'Morning';
   return { day, station, leaderId, operatorIds, plannedMin, runMin, idealQty, totalQty, goodQty,
            awCount: awCount || 0,
            shiftMin, allMin, techStopMin, shift, ...meta };
@@ -584,14 +592,14 @@ function manhoursScoped(blocks, dim, val) {
 // ── Quantities report ─────────────────────────────────────────────────────────
 // The Quantities chart (Figma 2045-7344) is a STACKED bar per X-axis value:
 //   Scrap        (orange, bottom) = totalQty − goodQty
-//   Good quality (green)          = goodQty
+//   Good quantity (green)         = goodQty
 //   Potential    (grey, top)      = idealQty − totalQty   (the gap to ideal speed)
 // Stacked because they sum to the ideal output (unlike OEE's multiplicative
 // components). Derived from the SAME SHIFT_BLOCKS as OEE, so the two reconcile
 // and Split by operator / leader / group works for free.
 const QTY_SEGMENTS = [
   { key:'potential', label:'Potential',    color:'#bdbdbd' },
-  { key:'good',      label:'Good quality', color:'#2ecc71' },
+  { key:'good',      label:'Good quantity', color:'#2ecc71' },
   { key:'scrap',     label:'Scrap',        color:'#ff9800' },
 ];
 

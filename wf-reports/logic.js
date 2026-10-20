@@ -21,14 +21,14 @@ let oeeChartType   = 'line';       // 'line' | 'bar' — user toggle. Line is on
                                    // categorical axes / split always render bars.
 let _oeeHiddenLeaders = new Set(); // leaders toggled off via the legend
 let _oeePage       = 0;            // current page of category clusters (split mode)
-const OEE_CATS_PER_PAGE = 3;       // categories per page (matches real Evocon density)
+const OEE_CATS_PER_PAGE = 100;     // categories per page — live default "Items per page: 100"
 
 // Quantities report state (mirrors the OEE controls).
 let qtyXAxis       = 'Day';        // 'Day' | 'Operators' | 'Operator groups' | 'Shift leaders'
 let qtySplitBy     = null;         // null = off, or a split label
 let _qtyHidden     = new Set();    // segments toggled off via the legend
 let _qtyPage       = 0;            // current page of category clusters
-const QTY_CATS_PER_PAGE = 6;       // bars per page (single-column bars, denser)
+const QTY_CATS_PER_PAGE = 100;     // categories per page — live default "Items per page: 100"
 
 const Y2_METRICS = {
   'Duration':     { main: d => d.mainDur,   cmp: d => d.cmpDur,   unit: ' min' },
@@ -313,17 +313,11 @@ function selectPreset(el) {
 function updateFilterBtn() {
   if (!rangeStart) return;
   const btn   = document.getElementById('date-btn');
-  const label = PRESET_LABELS[currentPreset];
-  if (label) {
-    btn.textContent = `← ${label} →`;
-  } else {
-    const fmt = d => fmtDMslashM(d);
-    if (rangeEnd && !sameDay(rangeStart, rangeEnd)) {
-      btn.textContent = `← ${fmt(rangeStart)} – ${fmt(rangeEnd)} →`;
-    } else {
-      btn.textContent = `← ${fmt(rangeStart)} →`;
-    }
-  }
+  const fmt = d => fmtDMslashM(d);
+  const label = PRESET_LABELS[currentPreset]
+    || (rangeEnd && !sameDay(rangeStart, rangeEnd) ? `${fmt(rangeStart)} – ${fmt(rangeEnd)}` : fmt(rangeStart));
+  // Live: "‹ Last 7 days ›" — chevrons step the period back and forward.
+  btn.innerHTML = icn('chevLeft', 18, '#616161') + `<span class="chip-label">${label}</span>` + icn('chevRight', 18, '#616161');
 }
 
 // ── Date picker: open / close / apply ────────────────────────────────────────
@@ -1015,7 +1009,7 @@ function drawDowntimeSplit(items) {
   splitVals.forEach(v => {
     const el = document.createElement('div');
     el.style.cssText = 'display:flex;align-items:center;gap:6px;';
-    el.innerHTML = `<span style="display:inline-block;width:12px;height:12px;border-radius:2px;background:${colorMap[v]};flex-shrink:0;"></span><span style="font-family:Inter,sans-serif;font-size:12px;color:#424242;">${v}</span>`;
+    el.innerHTML = `<span style="display:inline-block;width:14px;height:14px;border-radius:2px;background:${colorMap[v]};flex-shrink:0;"></span><span style="font-family:'Open Sans',sans-serif;font-size:12px;color:#212121;">${v}</span>`;
     legendEl.appendChild(el);
   });
 
@@ -1113,7 +1107,7 @@ function drawChartWith(items) {
   uniqueGroups.forEach(g => {
     const item = document.createElement('div');
     item.style.cssText = 'display:flex;align-items:center;gap:6px;';
-    item.innerHTML = `<span style="display:inline-block;width:12px;height:12px;border-radius:2px;background:${colorMap[g]};flex-shrink:0;"></span><span style="font-family:Inter,sans-serif;font-size:12px;color:#424242;">${g}</span>`;
+    item.innerHTML = `<span style="display:inline-block;width:14px;height:14px;border-radius:2px;background:${colorMap[g]};flex-shrink:0;"></span><span style="font-family:'Open Sans',sans-serif;font-size:12px;color:#212121;">${g}</span>`;
     legendEl.appendChild(item);
   });
 
@@ -1544,6 +1538,17 @@ function decorateChartChips() {
     const el = document.getElementById(id);
     if (el && !el.innerHTML.trim()) el.innerHTML = icn('cog', 24, '#757575');
   });
+  // Page header, BACK, and the table-card headers.
+  const fill = (sel, html) => document.querySelectorAll(sel).forEach(el => { if (!el.innerHTML.trim()) el.innerHTML = html; });
+  fill('#pg-more',  icn('dotsVertical', 24, '#757575'));
+  fill('#pg-share', icn('share', 24, '#757575'));
+  fill('#pg-save',  icn('starOutline', 24, '#2ecc71') + 'Save');
+  fill('.chart-back-icn', icn('arrowLeft', 24, '#212121'));
+  fill('.tbl-info',     icn('infoOutline', 20, '#757575'));
+  fill('.tbl-cols-icn', icn('viewColumn', 18, '#2ecc71'));
+  fill('.tbl-caret',    icn('caret', 18, '#212121'));
+  fill('.tbl-dl-icn',   icn('download', 24, '#212121'));
+  document.querySelectorAll('.tbl-time-icn').forEach(el => el.remove());
 }
 
 // Writes a control chip's value without disturbing its icon or caret.
@@ -1557,7 +1562,17 @@ function setChipLabel(id, text) {
 // by" and the 2nd Y-axis have an empty state to turn it off again — X-axis,
 // Y-axis, chart type and the date range always hold a value, so those stay on.
 function setChipActive(id, on) {
-  document.getElementById(id)?.classList.toggle('active', !!on);
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.classList.toggle('active', !!on);
+  // Live: an applied Split by swaps its caret for a clear icon that removes it.
+  const clear = { 'splitby-btn': () => selectSplit(null), 'oee-splitby-btn': () => selectOeeSplit(null),
+                  'qty-splitby-btn': () => selectQtySplit(null) }[id];
+  const tail = el.lastElementChild;
+  if (!clear || !tail || !el.querySelector('.chip-label')) return;
+  const icon = on ? icn('closeCircle', 18, '#616161') : icn('caret');
+  tail.outerHTML = on ? icon.replace('<svg class="chip-icn"', '<svg class="chip-icn chip-clear"') : icon;
+  if (on) el.lastElementChild.addEventListener('click', e => { e.stopPropagation(); clear(); });
 }
 
 // The three people dimensions, in the order the spec lists them everywhere
@@ -1749,6 +1764,8 @@ function chipLabel(key) {
 function renderActiveChips() {
   const wrap = document.getElementById('active-filters');
   if (!wrap) return;
+  const reset = document.getElementById('filter-reset');
+  if (reset) reset.style.opacity = activeFilters.length ? '1' : '0.38';
   wrap.innerHTML = '';
   activeFilters.forEach(key => {
     const dim = FILTER_DIMS[key];
@@ -2195,7 +2212,7 @@ function drawOeeBars(chart, width, height) {
     const hidden = _oeeHiddenLeaders.has(m.key);
     const item = document.createElement('div');
     item.style.cssText = 'display:flex;align-items:center;gap:6px;cursor:pointer;opacity:' + (hidden ? '0.4' : '1') + ';';
-    item.innerHTML = `<span style="display:inline-block;width:12px;height:12px;border-radius:2px;background:${m.color};flex-shrink:0;"></span><span style="font-family:Inter,sans-serif;font-size:12px;color:#424242;">${m.label}</span>`;
+    item.innerHTML = `<span style="display:inline-block;width:14px;height:14px;border-radius:2px;background:${m.color};flex-shrink:0;"></span><span style="font-family:'Open Sans',sans-serif;font-size:12px;color:#212121;">${m.label}</span>`;
     item.addEventListener('click', () => {
       if (_oeeHiddenLeaders.has(m.key)) _oeeHiddenLeaders.delete(m.key);
       else _oeeHiddenLeaders.add(m.key);
@@ -2207,31 +2224,35 @@ function drawOeeBars(chart, width, height) {
   // Pager (only when more than one page of category clusters).
   renderOeePager(allCats.length, pageCount);
 
-  // Data table. Split → category × split-value rows (with the inner column).
-  // No split → the proper full OEE table (manhours lives here, as a number).
-  if (split) {
-    renderOeeTable(cats, inners, data, outerHeader, innerHeader);
-  } else {
-    renderOeeMainTable(oeeTableRows(selectedBlocks(), outerDim), OEE_DIMS[outerDim].header);
-  }
+  // Data table. Spec: in split mode the table follows existing Reports
+  // behaviour and shows the main X-axis data only — the split lives in the
+  // chart; the table's people columns say who was in each row.
+  renderOeeMainTable(oeeTableRows(selectedBlocks(), outerDim), OEE_DIMS[outerDim].header);
 }
 
 // Pager for the OEE split chart — N category clusters per page.
 function renderOeePager(totalCats, pageCount) {
-  const el = document.getElementById('oee-pager');
+  renderChartPager('oee-pager', totalCats, pageCount, _oeePage, OEE_CATS_PER_PAGE, p => { _oeePage = p; drawOeeChart(); });
+}
+
+// The chart footer, as live: "Items per page 100 ▾   1-10/10   ‹ ›".
+function renderChartPager(id, total, pageCount, page, per, go) {
+  const el = document.getElementById(id);
   if (!el) return;
-  if (pageCount <= 1) { el.style.display = 'none'; return; }
   el.style.display = 'flex';
-  const from = _oeePage * OEE_CATS_PER_PAGE + 1;
-  const to   = Math.min(totalCats, (_oeePage + 1) * OEE_CATS_PER_PAGE);
+  const from = total ? page * per + 1 : 0, to = Math.min(total, (page + 1) * per);
+  const chev = (dir, off) =>
+    `<button class="chart-pg" data-dir="${dir}" ${off ? 'disabled' : ''}>` +
+    icn(dir < 0 ? 'chevLeft' : 'chevRight', 24, off ? '#bdbdbd' : '#616161') + `</button>`;
   el.innerHTML =
-    `<span style="font-family:Inter,sans-serif;font-size:12px;color:#616161;">${from}-${to}/${totalCats}</span>` +
-    `<button id="oee-prev" ${_oeePage===0?'disabled':''} style="border:none;background:none;cursor:pointer;font-size:16px;color:${_oeePage===0?'#ccc':'#616161'};padding:0 6px;">‹</button>` +
-    `<button id="oee-next" ${_oeePage>=pageCount-1?'disabled':''} style="border:none;background:none;cursor:pointer;font-size:16px;color:${_oeePage>=pageCount-1?'#ccc':'#616161'};padding:0 6px;">›</button>`;
-  const prev = document.getElementById('oee-prev');
-  const next = document.getElementById('oee-next');
-  if (prev) prev.addEventListener('click', () => { if (_oeePage>0){ _oeePage--; drawOeeChart(); } });
-  if (next) next.addEventListener('click', () => { if (_oeePage<pageCount-1){ _oeePage++; drawOeeChart(); } });
+    `<span class="chart-pg-label">Items per page</span>` +
+    `<span class="chart-pg-size">${per}${icn('caret', 24, '#616161')}</span>` +
+    `<span class="chart-pg-range">${from}-${to}/${total}</span>` +
+    chev(-1, page === 0) + chev(1, page >= pageCount - 1);
+  el.querySelectorAll('.chart-pg').forEach(b => b.addEventListener('click', () => {
+    const p = page + Number(b.dataset.dir);
+    if (p >= 0 && p < pageCount) go(p);
+  }));
 }
 
 // Minutes → "Xh Ym" (readable time format, like the OEE.csv columns).
@@ -2279,7 +2300,7 @@ function renderStyledTable(ctx) {
   // Header — sticky first col + scrolling cols.
   let headHtml = `<tr style="height:32px;">`;
   headHtml += `<th class="dt-fixed" style="text-align:left;padding:0 16px;font-family:'Open Sans',sans-serif;font-size:13px;font-weight:600;color:#424242;position:sticky;left:0;">`
-    + `<div class="dt-th-inner">${ICON_Y_INLINE}&nbsp;${ctx.firstHeader}</div></th>`;
+    + `<div class="dt-th-inner">${icn('xAxis', 16, '#424242')}&nbsp;${ctx.firstHeader}</div></th>`;
   ctx.cols.forEach(c => {
     const right = c.align === 'right';
     headHtml += `<th style="text-align:${right?'right':'left'};white-space:nowrap;padding:0 16px 0 8px;font-family:'Open Sans',sans-serif;font-size:12px;font-weight:600;color:#424242;">`
@@ -2290,7 +2311,7 @@ function renderStyledTable(ctx) {
 
   // Body
   const cellTd = (html, align, bold) =>
-    `<td style="text-align:${align==='right'?'right':'left'};font-family:${align==='right'?"'Roboto Mono',monospace":"'Open Sans',sans-serif"};font-size:14px;${bold?'font-weight:600;':''}color:#212121;vertical-align:middle;padding:6px 16px 6px 8px;white-space:nowrap;">${html}</td>`;
+    `<td style="text-align:${align==='right'?'right':'left'};font-family:'Open Sans',sans-serif;font-variant-numeric:tabular-nums;font-size:14px;${bold?'font-weight:600;':''}color:#212121;vertical-align:middle;padding:6px 16px 6px 8px;white-space:nowrap;">${html}</td>`;
   const firstTd = (label, rowClass) =>
     `<td class="dt-fixed" style="font-family:'Open Sans',sans-serif;font-size:14px;font-weight:600;color:#212121;vertical-align:middle;padding:6px 16px;"><div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${label}</div></td>`;
 
@@ -2331,8 +2352,6 @@ function oeeTblNext() { _tblNext('oee'); }
 function qtyTblPrev() { _tblPrev('qty'); }
 function qtyTblNext() { _tblNext('qty'); }
 
-// Minutes → "Xh Ym" (readable time format, like the OEE.csv columns).
-// (defined above near renderOeePager — kept here for proximity to the tables)
 
 // Format one OEE_TABLE_COLS cell value for a row.
 function oeeCellValue(c, r) {
@@ -2358,39 +2377,6 @@ function renderOeeMainTable(rows, firstHeader) {
       align: c.type === 'descr' ? 'left' : 'right',
       render: r => oeeCellValue(c, r),
     })),
-    rows,
-  });
-}
-
-// Table under the OEE split chart: row per outer × inner, columns =
-// Availability / Performance / Quality / OEE / Manhours. Reconciles with bars.
-function renderOeeTable(cats, inners, data, outerHeader, innerHeader) {
-  const rows = [];
-  cats.forEach(cat => inners.forEach(l => {
-    const d = data[cat] && data[cat][l];
-    if (d) rows.push({ name: cat, _inner: l, ...d });
-  }));
-  // Total row — weighted OEE isn't meaningful from cell %s, so recompute from
-  // the underlying blocks (manhours deduped across all visible operators).
-  if (rows.length) {
-    const tot = rollupOEE(selectedBlocks());
-    rows.push({ name: 'Total', _inner: '', _total: true,
-      availability: tot.availability, performance: tot.performance, quality: tot.quality, oee: tot.oee,
-      manhours: blockManhours(selectedBlocks()) });
-  }
-  const cc = document.getElementById('oee-col-count');
-  if (cc) cc.textContent = 'Columns: 7';
-  renderStyledTable({
-    key: 'oee',
-    firstHeader: outerHeader,
-    cols: [
-      { label: innerHeader,    align: 'left',  render: r => r._total ? '' : (r._inner || '') },
-      { label: 'Availability', align: 'right', render: r => r.availability.toFixed(1) + '%' },
-      { label: 'Performance',  align: 'right', render: r => r.performance.toFixed(1) + '%' },
-      { label: 'Quality',      align: 'right', render: r => r.quality.toFixed(1) + '%' },
-      { label: 'OEE',          align: 'right', render: r => r.oee.toFixed(1) + '%' },
-      { label: 'Man-hours',    align: 'right', render: r => r.manhours.toFixed(0) + 'h' },
-    ],
     rows,
   });
 }
@@ -2662,7 +2648,7 @@ function drawOeeChart() {
   OEE_LINES.forEach(line => {
     const item = document.createElement('div');
     item.style.cssText = 'display:flex;align-items:center;gap:6px;';
-    item.innerHTML = `<span style="display:inline-block;width:12px;height:12px;border-radius:2px;background:${line.color};flex-shrink:0;"></span><span style="font-family:Inter,sans-serif;font-size:12px;color:#424242;">${line.label}</span>`;
+    item.innerHTML = `<span style="display:inline-block;width:14px;height:14px;border-radius:2px;background:${line.color};flex-shrink:0;"></span><span style="font-family:'Open Sans',sans-serif;font-size:12px;color:#212121;">${line.label}</span>`;
     legendEl.appendChild(item);
   });
 }
@@ -2734,18 +2720,7 @@ function fmtQty(n) {
 
 // The quantities pager (N bars per page).
 function renderQtyPager(totalCats, pageCount) {
-  const el = document.getElementById('qty-pager');
-  if (!el) return;
-  if (pageCount <= 1) { el.style.display = 'none'; return; }
-  el.style.display = 'flex';
-  const from = _qtyPage * QTY_CATS_PER_PAGE + 1;
-  const to   = Math.min(totalCats, (_qtyPage + 1) * QTY_CATS_PER_PAGE);
-  el.innerHTML =
-    `<span style="font-family:Inter,sans-serif;font-size:12px;color:#616161;">${from}-${to}/${totalCats}</span>` +
-    `<button id="qty-prev" ${_qtyPage===0?'disabled':''} style="border:none;background:none;cursor:pointer;font-size:16px;color:${_qtyPage===0?'#ccc':'#616161'};padding:0 6px;">‹</button>` +
-    `<button id="qty-next" ${_qtyPage>=pageCount-1?'disabled':''} style="border:none;background:none;cursor:pointer;font-size:16px;color:${_qtyPage>=pageCount-1?'#ccc':'#616161'};padding:0 6px;">›</button>`;
-  document.getElementById('qty-prev')?.addEventListener('click', () => { if (_qtyPage>0){ _qtyPage--; drawQtyChart(); } });
-  document.getElementById('qty-next')?.addEventListener('click', () => { if (_qtyPage<pageCount-1){ _qtyPage++; drawQtyChart(); } });
+  renderChartPager('qty-pager', totalCats, pageCount, _qtyPage, QTY_CATS_PER_PAGE, p => { _qtyPage = p; drawQtyChart(); });
 }
 
 // Quantities data table — dynamic first column + descr + qty columns + Total row.
@@ -2767,41 +2742,14 @@ function renderQtyTable(rows, firstHeader) {
   });
 }
 
-// Compact split-mode table: category × split-value rows + the qty buckets.
-function renderQtySplitTable(cats, inners, data, outerHeader, innerHeader) {
-  const rows = [];
-  cats.forEach(cat => inners.forEach(l => {
-    const d = data[cat] && data[cat][l];
-    if (d) rows.push({ name: cat, _inner: l, ...d });
-  }));
-  if (rows.length) {
-    const tot = rollupQty(selectedBlocks());
-    rows.push({ name: 'Total', _inner: '', _total: true, ...tot,
-      manhours: blockManhours(selectedBlocks()) });
-  }
-  const cc = document.getElementById('qty-col-count');
-  if (cc) cc.textContent = 'Columns: 7';
-  renderStyledTable({
-    key: 'qty',
-    firstHeader: outerHeader,
-    cols: [
-      { label: innerHeader,     align: 'left',  render: r => r._total ? '' : (r._inner || '') },
-      { label: 'Good quantity', align: 'right', render: r => fmtQty(r.goodQty) },
-      { label: 'Scrap',         align: 'right', render: r => fmtQty(r.scrap) },
-      { label: 'Potential',     align: 'right', render: r => fmtQty(r.potential) },
-      { label: 'Total quantity',align: 'right', render: r => fmtQty(r.totalQty) },
-      { label: 'Man-hours',     align: 'right', render: r => (r.manhours || 0).toFixed(0) + 'h' },
-    ],
-    rows,
-  });
-}
-
 function drawQtyChart() {
   const container = document.getElementById('qty-chart-container');
   const W = container.clientWidth;
   const H = container.clientHeight;
   const split = !!qtySplitBy;
-  const margin = { top: 16, right: 24, bottom: split ? 52 : 28, left: 72 };
+  // Split mode: bar labels and category labels run diagonally below the axis,
+  // as on the live chart, so the bottom margin makes room for both rows.
+  const margin = { top: 24, right: 24, bottom: split ? 172 : 40, left: 72 };
   const width  = W - margin.left - margin.right;
   const height = H - margin.top  - margin.bottom;
 
@@ -2848,7 +2796,20 @@ function drawQtyChart() {
     const d = cellOf(cat, l); if (d) maxTotal = Math.max(maxTotal, d.idealQty || 0);
   }));
   const y  = d3.scaleLinear().domain([0, Math.max(10, maxTotal * 1.05)]).range([height, 0]).nice();
-  const x0 = d3.scaleBand().domain(cats).range([0, width]).paddingInner(0.3).paddingOuter(0.15);
+
+  // Bar slots, laid out flat across the chart: every bar is the same width, and
+  // split clusters are separated by a gap — so a one-bar cluster doesn't
+  // balloon to fill its category's band (live behaviour).
+  const GAP = split ? 0.8 : 0;                 // gap between clusters, in slots
+  const slots = [];                             // { cat, l, pos }
+  let pos = 0;
+  cats.forEach((cat, ci) => {
+    if (ci > 0) pos += GAP;
+    innersForCat(cat).forEach(l => { slots.push({ cat, l, pos }); pos += 1; });
+  });
+  const unit  = width / Math.max(1, pos + (split ? 0.6 : 0.2));
+  const bw    = Math.min(unit * (split ? 0.72 : 0.8), 160);
+  const slotX = sl => (sl.pos + (split ? 0.3 : 0.1)) * unit + (unit - bw) / 2;
 
   // Gridlines
   chart.append('g')
@@ -2856,80 +2817,93 @@ function drawQtyChart() {
     .call(ax => ax.select('.domain').remove())
     .call(ax => ax.selectAll('line').style('stroke', '#eeeeee'));
 
-  const subTicks = [];
-  const catTicks = [];
+  const AXIS_FONT = "'Open Sans',sans-serif";
+  const order = QTY_SEGMENTS.filter(s => !_qtyHidden.has(s.key))
+    .sort((a, b) => QTY_SEGMENTS.indexOf(b) - QTY_SEGMENTS.indexOf(a)); // scrap→good→potential
+  const barCenters = new Map();                 // cat → [bar centre x]
 
-  cats.forEach(cat => {
-    const present = innersForCat(cat);
-    const catG = chart.append('g').attr('transform', `translate(${x0(cat)},0)`);
-    const x1 = d3.scaleBand().domain(present.map((l,i)=>String(i))).range([0, x0.bandwidth()]).paddingInner(0.18).paddingOuter(split ? 0.05 : 0.22);
-
-    present.forEach((l, i) => {
-      const d = cellOf(cat, l);
-      if (!d) return;
-      const bw = x1.bandwidth();
-      const bx = x1(String(i));
-      // Stack bottom→top: Scrap, then Good quality, then Potential (top) —
-      // matches the Figma legend order (Potential / Good / Scrap top→bottom).
-      let acc = 0;
-      const order = QTY_SEGMENTS.filter(s => !_qtyHidden.has(s.key))
-        .sort((a,b) => QTY_SEGMENTS.indexOf(b) - QTY_SEGMENTS.indexOf(a)); // scrap→good→potential
-      order.forEach(s => {
-        const v = d[s.key] || 0;
-        if (v <= 0) return;
-        const yTop = y(acc + v), yBot = y(acc);
-        catG.append('rect')
-          .attr('x', bx).attr('width', bw)
-          .attr('y', yTop).attr('height', Math.max(0, yBot - yTop))
-          .attr('fill', s.color)
-          .on('mousemove', (event) => {
-            if (!tooltipEl) return;
-            const title = split ? `${cat} — ${l}` : cat;
-            tooltipEl.innerHTML =
-              `<div style="font-family:'Open Sans',sans-serif;font-size:12px;">` +
-              `<div style="font-weight:600;margin-bottom:2px;">${title}</div>` +
-              `<div>${s.label}: <b>${fmtQty(v)}</b></div></div>`;
-            tooltipEl.style.display = 'block';
-            tooltipEl.style.left = (event.offsetX + 72) + 'px';
-            tooltipEl.style.top  = (event.offsetY + 24) + 'px';
-          })
-          .on('mouseleave', () => { if (tooltipEl) tooltipEl.style.display = 'none'; });
-        acc += v;
-      });
-      if (split) subTicks.push({ x: x0(cat) + bx + bw / 2, label: l });
+  slots.forEach(sl => {
+    const d = cellOf(sl.cat, sl.l);
+    if (!d) return;
+    const bx = slotX(sl);
+    (barCenters.get(sl.cat) || barCenters.set(sl.cat, []).get(sl.cat)).push(bx + bw / 2);
+    // Stack bottom→top: Scrap, then Good quantity, then Potential (top).
+    let acc = 0;
+    order.forEach(s => {
+      const v = d[s.key] || 0;
+      if (v <= 0) return;
+      const yTop = y(acc + v), yBot = y(acc);
+      chart.append('rect')
+        .attr('x', bx).attr('width', bw)
+        .attr('y', yTop).attr('height', Math.max(0, yBot - yTop))
+        .attr('fill', s.color)
+        .on('mousemove', (event) => {
+          if (!tooltipEl) return;
+          const title = split ? `${sl.cat} — ${sl.l}` : sl.cat;
+          tooltipEl.innerHTML =
+            `<div style="font-family:'Open Sans',sans-serif;font-size:12px;">` +
+            `<div style="font-weight:600;margin-bottom:2px;">${title}</div>` +
+            `<div>${s.label}: <b>${fmtQty(v)}</b></div></div>`;
+          tooltipEl.style.display = 'block';
+          tooltipEl.style.left = (event.offsetX + 72) + 'px';
+          tooltipEl.style.top  = (event.offsetY + 24) + 'px';
+        })
+        .on('mouseleave', () => { if (tooltipEl) tooltipEl.style.display = 'none'; });
+      // The value inside its segment, as live — only where it fits.
+      if (yBot - yTop >= 18 && bw >= 56) {
+        chart.append('text')
+          .attr('x', bx + bw / 2).attr('y', (yTop + yBot) / 2 + 4).attr('text-anchor', 'middle')
+          .style('font-family', AXIS_FONT).style('font-size', '12px').style('fill', '#212121')
+          .style('pointer-events', 'none')
+          .text(fmtQty(v));
+      }
+      acc += v;
     });
-    catTicks.push({ x: x0(cat) + x0.bandwidth() / 2, label: catLabel(cat) });
   });
 
-  // Baseline
-  chart.append('line').attr('x1', 0).attr('x2', width).attr('y1', height).attr('y2', height).style('stroke', '#e0e0e0');
+  // Baseline, and a tick under every bar
+  chart.append('line').attr('x1', 0).attr('x2', width).attr('y1', height).attr('y2', height).style('stroke', '#212121');
+  barCenters.forEach(xs => xs.forEach(x =>
+    chart.append('line').attr('x1', x).attr('x2', x).attr('y1', height).attr('y2', height + 6).style('stroke', '#212121')));
 
-  // Sub-cluster labels (split only)
   if (split) {
-    chart.append('g').selectAll('text.sub').data(subTicks).join('text')
-      .attr('x', d => d.x).attr('y', height + 14).attr('text-anchor', 'middle')
-      .style('font-family','Inter,sans-serif').style('font-size','10px').style('fill','#616161')
-      .text(d => d.label);
+    // The split value under each bar, then the category under its cluster —
+    // both diagonal, reading down to the right, as on the live chart.
+    slots.forEach(sl => {
+      if (!cellOf(sl.cat, sl.l)) return;
+      const x = slotX(sl) + bw / 2;
+      chart.append('text').attr('transform', `translate(${x - 4},${height + 16}) rotate(45)`)
+        .style('font-family', AXIS_FONT).style('font-size', '12px').style('fill', '#212121')
+        .text(sl.l);
+    });
+    barCenters.forEach((xs, cat) => {
+      const x = (xs[0] + xs[xs.length - 1]) / 2;
+      chart.append('line').attr('x1', x).attr('x2', x).attr('y1', height + 92).attr('y2', height + 98).style('stroke', '#212121');
+      chart.append('text').attr('transform', `translate(${x - 4},${height + 108}) rotate(45)`)
+        .style('font-family', AXIS_FONT).style('font-size', '12px').style('fill', '#212121')
+        .text(catLabel(cat));
+    });
+  } else {
+    barCenters.forEach((xs, cat) => {
+      chart.append('text').attr('x', xs[0]).attr('y', height + 22).attr('text-anchor', 'middle')
+        .style('font-family', AXIS_FONT).style('font-size', '12px').style('fill', '#212121')
+        .text(catLabel(cat));
+    });
   }
-  // Category labels
-  chart.append('g').selectAll('text.cat').data(catTicks).join('text')
-    .attr('x', d => d.x).attr('y', height + (split ? 30 : 16)).attr('text-anchor', 'middle')
-    .style('font-family','Inter,sans-serif').style('font-size','11px').style('font-weight', split ? '600' : '400').style('fill', split ? '#424242' : '#616161')
-    .text(d => d.label);
 
   // Y axis (quantity)
   const yAxisG = chart.append('g').call(d3.axisLeft(y).ticks(8).tickFormat(d => fmtQty(d)).tickSize(0));
   yAxisG.select('.domain').remove();
-  yAxisG.selectAll('text').style('font-family','Inter,sans-serif').style('font-size','11px').style('fill','#616161');
+  yAxisG.selectAll('text').style('font-family',"'Open Sans',sans-serif").style('font-size','12px').style('fill','#212121');
 
-  // Legend — Potential / Good quality / Scrap, click to toggle.
+  // Legend — Potential / Good quantity / Scrap, click to toggle.
   const legendEl = document.getElementById('qty-chart-legend');
   legendEl.innerHTML = '';
   QTY_SEGMENTS.forEach(s => {
     const hidden = _qtyHidden.has(s.key);
     const item = document.createElement('div');
     item.style.cssText = 'display:flex;align-items:center;gap:6px;cursor:pointer;opacity:' + (hidden ? '0.4' : '1') + ';';
-    item.innerHTML = `<span style="display:inline-block;width:12px;height:12px;border-radius:2px;background:${s.color};flex-shrink:0;"></span><span style="font-family:Inter,sans-serif;font-size:12px;color:#424242;">${s.label}</span>`;
+    item.innerHTML = `<span style="display:inline-block;width:14px;height:14px;border-radius:2px;background:${s.color};flex-shrink:0;"></span><span style="font-family:'Open Sans',sans-serif;font-size:12px;color:#212121;">${s.label}</span>`;
     item.addEventListener('click', () => {
       if (_qtyHidden.has(s.key)) _qtyHidden.delete(s.key); else _qtyHidden.add(s.key);
       drawQtyChart();
@@ -2940,14 +2914,9 @@ function drawQtyChart() {
   // Pager
   renderQtyPager(allCats.length, pageCount);
 
-  // Data table. Day / no-split → the full qty table; split → compact table.
-  if (split) {
-    const outerDim = oeeDimKey(qtyXAxis);
-    const innerDim = oeeDimKey(qtySplitBy);
-    const m = qtyMatrixFromBlocks(selectedBlocks(), outerDim, innerDim);
-    const tableCats = m.labels.filter(c => m.innerLabels.some(l => m.data[c] && m.data[c][l]));
-    renderQtySplitTable(tableCats, m.innerLabels, m.data, m.outerHeader, m.innerHeader);
-  } else if (qtyXAxis === 'Day') {
+  // Data table. Spec: in split mode the table shows the main X-axis data only
+  // (existing Reports behaviour) — the split lives in the chart.
+  if (qtyXAxis === 'Day') {
     // Day view: one table row per day (familiar to the OEE Day-less table).
     const days = qtyByDay(selectedBlocks());
     const rows = days.map(d => {
@@ -2973,6 +2942,7 @@ function drawQtyChart() {
 decorateChartChips();      // icon + label + caret, before anything writes a value
 setDisplayMonths(rangeStart, rangeEnd);
 selectChipByPreset('last7');
+updateFilterBtn();         // the date chip in its live form (‹ Last 7 days ›)
 renderCalendars();
 buildY2Dropdown();
 initChart();

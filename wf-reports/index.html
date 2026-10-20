@@ -14,7 +14,7 @@
   <script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: 'Inter', sans-serif; background: #f7f7f7; min-height: 100vh; display: flex; flex-direction: column; }
+    body { font-family: 'Inter', sans-serif; background: #eeeeee; min-height: 100vh; display: flex; flex-direction: column; }
 
     /* ── Header ── */
     #app-header {
@@ -309,7 +309,7 @@
       height:32px; padding:0 12px;
       border:none; cursor:pointer; border-radius:4px;  /* .btn radius (--r-4) */
       background:rgba(46,204,113,0.12);          /* .btn--secondary fill */
-      font-family:'Open Sans',sans-serif; font-size:14px; font-weight:600;
+      font-family:'Open Sans',sans-serif; font-size:12px; font-weight:600; letter-spacing:0.4px;
       color:#2ecc71; text-transform:uppercase; white-space:nowrap;
     }
     .filter-cta:hover { background:rgba(46,204,113,0.2); }
@@ -330,6 +330,41 @@
     .action-menu-row.is-inert:hover { background:transparent; }
     .action-menu-row.is-added:hover { background:transparent; }
     .action-menu-row .v-icon, .action-menu-row img { flex-shrink:0; }
+
+    /* ── Page header (live): title left, more / share / SAVE right ── */
+    .page-head { display:flex; align-items:center; justify-content:space-between; padding:20px 24px 12px; }
+    #page-title { font-family:'Open Sans',sans-serif; font-size:34px; font-weight:400; color:#212121; line-height:44px; }
+    .page-actions { display:flex; align-items:center; gap:8px; }
+    .page-icon-btn { width:40px; height:40px; border:none; background:none; border-radius:50%; cursor:pointer; display:inline-flex; align-items:center; justify-content:center; }
+    .page-icon-btn:hover { background:rgba(0,0,0,0.06); }
+    .page-save { display:inline-flex; align-items:center; gap:8px; height:36px; padding:0 16px 0 12px; border:none; border-radius:4px; cursor:pointer;
+      background:rgba(46,204,113,0.12); color:#2ecc71; font-family:'Open Sans',sans-serif; font-size:14px; font-weight:600; letter-spacing:0.4px; text-transform:uppercase; }
+
+    /* ── Report cards: 16px apart, controls row without a rule under it ── */
+    /* No overflow:hidden — the X-axis / Split by dropdowns hang out of it. */
+    .report-card { margin-top:16px; background:white; border-radius:4px;
+      box-shadow:0 1px 3px rgba(0,0,0,0.12),0 1px 2px rgba(0,0,0,0.08); }
+    .report-card > div:last-child { border-radius:0 0 4px 4px; }
+    .chart-head { height:64px; background:white; display:flex; align-items:center; padding:8px 16px 0 24px; border-radius:4px 4px 0 0; }
+    .chart-back { display:inline-flex; align-items:center; gap:12px; border:none; background:none; cursor:pointer; padding:0;
+      font-family:'Open Sans',sans-serif; font-size:14px; font-weight:600; color:#212121; text-transform:uppercase; letter-spacing:0.4px; }
+    .chart-back-icn, .tbl-info, .tbl-cols-icn, .tbl-time-icn, .tbl-caret, .tbl-dl-icn { display:inline-flex; }
+
+    /* Chart footer pager */
+    .chart-pg-label { font-family:'Open Sans',sans-serif; font-size:12px; color:#212121; margin-right:8px; }
+    .chart-pg-size { display:inline-flex; align-items:center; gap:4px; font-family:'Open Sans',sans-serif; font-size:16px; color:#212121;
+      border-bottom:1px solid #9e9e9e; padding:0 0 2px 0; margin-right:32px; }
+    .chart-pg-range { font-family:'Open Sans',sans-serif; font-size:12px; color:#212121; margin-right:24px; }
+    .chart-pg { border:none; background:none; cursor:pointer; padding:0 8px; display:inline-flex; }
+    .chart-pg:disabled { cursor:default; }
+
+    /* Table card header */
+    .tbl-chip { display:flex; align-items:center; gap:4px; height:32px; padding:0 8px 0 12px; border-radius:24px; background:#eee;
+      border:1px solid transparent; cursor:pointer; white-space:nowrap; font-family:'Open Sans',sans-serif; font-size:14px; color:#212121; line-height:20px; }
+    .tbl-chip.is-on { background:rgba(46,204,113,0.12); border-color:#2ecc71; }
+    .tbl-export { display:inline-flex; align-items:center; gap:8px; height:32px; padding:0 12px 0 8px; border:none; border-radius:4px; cursor:pointer;
+      background:#eee; font-family:'Open Sans',sans-serif; font-size:14px; font-weight:600; color:#212121; text-transform:uppercase; letter-spacing:0.4px; }
+    .tbl-export:hover { background:#e0e0e0; }
 
     /* ── Filter: active chip ── */
     .active-chip {
@@ -604,15 +639,20 @@
   <div id="main-content">
 
     <!-- Page title -->
-    <div style="padding:20px 24px 8px;">
-      <h1 id="page-title" style="font-size:30px; font-weight:400; color:#212121; line-height:1.2;">Downtime</h1>
+    <div class="page-head">
+      <h1 id="page-title">Downtime</h1>
+      <div class="page-actions">
+        <button class="page-icon-btn" id="pg-more" title="More"></button>
+        <button class="page-icon-btn" id="pg-share" title="Share"></button>
+        <button class="page-save" id="pg-save"></button>
+      </div>
     </div>
 
 <div style="position:relative; padding:0 24px;">
 <div id="app" style="position:relative;">
 
   <!-- ── Filter bar ─────────────────────────────────────────── -->
-  <div style="height:52px; background:white; border-radius:4px; box-shadow:0 1px 3px rgba(0,0,0,0.12),0 1px 2px rgba(0,0,0,0.08); border-bottom:1px solid #d1d1d1; display:flex; align-items:center; padding:0 15px; gap:7px; position:relative; z-index:30;">
+  <div style="height:48px; background:white; border-radius:4px; box-shadow:0 1px 3px rgba(0,0,0,0.12),0 1px 2px rgba(0,0,0,0.08); display:flex; align-items:center; padding:0 16px; gap:8px; position:relative; z-index:30;">
     <button class="filter-chip active" id="date-btn" onclick="toggleDatePicker()">← Last 7 days →</button>
 
     <!-- Compare chip (always visible) -->
@@ -690,11 +730,11 @@
     <!-- Standing filters, decorative. Same chip component as the added ones
          (Evocon .chip: grey pill, dimension icon, caret) so the bar reads as
          one row rather than two kinds of control. -->
-    <div class="active-chip is-static"><svg width="18" height="18" viewBox="0 0 24 24" fill="#616161"><path d="M12 7H22V21H2V3H12V7ZM4 19H6V17H4V19ZM6 15H4V13H6V15ZM4 11H6V9H4V11ZM6 7H4V5H6V7ZM8 19H10V17H8V19ZM10 15H8V13H10V15ZM8 11H10V9H8V11ZM10 7H8V5H10V7ZM20 19V9H12V11H14V13H12V15H14V17H12V19H20ZM18 11H16V13H18V11ZM16 15H18V17H16V15Z"/></svg><span style="margin:0 2px;">Factories: All</span><svg width="18" height="18" viewBox="0 0 24 24" fill="#616161"><path d="M7 10L12 15L17 10H7Z"/></svg></div>
-    <div class="active-chip is-static"><svg width="18" height="18" viewBox="0 0 24 24" fill="#616161"><path d="M3 2H21C22.1 2 23 2.9 23 4V16C23 17.1 22.1 18 21 18H14V20H16V22H8V20H10V18H3C1.9 18 1 17.1 1 16V4C1 2.9 1.9 2 3 2ZM3 16H21V4H3V16Z"/></svg><span style="margin:0 2px;">Stations: All</span><svg width="18" height="18" viewBox="0 0 24 24" fill="#616161"><path d="M7 10L12 15L17 10H7Z"/></svg></div>
+    <div class="active-chip is-static"><svg width="18" height="18" viewBox="0 0 24 24" fill="#616161"><path fill-rule="evenodd" clip-rule="evenodd" d="M12 7H22V21H2V3H12V7ZM4 19H6V17H4V19ZM6 15H4V13H6V15ZM4 11H6V9H4V11ZM6 7H4V5H6V7ZM8 19H10V17H8V19ZM10 15H8V13H10V15ZM8 11H10V9H8V11ZM10 7H8V5H10V7ZM20 19V9H12V11H14V13H12V15H14V17H12V19H20ZM18 11H16V13H18V11ZM16 15H18V17H16V15Z"/></svg><span style="margin:0 2px;">Factories: All</span><svg width="18" height="18" viewBox="0 0 24 24" fill="#616161"><path d="M7 10L12 15L17 10H7Z"/></svg></div>
+    <div class="active-chip is-static"><svg width="18" height="18" viewBox="0 0 24 24" fill="#616161"><path fill-rule="evenodd" clip-rule="evenodd" d="M3 2H21C22.1 2 23 2.9 23 4V16C23 17.1 22.1 18 21 18H14V20H16V22H8V20H10V18H3C1.9 18 1 17.1 1 16V4C1 2.9 1.9 2 3 2ZM3 16H21V4H3V16Z"/></svg><span style="margin:0 2px;">Stations: All</span><svg width="18" height="18" viewBox="0 0 24 24" fill="#616161"><path d="M7 10L12 15L17 10H7Z"/></svg></div>
 
     <div class="active-chip is-static" id="chip-stop-groups"><svg width="18" height="18" viewBox="0 0 24 24" fill="#616161"><path d="M5 5V19H7V21H3V3H7V5H5ZM20 7H7V9H20V7ZM20 11H7V13H20V11ZM20 15H7V17H20V15Z"/></svg><span style="margin:0 2px;">Stop groups: All</span><svg width="18" height="18" viewBox="0 0 24 24" fill="#616161"><path d="M7 10L12 15L17 10H7Z"/></svg></div>
-    <div class="active-chip is-static" id="chip-stops"><svg width="18" height="18" viewBox="0 0 24 24" fill="#616161"><path d="M2 12C2 6.48 6.48 2 12 2C17.52 2 22 6.48 22 12C22 17.52 17.52 22 12 22C6.48 22 2 17.52 2 12ZM13 16V18H11V16H13ZM12 20C7.59 20 4 16.41 4 12C4 7.59 7.59 4 12 4C16.41 4 20 7.59 20 12C20 16.41 16.41 20 12 20ZM8 10C8 7.79 9.79 6 12 6C14.21 6 16 7.79 16 10C16 11.2829 15.21 11.9733 14.4408 12.6455C13.711 13.2833 13 13.9046 13 15H11C11 13.1787 11.9421 12.4566 12.7704 11.8217C13.4202 11.3236 14 10.8792 14 10C14 8.9 13.1 8 12 8C10.9 8 10 8.9 10 10H8Z"/></svg><span style="margin:0 2px;">Stops: All</span><svg width="18" height="18" viewBox="0 0 24 24" fill="#616161"><path d="M7 10L12 15L17 10H7Z"/></svg></div>
+    <div class="active-chip is-static" id="chip-stops"><svg width="18" height="18" viewBox="0 0 24 24" fill="#616161"><path fill-rule="evenodd" clip-rule="evenodd" d="M2 12C2 6.48 6.48 2 12 2C17.52 2 22 6.48 22 12C22 17.52 17.52 22 12 22C6.48 22 2 17.52 2 12ZM13 16V18H11V16H13ZM12 20C7.59 20 4 16.41 4 12C4 7.59 7.59 4 12 4C16.41 4 20 7.59 20 12C20 16.41 16.41 20 12 20ZM8 10C8 7.79 9.79 6 12 6C14.21 6 16 7.79 16 10C16 11.2829 15.21 11.9733 14.4408 12.6455C13.711 13.2833 13 13.9046 13 15H11C11 13.1787 11.9421 12.4566 12.7704 11.8217C13.4202 11.3236 14 10.8792 14 10C14 8.9 13.1 8 12 8C10.9 8 10 8.9 10 10H8Z"/></svg><span style="margin:0 2px;">Stops: All</span><svg width="18" height="18" viewBox="0 0 24 24" fill="#616161"><path d="M7 10L12 15L17 10H7Z"/></svg></div>
 
     <!-- Active filter chips (added via + FILTER) render here -->
     <div id="active-filters" style="display:flex; align-items:center; gap:7px;"></div>
@@ -713,7 +753,7 @@
 
     <!-- RESET -->
     <button id="filter-reset" onclick="resetFilters()"
-            style="border:none; background:none; cursor:pointer; font-family:'Open Sans',sans-serif; font-size:14px; font-weight:600; color:#212121; text-transform:uppercase; white-space:nowrap; padding:0 8px; opacity:0.45;">Reset</button>
+            style="border:none; background:none; cursor:pointer; font-family:\'Open Sans\',sans-serif; font-size:12px; font-weight:600; letter-spacing:0.4px; color:#212121; text-transform:uppercase; white-space:nowrap; padding:0 8px; opacity:0.38;">Reset</button>
 
     <!-- Selection-list dropdown (shared; positioned under the active chip) -->
     <div class="selection-list" id="selection-list"></div>
@@ -722,8 +762,8 @@
   <!-- ── Downtime chart section ────────────────────────────── -->
   <div id="downtime-chart-section" style="margin-top:16px; background:white; border-radius:4px; box-shadow:0 1px 3px rgba(0,0,0,0.12),0 1px 2px rgba(0,0,0,0.08);">
     <!-- Chart controls -->
-    <div style="height:48px; background:white; border-bottom:1px solid #d1d1d1; display:flex; align-items:center; padding:0 15px; position:relative; z-index:20; border-radius:4px 4px 0 0;">
-      <button style="font-size:13px; font-weight:500; color:#212121; background:none; border:none; cursor:pointer; padding:0;">← BACK</button>
+    <div class="chart-head" style="position:relative; z-index:20; border-radius:4px 4px 0 0;">
+      <button class="chart-back"><span class="chart-back-icn"></span>Back</button>
       <div style="flex:1;"></div>
       <div style="display:flex; gap:8px; align-items:center;">
         <button class="filter-chip active" id="dt-yaxis-btn">Y-axis: Duration</button>
@@ -750,10 +790,11 @@
   </div>
 
   <!-- ── OEE chart section ──────────────────────────────────── -->
-  <div id="oee-chart-section" style="display:none;">
+  <div id="oee-chart-section" class="report-section" style="display:none;">
+    <div class="report-card">
     <!-- Chart controls -->
-    <div style="height:48px; background:white; border-bottom:1px solid #d1d1d1; display:flex; align-items:center; padding:0 15px; position:relative; z-index:20;">
-      <button style="font-size:13px; font-weight:500; color:#212121; background:none; border:none; cursor:pointer; padding:0;">← BACK</button>
+    <div class="chart-head" style="position:relative; z-index:20;">
+      <button class="chart-back"><span class="chart-back-icn"></span>Back</button>
       <div style="flex:1;"></div>
       <div style="display:flex; gap:8px; align-items:center;">
         <div style="position:relative;">
@@ -772,34 +813,27 @@
       </div>
     </div>
     <!-- Chart area -->
-    <div style="height:460px; background:white; display:flex; flex-direction:column; overflow:hidden;">
+    <div style="height:540px; background:white; display:flex; flex-direction:column; overflow:hidden;">
       <div id="oee-chart-container" style="flex:1; min-height:0; position:relative;"></div>
-      <div style="display:flex; align-items:center; padding:6px 20px 12px 20px; flex-shrink:0;">
+      <!-- Fixed height: the chart measures its container before the legend fills in. -->
+      <div style="display:flex; align-items:center; height:56px; padding:0 16px 8px 24px; flex-shrink:0;">
         <div id="oee-chart-legend" style="display:flex; flex-wrap:wrap; gap:6px 18px; flex:1;"></div>
         <div id="oee-pager" style="display:none; align-items:center; gap:4px;"></div>
       </div>
     </div>
+    </div>
     <!-- Data table — same chrome as the Downtime table -->
-    <div id="oee-table-wrap" style="display:none; padding:16px 24px 32px;">
+    <div id="oee-table-wrap" style="display:none; padding:16px 0 32px;">
       <div class="dt-card">
         <div style="padding:8px 8px 8px 16px; display:flex; align-items:center; justify-content:space-between;">
           <div style="display:flex; align-items:center; gap:8px; flex-shrink:0;">
             <span style="font-family:'Open Sans',sans-serif; font-size:20px; font-weight:600; color:#212121; line-height:1.296;">OEE</span>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="#9e9e9e" style="flex-shrink:0;"><path d="M13,9H11V7H13M13,17H11V11H13M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2Z"/></svg>
+            <span class="tbl-info"></span>
           </div>
           <div style="display:flex; gap:8px; align-items:center; flex-shrink:0;">
-            <div style="display:flex; align-items:center; gap:4px; height:32px; padding:0 12px; border-radius:24px; border:1px solid #2ecc71; background:rgba(46,204,113,0.12); cursor:pointer; white-space:nowrap;">
-              <span id="oee-col-count" style="font-family:'Open Sans',sans-serif; font-size:14px; color:#212121; line-height:20px;">Columns: 21</span>
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="#212121"><path d="M7,10L12,15L17,10H7Z"/></svg>
-            </div>
-            <div style="display:flex; align-items:center; gap:4px; height:32px; padding:0 12px; border-radius:24px; border:1px solid #2ecc71; background:rgba(46,204,113,0.12); cursor:pointer; white-space:nowrap;">
-              <span style="font-family:'Open Sans',sans-serif; font-size:14px; color:#212121; line-height:20px;">Time format: Readable</span>
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="#212121"><path d="M7,10L12,15L17,10H7Z"/></svg>
-            </div>
-            <div style="display:flex; align-items:center; gap:4px; height:32px; padding:0 12px; border-radius:24px; background:#eeeeee; cursor:pointer; white-space:nowrap;">
-              <span style="font-family:'Open Sans',sans-serif; font-size:14px; color:#212121; line-height:20px;">Export</span>
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="#212121"><path d="M7,10L12,15L17,10H7Z"/></svg>
-            </div>
+            <div class="tbl-chip is-on"><span class="tbl-cols-icn"></span><span id="oee-col-count">Columns: 21</span><span class="tbl-caret"></span></div>
+            <div class="tbl-chip is-on"><span class="tbl-time-icn"></span><span>Time format: Readable</span><span class="tbl-caret"></span></div>
+            <button class="tbl-export"><span class="tbl-dl-icn"></span>Export</button>
           </div>
         </div>
         <div class="dt-scroll" id="oee-scroll">
@@ -818,10 +852,11 @@
   </div>
 
   <!-- ── Quantities report ─────────────────────────────────────── -->
-  <div id="qty-chart-section" style="display:none;">
+  <div id="qty-chart-section" class="report-section" style="display:none;">
+    <div class="report-card">
     <!-- Chart controls -->
-    <div style="height:48px; background:white; border-bottom:1px solid #d1d1d1; display:flex; align-items:center; padding:0 15px; position:relative; z-index:20;">
-      <button style="font-size:13px; font-weight:500; color:#212121; background:none; border:none; cursor:pointer; padding:0;">← BACK</button>
+    <div class="chart-head" style="position:relative; z-index:20;">
+      <button class="chart-back"><span class="chart-back-icn"></span>Back</button>
       <div style="flex:1;"></div>
       <div style="display:flex; gap:8px; align-items:center;">
         <button class="filter-chip active" id="qty-yaxis-btn">Y-axis: Quantity (primary unit)</button>
@@ -837,30 +872,26 @@
       </div>
     </div>
     <!-- Chart area -->
-    <div style="height:460px; background:white; display:flex; flex-direction:column; overflow:hidden;">
+    <div style="height:540px; background:white; display:flex; flex-direction:column; overflow:hidden;">
       <div id="qty-chart-container" style="flex:1; min-height:0; position:relative;"></div>
-      <div style="display:flex; align-items:center; padding:6px 20px 12px 20px; flex-shrink:0;">
+      <!-- Fixed height: the chart measures its container before the legend fills in. -->
+      <div style="display:flex; align-items:center; height:56px; padding:0 16px 8px 24px; flex-shrink:0;">
         <div id="qty-chart-legend" style="display:flex; flex-wrap:wrap; gap:6px 18px; flex:1;"></div>
         <div id="qty-pager" style="display:none; align-items:center; gap:4px;"></div>
       </div>
     </div>
+    </div>
     <!-- Data table — same chrome as the Downtime table -->
-    <div id="qty-table-wrap" style="display:none; padding:16px 24px 32px;">
+    <div id="qty-table-wrap" style="display:none; padding:16px 0 32px;">
       <div class="dt-card">
         <div style="padding:8px 8px 8px 16px; display:flex; align-items:center; justify-content:space-between;">
           <div style="display:flex; align-items:center; gap:8px; flex-shrink:0;">
             <span style="font-family:'Open Sans',sans-serif; font-size:20px; font-weight:600; color:#212121; line-height:1.296;">Quantities</span>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="#9e9e9e" style="flex-shrink:0;"><path d="M13,9H11V7H13M13,17H11V11H13M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2Z"/></svg>
+            <span class="tbl-info"></span>
           </div>
           <div style="display:flex; gap:8px; align-items:center; flex-shrink:0;">
-            <div style="display:flex; align-items:center; gap:4px; height:32px; padding:0 12px; border-radius:24px; border:1px solid #2ecc71; background:rgba(46,204,113,0.12); cursor:pointer; white-space:nowrap;">
-              <span id="qty-col-count" style="font-family:'Open Sans',sans-serif; font-size:14px; color:#212121; line-height:20px;">Columns: 11</span>
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="#212121"><path d="M7,10L12,15L17,10H7Z"/></svg>
-            </div>
-            <div style="display:flex; align-items:center; gap:4px; height:32px; padding:0 12px; border-radius:24px; background:#eeeeee; cursor:pointer; white-space:nowrap;">
-              <span style="font-family:'Open Sans',sans-serif; font-size:14px; color:#212121; line-height:20px;">Export</span>
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="#212121"><path d="M7,10L12,15L17,10H7Z"/></svg>
-            </div>
+            <div class="tbl-chip is-on"><span class="tbl-cols-icn"></span><span id="qty-col-count">Columns: 11</span><span class="tbl-caret"></span></div>
+            <button class="tbl-export"><span class="tbl-dl-icn"></span>Export</button>
           </div>
         </div>
         <div class="dt-scroll" id="qty-scroll">
@@ -967,24 +998,15 @@
     <div style="padding:8px 8px 8px 16px; display:flex; align-items:center; justify-content:space-between;">
       <div style="display:flex; align-items:center; gap:8px; flex-shrink:0;">
         <span style="font-family:'Open Sans',sans-serif; font-size:20px; font-weight:600; color:#212121; line-height:1.296; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">Downtime</span>
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="#9e9e9e" style="flex-shrink:0;"><path d="M13,9H11V7H13M13,17H11V11H13M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10,10 0 0,0 12,2Z"/></svg>
+        <span class="tbl-info"></span>
       </div>
       <div style="display:flex; gap:8px; align-items:center; flex-shrink:0;">
         <!-- Columns chip -->
-        <div style="display:flex; align-items:center; gap:4px; height:32px; padding:0 12px; border-radius:24px; border:1px solid #2ecc71; background:rgba(46,204,113,0.12); cursor:pointer; white-space:nowrap;">
-          <span style="font-family:'Open Sans',sans-serif; font-size:14px; color:#212121; line-height:20px;">Columns: 20</span>
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="#212121"><path d="M7,10L12,15L17,10H7Z"/></svg>
-        </div>
+        <div class="tbl-chip is-on"><span class="tbl-cols-icn"></span><span>Columns: 20</span><span class="tbl-caret"></span></div>
         <!-- Time format chip -->
-        <div style="display:flex; align-items:center; gap:4px; height:32px; padding:0 12px; border-radius:24px; border:1px solid #2ecc71; background:rgba(46,204,113,0.12); cursor:pointer; white-space:nowrap;">
-          <span style="font-family:'Open Sans',sans-serif; font-size:14px; color:#212121; line-height:20px;">Time format: Readable</span>
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="#212121"><path d="M7,10L12,15L17,10H7Z"/></svg>
-        </div>
+        <div class="tbl-chip is-on"><span class="tbl-time-icn"></span><span>Time format: Readable</span><span class="tbl-caret"></span></div>
         <!-- Export chip -->
-        <div style="display:flex; align-items:center; gap:4px; height:32px; padding:0 12px; border-radius:24px; background:#eeeeee; cursor:pointer; white-space:nowrap;">
-          <span style="font-family:'Open Sans',sans-serif; font-size:14px; color:#212121; line-height:20px;">Export</span>
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="#212121"><path d="M7,10L12,15L17,10H7Z"/></svg>
-        </div>
+        <button class="tbl-export"><span class="tbl-dl-icn"></span>Export</button>
       </div>
     </div>
     <!-- Scrollable table -->
