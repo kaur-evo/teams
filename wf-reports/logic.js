@@ -831,16 +831,18 @@ function renderTable() {
 
   // Header
   let headHtml = `<tr style="height:32px;">`;
-  headHtml += `<th class="dt-fixed" style="width:${_dtFixedWidth}px;min-width:${_dtFixedWidth}px;text-align:left;padding:0 12px;font-family:'Open Sans',sans-serif;font-size:13px;font-weight:600;color:#424242;position:sticky;left:0;overflow:visible;">
+  headHtml += `<th class="dt-fixed" style="width:${_dtFixedWidth}px;text-align:left;padding:0 12px;font-family:'Open Sans',sans-serif;font-size:13px;font-weight:600;color:#424242;position:sticky;left:0;overflow:visible;">
     <div class="dt-th-inner">${ICON_Y_INLINE}&nbsp;${_dtColLabel}</div>
     <div class="dt-col-resize"></div></th>`;
   activeCols.forEach(col => {
     const inner = `<div class="dt-th-inner ${col.align === 'right' ? 'right' : ''}">${col.iconY ? ICON_Y_INLINE+'&nbsp;' : ''}${col.label}</div>`;
-    const wStyle = col.mono ? `white-space:nowrap;` : `width:${col.width}px;min-width:${col.width}px;`;
+    // No width: in the fixed layout the columns share what the first one leaves.
+    const wStyle = `white-space:nowrap;overflow:hidden;`;
     headHtml += `<th style="${wStyle}text-align:${col.align};font-family:'Open Sans',sans-serif;font-size:12px;font-weight:600;color:#424242;">${inner}</th>`;
   });
   headHtml += `</tr>`;
   document.getElementById('dt-head').innerHTML = headHtml;
+  setTableMinWidth('dt-table', _dtFixedWidth, activeCols.length);
 
   // Body rows
   const compareOn   = _appliedCompareOn;
@@ -901,7 +903,7 @@ function renderTable() {
     const tipAttrs = (cmpValForTip !== null && cmpValForTip !== undefined && mainVal !== null)
       ? ` data-main="${mainVal}" data-cmp="${cmpValForTip}" data-unit="${col.unit || ''}"${col.neutral ? ' data-neutral="true"' : ''}`
       : '';
-    const wStyle = col.mono ? 'white-space:nowrap;' : `width:${col.width}px;min-width:${col.width}px;`;
+    const wStyle = 'overflow:hidden;';
     return `<td${tipAttrs} style="font-family:${ff};font-size:14px;color:#212121;text-align:${col.align};${vAlign}${wStyle}padding:4px 16px 4px 8px;">${cellContent}</td>`;
   };
 
@@ -965,7 +967,7 @@ function renderTable() {
       cellContent = `<div style="font-size:14px;line-height:20px;color:#212121;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${mainHtml}</div>`;
     }
     const vAlign = compareOn ? 'vertical-align:top;' : 'vertical-align:middle;';
-    const wStyleTot = col.mono ? 'white-space:nowrap;' : `width:${col.width}px;min-width:${col.width}px;`;
+    const wStyleTot = 'overflow:hidden;';
     const cmpValTot = compareOn && col.mono ? cellCmpVal(tot, col) : null;
     const tipAttrsTot = (cmpValTot !== null && cmpValTot !== undefined && mainVal !== null)
       ? ` data-main="${mainVal}" data-cmp="${cmpValTot}" data-unit="${col.unit || ''}"${col.neutral ? ' data-neutral="true"' : ''}`
@@ -986,6 +988,13 @@ function renderTable() {
 function dtPrev() { if (_dtPage > 0) { _dtPage--; renderTable(); } }
 function dtNext() { if ((_dtPage + 1) * DT_PER_PAGE < _dtData.length) { _dtPage++; renderTable(); } }
 
+// Columns shrink with the window down to this width; below it the table
+// scrolls sideways rather than squeezing values into dots.
+const TBL_MIN_COL = 72;
+function setTableMinWidth(tableId, firstWidth, nCols) {
+  const t = document.getElementById(tableId);
+  if (t) t.style.minWidth = (firstWidth + nCols * TBL_MIN_COL) + 'px';
+}
 // ── Chart ─────────────────────────────────────────────────────────────────────
 
 function initChart() {
@@ -2299,19 +2308,23 @@ function renderStyledTable(ctx) {
 
   // Header — sticky first col + scrolling cols.
   let headHtml = `<tr style="height:32px;">`;
-  headHtml += `<th class="dt-fixed" style="text-align:left;padding:0 16px;font-family:'Open Sans',sans-serif;font-size:13px;font-weight:600;color:#424242;position:sticky;left:0;">`
+  // Fixed layout: the first column keeps 168px, the rest share what's left and
+  // shrink with the window; long values end in "…" with the full text on hover.
+  headHtml += `<th class="dt-fixed" style="width:168px;text-align:left;padding:0 16px;font-family:'Open Sans',sans-serif;font-size:13px;font-weight:600;color:#424242;position:sticky;left:0;">`
     + `<div class="dt-th-inner">${icn('xAxis', 16, '#424242')}&nbsp;${ctx.firstHeader}</div></th>`;
   ctx.cols.forEach(c => {
     const right = c.align === 'right';
-    headHtml += `<th style="text-align:${right?'right':'left'};white-space:nowrap;padding:0 16px 0 8px;font-family:'Open Sans',sans-serif;font-size:12px;font-weight:600;color:#424242;">`
+    headHtml += `<th title="${c.label}" style="text-align:${right?'right':'left'};white-space:nowrap;overflow:hidden;padding:0 16px 0 8px;font-family:'Open Sans',sans-serif;font-size:12px;font-weight:600;color:#424242;">`
       + `<div class="dt-th-inner ${right?'right':''}">${c.label}</div></th>`;
   });
   headHtml += `</tr>`;
   head.innerHTML = headHtml;
+  setTableMinWidth(ctx.key + '-table', 168, ctx.cols.length);
 
   // Body
+  const plain = h => String(h).replace(/<[^>]*>/g, '').replace(/"/g, '&quot;');
   const cellTd = (html, align, bold) =>
-    `<td style="text-align:${align==='right'?'right':'left'};font-family:'Open Sans',sans-serif;font-variant-numeric:tabular-nums;font-size:14px;${bold?'font-weight:600;':''}color:#212121;vertical-align:middle;padding:6px 16px 6px 8px;white-space:nowrap;">${html}</td>`;
+    `<td title="${plain(html)}" style="text-align:${align==='right'?'right':'left'};font-family:'Open Sans',sans-serif;font-variant-numeric:tabular-nums;font-size:14px;${bold?'font-weight:600;':''}color:#212121;vertical-align:middle;padding:6px 16px 6px 8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${html}</td>`;
   const firstTd = (label, rowClass) =>
     `<td class="dt-fixed" style="font-family:'Open Sans',sans-serif;font-size:14px;font-weight:600;color:#212121;vertical-align:middle;padding:6px 16px;"><div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${label}</div></td>`;
 
@@ -2936,6 +2949,18 @@ function drawQtyChart() {
     renderQtyTable(qtyTableRows(selectedBlocks(), outerDim), OEE_DIMS[outerDim].header);
   }
 }
+
+// Charts are drawn at the container's size, so redraw the open report when the
+// window is resized (debounced — d3 rebuilds the whole SVG).
+let _resizeTimer = null;
+window.addEventListener('resize', () => {
+  clearTimeout(_resizeTimer);
+  _resizeTimer = setTimeout(() => {
+    if (currentReport === 'oee') drawOeeChart();
+    else if (currentReport === 'quantities') drawQtyChart();
+    else redrawChart(currentXAxis);
+  }, 120);
+});
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 
